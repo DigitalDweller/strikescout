@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import type { Event, Team, EventTeam } from "@shared/schema";
 import fieldImagePath from "@assets/6846b9eeb548474b11b6b16d828c2e6092a99131_1771896624665.png";
+import heatmapFieldPath from "@assets/hehehehe_1771897335677.png";
 
 function BigCounterInput({
   value,
@@ -260,7 +261,7 @@ function ShootingHeatmap({
 
   useEffect(() => {
     const img = new Image();
-    img.src = fieldImagePath;
+    img.src = heatmapFieldPath;
     img.onload = () => { fieldImgRef.current = img; drawHeatmap(); };
     fieldImgRef.current = img;
   }, []);
