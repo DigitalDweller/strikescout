@@ -33,7 +33,7 @@ import {
   Crosshair,
 } from "lucide-react";
 import type { Event, Team, EventTeam } from "@shared/schema";
-import fieldImagePath from "@assets/6846b9eeb548474b11b6b16d828c2e6092a99131_1771896451988.png";
+import fieldImagePath from "@assets/6846b9eeb548474b11b6b16d828c2e6092a99131_1771896624665.png";
 
 function BigCounterInput({
   value,
@@ -126,11 +126,14 @@ function FieldDrawingCanvas({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    ctx.fillStyle = "#f0f0f0";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (fieldImgRef.current?.complete) {
-      ctx.drawImage(fieldImgRef.current, 0, 0, canvas.width, canvas.height);
-    } else {
-      ctx.fillStyle = "#1a5c1a";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const img = fieldImgRef.current;
+      const scale = Math.min(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
+      const dw = img.naturalWidth * scale;
+      const dh = img.naturalHeight * scale;
+      ctx.drawImage(img, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
     }
 
     const allStrokes = [...strokes, currentStroke];
@@ -288,11 +291,14 @@ function ShootingHeatmap({
 
     ctx.clearRect(0, 0, W, H);
 
+    ctx.fillStyle = "#f0f0f0";
+    ctx.fillRect(0, 0, W, H);
     if (fieldImgRef.current?.complete) {
-      ctx.drawImage(fieldImgRef.current, 0, 0, W, H);
-    } else {
-      ctx.fillStyle = "#1e3a5f";
-      ctx.fillRect(0, 0, W, H);
+      const img = fieldImgRef.current;
+      const scale = Math.min(W / img.naturalWidth, H / img.naturalHeight);
+      const dw = img.naturalWidth * scale;
+      const dh = img.naturalHeight * scale;
+      ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
     }
 
     if (points.length > 0) {
