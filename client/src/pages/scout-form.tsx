@@ -327,8 +327,8 @@ function ShootingHeatmap({
       for (const [key, val] of Object.entries(intensity)) {
         const [gx, gy] = key.split(",").map(Number);
         const norm = val / maxI;
-        const r = norm > 0.5 ? 255 : Math.floor(norm * 2 * 255);
-        const g = norm < 0.5 ? Math.floor(norm * 2 * 200) : Math.floor((1 - norm) * 2 * 200);
+        const r = 255;
+        const g = Math.floor((1 - norm) * 255);
         ctx.fillStyle = `rgba(${r}, ${g}, 0, ${Math.min(norm * 0.85 + 0.15, 0.95)})`;
         ctx.fillRect(gx * grid, gy * grid, grid, grid);
       }
