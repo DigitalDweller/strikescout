@@ -245,6 +245,172 @@ function FieldDrawingCanvas({
   );
 }
 
+function ShootingHeatmap({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [points, setPoints] = useState<{ x: number; y: number }[]>([]);
+  const prevValueRef = useRef(value);
+
+  useEffect(() => {
+    if (value !== prevValueRef.current) {
+      prevValueRef.current = value;
+      if (value) {
+        try {
+          const parsed = JSON.parse(value);
+          if (Array.isArray(parsed)) {
+            setPoints(parsed);
+            return;
+          }
+        } catch {}
+      }
+      setPoints([]);
+    }
+  }, [value]);
+
+  const drawHeatmap = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const W = canvas.width;
+    const H = canvas.height;
+
+    ctx.clearRect(0, 0, W, H);
+
+    ctx.fillStyle = "#1e3a5f";
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = "#ffffff22";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(W / 2, 0);
+    ctx.lineTo(W / 2, H);
+    ctx.stroke();
+    ctx.strokeStyle = "#ffffff33";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(5, 5, W - 10, H - 10);
+
+    ctx.strokeStyle = "#ffffff22";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(W * 0.12, H / 2, 30, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(W * 0.88, H / 2, 30, 0, Math.PI * 2);
+    ctx.stroke();
+
+    if (points.length > 0) {
+      const radius = 35;
+      const grid = 4;
+      const intensity: Record<string, number> = {};
+      let maxI = 0;
+      for (const p of points) {
+        const gx = Math.floor((p.x * W) / grid);
+        const gy = Math.floor((p.y * H) / grid);
+        for (let dx = -Math.ceil(radius / grid); dx <= Math.ceil(radius / grid); dx++) {
+          for (let dy = -Math.ceil(radius / grid); dy <= Math.ceil(radius / grid); dy++) {
+            const cx = (gx + dx) * grid + grid / 2;
+            const cy = (gy + dy) * grid + grid / 2;
+            const dist = Math.sqrt((cx - p.x * W) ** 2 + (cy - p.y * H) ** 2);
+            if (dist < radius) {
+              const key = `${gx + dx},${gy + dy}`;
+              const weight = 1 - dist / radius;
+              intensity[key] = (intensity[key] || 0) + weight;
+              if (intensity[key] > maxI) maxI = intensity[key];
+            }
+          }
+        }
+      }
+
+      for (const [key, val] of Object.entries(intensity)) {
+        const [gx, gy] = key.split(",").map(Number);
+        const norm = val / maxI;
+        const r = norm > 0.5 ? 255 : Math.floor(norm * 2 * 255);
+        const g = norm < 0.5 ? Math.floor(norm * 2 * 200) : Math.floor((1 - norm) * 2 * 200);
+        ctx.fillStyle = `rgba(${r}, ${g}, 0, ${Math.min(norm * 0.7 + 0.1, 0.85)})`;
+        ctx.fillRect(gx * grid, gy * grid, grid, grid);
+      }
+
+      for (const p of points) {
+        ctx.beginPath();
+        ctx.arc(p.x * W, p.y * H, 3, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffffcc";
+        ctx.fill();
+      }
+    }
+  }, [points]);
+
+  useEffect(() => {
+    drawHeatmap();
+  }, [drawHeatmap]);
+
+  const handleTap = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    let clientX: number, clientY: number;
+    if ("touches" in e) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    const x = (clientX - rect.left) / rect.width;
+    const y = (clientY - rect.top) / rect.height;
+    const newPoints = [...points, { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) }];
+    setPoints(newPoints);
+    prevValueRef.current = JSON.stringify(newPoints);
+    onChange(JSON.stringify(newPoints));
+  };
+
+  const undo = () => {
+    const newPoints = points.slice(0, -1);
+    setPoints(newPoints);
+    prevValueRef.current = newPoints.length ? JSON.stringify(newPoints) : "";
+    onChange(newPoints.length ? JSON.stringify(newPoints) : "");
+  };
+
+  const clear = () => {
+    setPoints([]);
+    prevValueRef.current = "";
+    onChange("");
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-medium">Shooting Heatmap</Label>
+        <div className="flex gap-1">
+          <Button type="button" size="sm" variant="outline" onClick={undo} data-testid="button-heatmap-undo">
+            <Undo2 className="h-4 w-4" />
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={clear} data-testid="button-heatmap-clear">
+            <Eraser className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+      <canvas
+        ref={canvasRef}
+        width={400}
+        height={250}
+        className="w-full rounded-md border border-border touch-none cursor-crosshair"
+        style={{ aspectRatio: "400/250" }}
+        onMouseDown={handleTap}
+        onTouchStart={handleTap}
+        data-testid="canvas-shooting-heatmap"
+      />
+      <p className="text-xs text-muted-foreground">Tap where the robot shoots from — more taps = hotter zone</p>
+    </div>
+  );
+}
+
 function RatingSelector({
   value,
   onChange,
@@ -570,23 +736,10 @@ export default function ScoutForm() {
             testId="teleop-balls"
           />
 
-          <div>
-            <Label className="text-sm font-medium">Preferred Shooting Position</Label>
-            <Select
-              value={currentForm.teleopShootPosition}
-              onValueChange={(v) => updateField("teleopShootPosition", v)}
-            >
-              <SelectTrigger className="h-12 mt-1.5" data-testid="select-shoot-position">
-                <SelectValue placeholder="Where do they like to shoot?" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="close">Close Range</SelectItem>
-                <SelectItem value="mid">Mid Range</SelectItem>
-                <SelectItem value="far">Far / Long Range</SelectItem>
-                <SelectItem value="varied">Multiple Positions</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <ShootingHeatmap
+            value={currentForm.teleopShootPosition}
+            onChange={(v) => updateField("teleopShootPosition", v)}
+          />
 
           <div className="flex items-center justify-between p-4 rounded-lg border">
             <Label className="text-sm font-medium">Moves While Shooting?</Label>
