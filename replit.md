@@ -30,7 +30,7 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 - **events** - id, name, location, startDate, isActive, currentMatchNumber
 - **teams** - id, teamNumber, teamName
 - **event_teams** - junction table linking teams to events
-- **scouting_entries** - id, scouterId, eventId, teamId, matchNumber, autoBallsShot, autoNotes, autoDrawing, teleopBallsShot, teleopShootPosition, teleopMoveWhileShoot, teleopFpsEstimate, teleopAccuracy, climbSuccess, climbPosition, defenseRating, defenseNotes, driverSkillNotes, notes, createdAt
+- **scouting_entries** - id, scouterId, eventId, teamId, matchNumber, autoBallsShot, autoNotes, autoDrawing, autoClimbSuccess, autoClimbPosition, autoClimbLevel, teleopBallsShot, teleopShootPosition, teleopMoveWhileShoot, teleopFpsEstimate, teleopAccuracy, climbSuccess, climbPosition, climbLevel, defenseRating, defenseNotes, driverSkillNotes, notes, createdAt
 
 ## Default Credentials (Seed Data)
 - Admin: `admin123` / `admin123`

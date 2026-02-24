@@ -453,6 +453,9 @@ export default function ScoutForm() {
     autoBallsShot: number;
     autoNotes: string;
     autoDrawing: string;
+    autoClimbSuccess: string;
+    autoClimbPosition: string;
+    autoClimbLevel: string;
     teleopBallsShot: number;
     teleopShootPosition: string;
     teleopMoveWhileShoot: boolean;
@@ -460,6 +463,7 @@ export default function ScoutForm() {
     teleopAccuracy: number;
     climbSuccess: string;
     climbPosition: string;
+    climbLevel: string;
     defenseRating: number;
     defenseNotes: string;
     driverSkillNotes: string;
@@ -473,6 +477,9 @@ export default function ScoutForm() {
       autoBallsShot: 0,
       autoNotes: "",
       autoDrawing: "",
+      autoClimbSuccess: "none",
+      autoClimbPosition: "",
+      autoClimbLevel: "",
       teleopBallsShot: 0,
       teleopShootPosition: "",
       teleopMoveWhileShoot: false,
@@ -480,6 +487,7 @@ export default function ScoutForm() {
       teleopAccuracy: 5,
       climbSuccess: "none",
       climbPosition: "",
+      climbLevel: "",
       defenseRating: 0,
       defenseNotes: "",
       driverSkillNotes: "",
@@ -706,6 +714,76 @@ export default function ScoutForm() {
           />
 
           <div>
+            <Label className="text-sm font-medium">Auto Climb Result</Label>
+            <div className="grid grid-cols-3 gap-2 mt-1.5">
+              {[
+                { value: "success", label: "Climbed" },
+                { value: "failed", label: "Failed" },
+                { value: "none", label: "Didn't Try" },
+              ].map((opt) => (
+                <Button
+                  key={opt.value}
+                  type="button"
+                  variant={currentForm.autoClimbSuccess === opt.value ? "default" : "outline"}
+                  className="h-14 text-base"
+                  onClick={() => updateField("autoClimbSuccess", opt.value)}
+                  data-testid={`button-auto-climb-${opt.value}`}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {currentForm.autoClimbSuccess !== "none" && (
+            <>
+              <div>
+                <Label className="text-sm font-medium">Auto Climb Position</Label>
+                <div className="grid grid-cols-3 gap-2 mt-1.5">
+                  {[
+                    { value: "left", label: "Left" },
+                    { value: "middle", label: "Middle" },
+                    { value: "right", label: "Right" },
+                  ].map((opt) => (
+                    <Button
+                      key={opt.value}
+                      type="button"
+                      variant={currentForm.autoClimbPosition === opt.value ? "default" : "outline"}
+                      className="h-14 text-base"
+                      onClick={() => updateField("autoClimbPosition", opt.value)}
+                      data-testid={`button-auto-climb-pos-${opt.value}`}
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium">Auto Climb Level</Label>
+                <div className="grid grid-cols-3 gap-2 mt-1.5">
+                  {[
+                    { value: "1", label: "Level 1" },
+                    { value: "2", label: "Level 2" },
+                    { value: "3", label: "Level 3" },
+                  ].map((opt) => (
+                    <Button
+                      key={opt.value}
+                      type="button"
+                      variant={currentForm.autoClimbLevel === opt.value ? "default" : "outline"}
+                      className="h-14 text-base"
+                      onClick={() => updateField("autoClimbLevel", opt.value)}
+                      data-testid={`button-auto-climb-level-${opt.value}`}
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          <div>
             <Label className="text-sm font-medium">Auto Notes</Label>
             <Textarea
               value={currentForm.autoNotes}
@@ -823,27 +901,51 @@ export default function ScoutForm() {
           </div>
 
           {currentForm.climbSuccess !== "none" && (
-            <div>
-              <Label className="text-sm font-medium">Climb Position</Label>
-              <div className="grid grid-cols-3 gap-2 mt-1.5">
-                {[
-                  { value: "left", label: "Left" },
-                  { value: "middle", label: "Middle" },
-                  { value: "right", label: "Right" },
-                ].map((opt) => (
-                  <Button
-                    key={opt.value}
-                    type="button"
-                    variant={currentForm.climbPosition === opt.value ? "default" : "outline"}
-                    className="h-14 text-base"
-                    onClick={() => updateField("climbPosition", opt.value)}
-                    data-testid={`button-climb-pos-${opt.value}`}
-                  >
-                    {opt.label}
-                  </Button>
-                ))}
+            <>
+              <div>
+                <Label className="text-sm font-medium">Climb Position</Label>
+                <div className="grid grid-cols-3 gap-2 mt-1.5">
+                  {[
+                    { value: "left", label: "Left" },
+                    { value: "middle", label: "Middle" },
+                    { value: "right", label: "Right" },
+                  ].map((opt) => (
+                    <Button
+                      key={opt.value}
+                      type="button"
+                      variant={currentForm.climbPosition === opt.value ? "default" : "outline"}
+                      className="h-14 text-base"
+                      onClick={() => updateField("climbPosition", opt.value)}
+                      data-testid={`button-climb-pos-${opt.value}`}
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
               </div>
-            </div>
+
+              <div>
+                <Label className="text-sm font-medium">Climb Level</Label>
+                <div className="grid grid-cols-3 gap-2 mt-1.5">
+                  {[
+                    { value: "1", label: "Level 1" },
+                    { value: "2", label: "Level 2" },
+                    { value: "3", label: "Level 3" },
+                  ].map((opt) => (
+                    <Button
+                      key={opt.value}
+                      type="button"
+                      variant={currentForm.climbLevel === opt.value ? "default" : "outline"}
+                      className="h-14 text-base"
+                      onClick={() => updateField("climbLevel", opt.value)}
+                      data-testid={`button-climb-level-${opt.value}`}
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
