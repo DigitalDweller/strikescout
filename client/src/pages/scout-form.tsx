@@ -762,10 +762,16 @@ export default function ScoutForm() {
               <input
                 type="number"
                 min={0}
-                value={currentForm.teleopFpsEstimate}
+                value={currentForm.teleopFpsEstimate === 0 ? "" : currentForm.teleopFpsEstimate}
+                placeholder="0"
                 onChange={(e) => {
-                  const v = parseInt(e.target.value, 10);
-                  updateField("teleopFpsEstimate", isNaN(v) ? 0 : Math.max(0, v));
+                  const raw = e.target.value;
+                  if (raw === "") {
+                    updateField("teleopFpsEstimate", 0);
+                  } else {
+                    const v = parseInt(raw, 10);
+                    if (!isNaN(v)) updateField("teleopFpsEstimate", Math.max(0, v));
+                  }
                 }}
                 className="h-16 text-4xl font-bold text-center tabular-nums flex-1 min-w-0 bg-transparent border rounded-md focus:outline-none focus:ring-2 focus:ring-ring [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 data-testid="input-fps-estimate"
