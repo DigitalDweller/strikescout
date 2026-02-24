@@ -25,7 +25,10 @@ import {
   BarChart3,
   LogOut,
   Bot,
+  Moon,
+  Sun,
 } from "lucide-react";
+import { useTheme } from "@/hooks/use-theme";
 
 const adminItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -42,6 +45,7 @@ const scouterItems = [
 export function AppSidebar() {
   const { user, logoutMutation } = useAuth();
   const [location] = useLocation();
+  const { theme, toggleTheme } = useTheme();
 
   if (!user) return null;
 
@@ -108,6 +112,14 @@ export function AppSidebar() {
             <p className="text-sm font-medium truncate" data-testid="text-user-display-name">{user.displayName}</p>
             <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
           </div>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={toggleTheme}
+            data-testid="button-toggle-theme"
+          >
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
           <Button
             size="icon"
             variant="ghost"
