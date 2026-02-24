@@ -750,12 +750,40 @@ export default function ScoutForm() {
             />
           </div>
 
-          <BigCounterInput
-            value={currentForm.teleopFpsEstimate}
-            onChange={(v) => updateField("teleopFpsEstimate", v)}
-            label="Estimated FPS (Feet Per Second)"
-            testId="fps-estimate"
-          />
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Estimated FPS (Fuel Per Second)</Label>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-16 w-16 text-2xl shrink-0"
+                onClick={() => updateField("teleopFpsEstimate", Math.max(0, currentForm.teleopFpsEstimate - 1))}
+                data-testid="button-fps-estimate-minus"
+              >
+                <Minus className="h-6 w-6" />
+              </Button>
+              <input
+                type="number"
+                min={0}
+                value={currentForm.teleopFpsEstimate}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  updateField("teleopFpsEstimate", isNaN(v) ? 0 : Math.max(0, v));
+                }}
+                className="h-16 text-4xl font-bold text-center tabular-nums flex-1 min-w-0 bg-transparent border rounded-md focus:outline-none focus:ring-2 focus:ring-ring [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                data-testid="input-fps-estimate"
+              />
+              <Button
+                type="button"
+                variant="default"
+                className="h-16 w-16 text-2xl shrink-0"
+                onClick={() => updateField("teleopFpsEstimate", currentForm.teleopFpsEstimate + 1)}
+                data-testid="button-fps-estimate-plus"
+              >
+                <Plus className="h-6 w-6" />
+              </Button>
+            </div>
+          </div>
 
           <RatingSelector
             value={currentForm.teleopAccuracy}
