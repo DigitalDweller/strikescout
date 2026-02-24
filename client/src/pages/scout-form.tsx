@@ -726,26 +726,10 @@ export default function ScoutForm() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5 pt-0">
-          <BigCounterInput
-            value={currentForm.teleopBallsShot}
-            onChange={(v) => updateField("teleopBallsShot", v)}
-            label="Balls Shot in Teleop"
-            testId="teleop-balls"
-          />
-
           <ShootingHeatmap
             value={currentForm.teleopShootPosition}
             onChange={(v) => updateField("teleopShootPosition", v)}
           />
-
-          <div className="flex items-center justify-between p-4 rounded-lg border">
-            <Label className="text-sm font-medium">Moves While Shooting?</Label>
-            <Switch
-              checked={currentForm.teleopMoveWhileShoot}
-              onCheckedChange={(v) => updateField("teleopMoveWhileShoot", v)}
-              data-testid="switch-move-while-shoot"
-            />
-          </div>
 
           <div className="space-y-2">
             <Label className="text-sm font-medium">Estimated FPS (Fuel Per Second)</Label>
@@ -795,6 +779,15 @@ export default function ScoutForm() {
             label="Accuracy Estimation"
             testId="accuracy"
           />
+
+          <div className="flex items-center justify-between p-4 rounded-lg border">
+            <Label className="text-sm font-medium">Moves While Shooting?</Label>
+            <Switch
+              checked={currentForm.teleopMoveWhileShoot}
+              onCheckedChange={(v) => updateField("teleopMoveWhileShoot", v)}
+              data-testid="switch-move-while-shoot"
+            />
+          </div>
         </CardContent>
       </Card>
 
