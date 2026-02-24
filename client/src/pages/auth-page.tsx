@@ -1,8 +1,6 @@
-import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Form,
   FormControl,
@@ -21,24 +19,12 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-const registerSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  displayName: z.string().min(1, "Display name is required"),
-});
-
 export default function AuthPage() {
-  const { loginMutation, registerMutation } = useAuth();
-  const [activeTab, setActiveTab] = useState("login");
+  const { loginMutation } = useAuth();
 
   const loginForm = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
     defaultValues: { username: "", password: "" },
-  });
-
-  const registerForm = useForm<z.infer<typeof registerSchema>>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: { username: "", password: "", displayName: "" },
   });
 
   return (
@@ -55,149 +41,62 @@ export default function AuthPage() {
             <p className="text-sm text-muted-foreground">Sign in to start scouting</p>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login" data-testid="tab-login">Sign In</TabsTrigger>
-              <TabsTrigger value="register" data-testid="tab-register">Register</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="login" className="mt-4">
-              <Form {...loginForm}>
-                <form
-                  onSubmit={loginForm.handleSubmit((data) => loginMutation.mutate(data))}
-                  className="space-y-4"
-                >
-                  <FormField
-                    control={loginForm.control}
-                    name="username"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Username</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="Enter your username"
-                            data-testid="input-login-username"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={loginForm.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            type="password"
-                            placeholder="Enter your password"
-                            data-testid="input-login-password"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={loginMutation.isPending}
-                    data-testid="button-login"
-                  >
-                    {loginMutation.isPending && (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    )}
-                    Sign In
-                  </Button>
-                </form>
-              </Form>
-              <p className="text-xs text-muted-foreground text-center mt-4">
-                Scouters: Use the credentials your admin provided
-              </p>
-            </TabsContent>
-
-            <TabsContent value="register" className="mt-4">
-              <Form {...registerForm}>
-                <form
-                  onSubmit={registerForm.handleSubmit((data) =>
-                    registerMutation.mutate(data)
-                  )}
-                  className="space-y-4"
-                >
-                  <FormField
-                    control={registerForm.control}
-                    name="displayName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Display Name</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="Your full name"
-                            data-testid="input-register-display-name"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={registerForm.control}
-                    name="username"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Username</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="Choose a username"
-                            data-testid="input-register-username"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={registerForm.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            type="password"
-                            placeholder="At least 6 characters"
-                            data-testid="input-register-password"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={registerMutation.isPending}
-                    data-testid="button-register"
-                  >
-                    {registerMutation.isPending && (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    )}
-                    Register as Admin
-                  </Button>
-                </form>
-              </Form>
-              <p className="text-xs text-muted-foreground text-center mt-4">
-                Only team leads should register as admin
-              </p>
-            </TabsContent>
-          </Tabs>
+          <Form {...loginForm}>
+            <form
+              onSubmit={loginForm.handleSubmit((data) => loginMutation.mutate(data))}
+              className="space-y-4"
+            >
+              <FormField
+                control={loginForm.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="Enter your username"
+                        data-testid="input-login-username"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={loginForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="password"
+                        placeholder="Enter your password"
+                        data-testid="input-login-password"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={loginMutation.isPending}
+                data-testid="button-login"
+              >
+                {loginMutation.isPending && (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                )}
+                Sign In
+              </Button>
+            </form>
+          </Form>
+          <p className="text-xs text-muted-foreground text-center mt-4">
+            Contact your admin for login credentials
+          </p>
         </div>
       </div>
 

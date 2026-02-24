@@ -6,11 +6,11 @@ import { insertEventSchema, insertTeamSchema, insertScoutingEntrySchema } from "
 import { z } from "zod";
 
 async function seedDatabase() {
-  const existingAdmin = await storage.getUserByUsername("admin");
+  const existingAdmin = await storage.getUserByUsername("admin123");
   if (existingAdmin) return;
 
   await storage.createUser({
-    username: "admin",
+    username: "admin123",
     password: await hashPassword("admin123"),
     displayName: "Team Admin",
     role: "admin",
