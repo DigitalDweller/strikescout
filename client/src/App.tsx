@@ -3,26 +3,80 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
+import { Loader2 } from "lucide-react";
 import NotFound from "@/pages/not-found";
+import AuthPage from "@/pages/auth-page";
+import Dashboard from "@/pages/dashboard";
+import AdminEvents from "@/pages/admin-events";
+import AdminEventDetail from "@/pages/admin-event-detail";
+import TeamProfile from "@/pages/team-profile";
+import AdminScouters from "@/pages/admin-scouters";
+import ScouterProfile from "@/pages/admin-scouter-detail";
+import AdminMatchControl from "@/pages/admin-match-control";
+import AllianceCreator from "@/pages/admin-alliance-creator";
+import ScoutForm from "@/pages/scout-form";
+import ScoutHistory from "@/pages/scout-history";
 
-function Router() {
+function AuthenticatedLayout() {
   return (
-    <Switch>
-      {/* Add pages below */}
-      {/* <Route path="/" component={Home}/> */}
-      {/* Fallback to 404 */}
-      <Route component={NotFound} />
-    </Switch>
+    <SidebarProvider>
+      <div className="flex h-screen w-full">
+        <AppSidebar />
+        <div className="flex flex-col flex-1 min-w-0">
+          <header className="flex items-center gap-2 p-2 border-b shrink-0">
+            <SidebarTrigger data-testid="button-sidebar-toggle" />
+          </header>
+          <main className="flex-1 overflow-auto">
+            <Switch>
+              <Route path="/" component={Dashboard} />
+              <Route path="/events" component={AdminEvents} />
+              <Route path="/events/:id" component={AdminEventDetail} />
+              <Route path="/events/:eventId/teams/:teamId" component={TeamProfile} />
+              <Route path="/scouters" component={AdminScouters} />
+              <Route path="/scouters/:id" component={ScouterProfile} />
+              <Route path="/match-control" component={AdminMatchControl} />
+              <Route path="/alliance-creator" component={AllianceCreator} />
+              <Route path="/scout" component={ScoutForm} />
+              <Route path="/scout/history" component={ScoutHistory} />
+              <Route component={NotFound} />
+            </Switch>
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
   );
+}
+
+function AppContent() {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
+  return <AuthenticatedLayout />;
 }
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <AppContent />
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

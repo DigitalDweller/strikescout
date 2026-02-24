@@ -1,38 +1,190 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
+import {
+  users, events, teams, eventTeams, scoutingEntries,
+  type User, type InsertUser, type Event, type InsertEvent,
+  type Team, type InsertTeam, type EventTeam, type InsertEventTeam,
+  type ScoutingEntry, type InsertScoutingEntry,
+} from "@shared/schema";
+import { db } from "./db";
+import { pool } from "./db";
+import { eq, and } from "drizzle-orm";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
 
-// modify the interface with any CRUD methods
-// you might need
+const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
+  getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  getUsersByRole(role: string): Promise<User[]>;
+  deleteUser(id: number): Promise<void>;
+
+  getEvents(): Promise<Event[]>;
+  getEvent(id: number): Promise<Event | undefined>;
+  createEvent(event: InsertEvent): Promise<Event>;
+  updateEvent(id: number, data: Partial<Event>): Promise<Event>;
+  deleteEvent(id: number): Promise<void>;
+  getActiveEvent(): Promise<Event | undefined>;
+  setActiveEvent(id: number): Promise<void>;
+
+  getTeams(): Promise<Team[]>;
+  getTeam(id: number): Promise<Team | undefined>;
+  getTeamByNumber(teamNumber: number): Promise<Team | undefined>;
+  createTeam(team: InsertTeam): Promise<Team>;
+  deleteTeam(id: number): Promise<void>;
+
+  getEventTeams(eventId: number): Promise<(EventTeam & { team: Team })[]>;
+  addTeamToEvent(data: InsertEventTeam): Promise<EventTeam>;
+  removeTeamFromEvent(eventId: number, teamId: number): Promise<void>;
+
+  createScoutingEntry(entry: InsertScoutingEntry): Promise<ScoutingEntry>;
+  getEntriesByEvent(eventId: number): Promise<ScoutingEntry[]>;
+  getEntriesByEventAndTeam(eventId: number, teamId: number): Promise<ScoutingEntry[]>;
+  getEntriesByScouter(scouterId: number): Promise<ScoutingEntry[]>;
+  getEntriesByMatch(eventId: number, matchNumber: number): Promise<ScoutingEntry[]>;
+
+  sessionStore: session.Store;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+export class DatabaseStorage implements IStorage {
+  sessionStore: session.Store;
 
   constructor() {
-    this.users = new Map();
+    this.sessionStore = new PostgresSessionStore({ pool, createTableIfMissing: true });
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const [created] = await db.insert(users).values(user).returning();
+    return created;
+  }
+
+  async getUsersByRole(role: string): Promise<User[]> {
+    return db.select().from(users).where(eq(users.role, role));
+  }
+
+  async deleteUser(id: number): Promise<void> {
+    await db.delete(scoutingEntries).where(eq(scoutingEntries.scouterId, id));
+    await db.delete(users).where(eq(users.id, id));
+  }
+
+  async getEvents(): Promise<Event[]> {
+    return db.select().from(events);
+  }
+
+  async getEvent(id: number): Promise<Event | undefined> {
+    const [event] = await db.select().from(events).where(eq(events.id, id));
+    return event || undefined;
+  }
+
+  async createEvent(event: InsertEvent): Promise<Event> {
+    const [created] = await db.insert(events).values(event).returning();
+    return created;
+  }
+
+  async updateEvent(id: number, data: Partial<Event>): Promise<Event> {
+    const [updated] = await db.update(events).set(data).where(eq(events.id, id)).returning();
+    return updated;
+  }
+
+  async deleteEvent(id: number): Promise<void> {
+    await db.delete(scoutingEntries).where(eq(scoutingEntries.eventId, id));
+    await db.delete(eventTeams).where(eq(eventTeams.eventId, id));
+    await db.delete(events).where(eq(events.id, id));
+  }
+
+  async getActiveEvent(): Promise<Event | undefined> {
+    const [event] = await db.select().from(events).where(eq(events.isActive, true));
+    return event || undefined;
+  }
+
+  async setActiveEvent(id: number): Promise<void> {
+    await db.update(events).set({ isActive: false });
+    await db.update(events).set({ isActive: true }).where(eq(events.id, id));
+  }
+
+  async getTeams(): Promise<Team[]> {
+    return db.select().from(teams);
+  }
+
+  async getTeam(id: number): Promise<Team | undefined> {
+    const [team] = await db.select().from(teams).where(eq(teams.id, id));
+    return team || undefined;
+  }
+
+  async getTeamByNumber(teamNumber: number): Promise<Team | undefined> {
+    const [team] = await db.select().from(teams).where(eq(teams.teamNumber, teamNumber));
+    return team || undefined;
+  }
+
+  async createTeam(team: InsertTeam): Promise<Team> {
+    const [created] = await db.insert(teams).values(team).returning();
+    return created;
+  }
+
+  async deleteTeam(id: number): Promise<void> {
+    await db.delete(eventTeams).where(eq(eventTeams.teamId, id));
+    await db.delete(scoutingEntries).where(eq(scoutingEntries.teamId, id));
+    await db.delete(teams).where(eq(teams.id, id));
+  }
+
+  async getEventTeams(eventId: number): Promise<(EventTeam & { team: Team })[]> {
+    const results = await db
+      .select()
+      .from(eventTeams)
+      .innerJoin(teams, eq(eventTeams.teamId, teams.id))
+      .where(eq(eventTeams.eventId, eventId));
+
+    return results.map(r => ({
+      ...r.event_teams,
+      team: r.teams,
+    }));
+  }
+
+  async addTeamToEvent(data: InsertEventTeam): Promise<EventTeam> {
+    const [created] = await db.insert(eventTeams).values(data).returning();
+    return created;
+  }
+
+  async removeTeamFromEvent(eventId: number, teamId: number): Promise<void> {
+    await db.delete(eventTeams).where(
+      and(eq(eventTeams.eventId, eventId), eq(eventTeams.teamId, teamId))
     );
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async createScoutingEntry(entry: InsertScoutingEntry): Promise<ScoutingEntry> {
+    const [created] = await db.insert(scoutingEntries).values(entry).returning();
+    return created;
+  }
+
+  async getEntriesByEvent(eventId: number): Promise<ScoutingEntry[]> {
+    return db.select().from(scoutingEntries).where(eq(scoutingEntries.eventId, eventId));
+  }
+
+  async getEntriesByEventAndTeam(eventId: number, teamId: number): Promise<ScoutingEntry[]> {
+    return db.select().from(scoutingEntries).where(
+      and(eq(scoutingEntries.eventId, eventId), eq(scoutingEntries.teamId, teamId))
+    );
+  }
+
+  async getEntriesByScouter(scouterId: number): Promise<ScoutingEntry[]> {
+    return db.select().from(scoutingEntries).where(eq(scoutingEntries.scouterId, scouterId));
+  }
+
+  async getEntriesByMatch(eventId: number, matchNumber: number): Promise<ScoutingEntry[]> {
+    return db.select().from(scoutingEntries).where(
+      and(eq(scoutingEntries.eventId, eventId), eq(scoutingEntries.matchNumber, matchNumber))
+    );
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
