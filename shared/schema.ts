@@ -42,6 +42,9 @@ export const scoutingEntries = pgTable("scouting_entries", {
   autoBallsShot: integer("auto_balls_shot").notNull().default(0),
   autoNotes: text("auto_notes"),
   autoDrawing: text("auto_drawing"),
+  autoClimbSuccess: text("auto_climb_success").notNull().default("none"),
+  autoClimbPosition: text("auto_climb_position"),
+  autoClimbLevel: text("auto_climb_level"),
 
   teleopBallsShot: integer("teleop_balls_shot").notNull().default(0),
   teleopShootPosition: text("teleop_shoot_position"),
@@ -51,6 +54,7 @@ export const scoutingEntries = pgTable("scouting_entries", {
 
   climbSuccess: text("climb_success").notNull().default("none"),
   climbPosition: text("climb_position"),
+  climbLevel: text("climb_level"),
 
   defenseRating: integer("defense_rating").notNull().default(0),
   defenseNotes: text("defense_notes"),
