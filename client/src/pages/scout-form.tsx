@@ -329,7 +329,7 @@ function ShootingHeatmap({
         const norm = val / maxI;
         const r = norm > 0.5 ? 255 : Math.floor(norm * 2 * 255);
         const g = norm < 0.5 ? Math.floor(norm * 2 * 200) : Math.floor((1 - norm) * 2 * 200);
-        ctx.fillStyle = `rgba(${r}, ${g}, 0, ${Math.min(norm * 0.7 + 0.1, 0.85)})`;
+        ctx.fillStyle = `rgba(${r}, ${g}, 0, ${Math.min(norm * 0.85 + 0.15, 0.95)})`;
         ctx.fillRect(gx * grid, gy * grid, grid, grid);
       }
 
