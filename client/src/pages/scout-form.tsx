@@ -726,7 +726,10 @@ export default function ScoutForm() {
                   type="button"
                   variant={currentForm.autoClimbSuccess === opt.value ? "default" : "outline"}
                   className="h-14 text-base"
-                  onClick={() => updateField("autoClimbSuccess", opt.value)}
+                  onClick={() => {
+                    updateField("autoClimbSuccess", opt.value);
+                    if (opt.value === "none") { updateField("autoClimbPosition", ""); updateField("autoClimbLevel", ""); }
+                  }}
                   data-testid={`button-auto-climb-${opt.value}`}
                 >
                   {opt.label}
@@ -891,7 +894,10 @@ export default function ScoutForm() {
                   type="button"
                   variant={currentForm.climbSuccess === opt.value ? "default" : "outline"}
                   className="h-14 text-base"
-                  onClick={() => updateField("climbSuccess", opt.value)}
+                  onClick={() => {
+                    updateField("climbSuccess", opt.value);
+                    if (opt.value === "none") { updateField("climbPosition", ""); updateField("climbLevel", ""); }
+                  }}
                   data-testid={`button-climb-${opt.value}`}
                 >
                   {opt.label}
