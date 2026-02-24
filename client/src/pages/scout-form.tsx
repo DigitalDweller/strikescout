@@ -443,62 +443,448 @@ function RatingSelector({
   );
 }
 
+type FormData = {
+  autoBallsShot: number;
+  autoNotes: string;
+  autoDrawing: string;
+  autoClimbSuccess: string;
+  autoClimbPosition: string;
+  autoClimbLevel: string;
+  teleopBallsShot: number;
+  teleopShootPosition: string;
+  teleopMoveWhileShoot: boolean;
+  teleopFpsEstimate: number;
+  teleopAccuracy: number;
+  climbSuccess: string;
+  climbPosition: string;
+  climbLevel: string;
+  defenseRating: number;
+  defenseNotes: string;
+  driverSkillNotes: string;
+  notes: string;
+};
+
+function getEmptyForm(): FormData {
+  return {
+    autoBallsShot: 0,
+    autoNotes: "",
+    autoDrawing: "",
+    autoClimbSuccess: "none",
+    autoClimbPosition: "",
+    autoClimbLevel: "",
+    teleopBallsShot: 0,
+    teleopShootPosition: "",
+    teleopMoveWhileShoot: false,
+    teleopFpsEstimate: 0,
+    teleopAccuracy: 5,
+    climbSuccess: "none",
+    climbPosition: "",
+    climbLevel: "",
+    defenseRating: 0,
+    defenseNotes: "",
+    driverSkillNotes: "",
+    notes: "",
+  };
+}
+
+function TeamFormColumn({
+  index,
+  form,
+  selectedTeamId,
+  eventTeams,
+  onUpdateField,
+  onSelectTeam,
+  onRemove,
+  canRemove,
+  teamCount,
+}: {
+  index: number;
+  form: FormData;
+  selectedTeamId: number;
+  eventTeams?: (EventTeam & { team: Team })[];
+  onUpdateField: (field: string, value: any) => void;
+  onSelectTeam: (teamId: number) => void;
+  onRemove: () => void;
+  canRemove: boolean;
+  teamCount: number;
+}) {
+  const compact = teamCount > 1;
+
+  return (
+    <div className={`space-y-3 ${compact ? "min-w-[340px] flex-1" : "max-w-2xl mx-auto w-full"}`} data-testid={`team-column-${index}`}>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Bot className="h-4 w-4" />
+              Robot {index + 1}
+            </span>
+            {canRemove && (
+              <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-destructive hover:text-destructive" onClick={onRemove} data-testid={`button-remove-robot-${index}`}>
+                <Minus className="h-4 w-4" />
+              </Button>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <Select
+            value={selectedTeamId ? selectedTeamId.toString() : ""}
+            onValueChange={(v) => onSelectTeam(parseInt(v))}
+          >
+            <SelectTrigger className={`${compact ? "h-11 text-sm" : "h-14 text-lg"}`} data-testid={`select-team-${index}`}>
+              <SelectValue placeholder="Select team" />
+            </SelectTrigger>
+            <SelectContent>
+              {eventTeams?.map((et) => (
+                <SelectItem key={et.teamId} value={et.teamId.toString()}>
+                  #{et.team.teamNumber} - {et.team.teamName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            Autonomous
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-0">
+          <BigCounterInput
+            value={form.autoBallsShot}
+            onChange={(v) => onUpdateField("autoBallsShot", v)}
+            label="Balls Shot in Auto"
+            testId={`auto-balls-${index}`}
+          />
+
+          <FieldDrawingCanvas
+            value={form.autoDrawing}
+            onChange={(v) => onUpdateField("autoDrawing", v)}
+          />
+
+          <div>
+            <Label className="text-sm font-medium">Auto Climb Result</Label>
+            <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+              {[
+                { value: "success", label: "Climbed" },
+                { value: "failed", label: "Failed" },
+                { value: "none", label: "Didn't Try" },
+              ].map((opt) => (
+                <Button
+                  key={opt.value}
+                  type="button"
+                  variant={form.autoClimbSuccess === opt.value ? "default" : "outline"}
+                  className={`${compact ? "h-10 text-sm" : "h-14 text-base"}`}
+                  onClick={() => {
+                    onUpdateField("autoClimbSuccess", opt.value);
+                    if (opt.value === "none") { onUpdateField("autoClimbPosition", ""); onUpdateField("autoClimbLevel", ""); }
+                  }}
+                  data-testid={`button-auto-climb-${opt.value}-${index}`}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {form.autoClimbSuccess !== "none" && (
+            <>
+              <div>
+                <Label className="text-sm font-medium">Auto Climb Position</Label>
+                <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+                  {[
+                    { value: "left", label: "Left" },
+                    { value: "middle", label: "Middle" },
+                    { value: "right", label: "Right" },
+                  ].map((opt) => (
+                    <Button
+                      key={opt.value}
+                      type="button"
+                      variant={form.autoClimbPosition === opt.value ? "default" : "outline"}
+                      className={`${compact ? "h-10 text-sm" : "h-14 text-base"}`}
+                      onClick={() => onUpdateField("autoClimbPosition", opt.value)}
+                      data-testid={`button-auto-climb-pos-${opt.value}-${index}`}
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Auto Climb Level</Label>
+                <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+                  {[
+                    { value: "1", label: "Level 1" },
+                    { value: "2", label: "Level 2" },
+                    { value: "3", label: "Level 3" },
+                  ].map((opt) => (
+                    <Button
+                      key={opt.value}
+                      type="button"
+                      variant={form.autoClimbLevel === opt.value ? "default" : "outline"}
+                      className={`${compact ? "h-10 text-sm" : "h-14 text-base"}`}
+                      onClick={() => onUpdateField("autoClimbLevel", opt.value)}
+                      data-testid={`button-auto-climb-level-${opt.value}-${index}`}
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          <div>
+            <Label className="text-sm font-medium">Auto Notes</Label>
+            <Textarea
+              value={form.autoNotes}
+              onChange={(e) => onUpdateField("autoNotes", e.target.value)}
+              placeholder="What did the robot do in auto?"
+              className="resize-none mt-1.5"
+              rows={2}
+              data-testid={`textarea-auto-notes-${index}`}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Crosshair className="h-4 w-4" />
+            Teleop
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-0">
+          <ShootingHeatmap
+            value={form.teleopShootPosition}
+            onChange={(v) => onUpdateField("teleopShootPosition", v)}
+          />
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Estimated FPS (Fuel Per Second)</Label>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className={`${compact ? "h-12 w-12" : "h-16 w-16"} text-2xl shrink-0`}
+                onClick={() => onUpdateField("teleopFpsEstimate", Math.max(0, form.teleopFpsEstimate - 1))}
+                data-testid={`button-fps-estimate-minus-${index}`}
+              >
+                <Minus className="h-5 w-5" />
+              </Button>
+              <input
+                type="number"
+                min={0}
+                value={form.teleopFpsEstimate === 0 ? "" : form.teleopFpsEstimate}
+                placeholder="0"
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === "") {
+                    onUpdateField("teleopFpsEstimate", 0);
+                  } else {
+                    const v = parseInt(raw, 10);
+                    if (!isNaN(v)) onUpdateField("teleopFpsEstimate", Math.max(0, v));
+                  }
+                }}
+                className={`${compact ? "h-12 text-2xl" : "h-16 text-4xl"} font-bold text-center tabular-nums flex-1 min-w-0 bg-transparent border rounded-md focus:outline-none focus:ring-2 focus:ring-ring [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+                data-testid={`input-fps-estimate-${index}`}
+              />
+              <Button
+                type="button"
+                variant="default"
+                className={`${compact ? "h-12 w-12" : "h-16 w-16"} text-2xl shrink-0`}
+                onClick={() => onUpdateField("teleopFpsEstimate", form.teleopFpsEstimate + 1)}
+                data-testid={`button-fps-estimate-plus-${index}`}
+              >
+                <Plus className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+
+          <RatingSelector
+            value={form.teleopAccuracy}
+            onChange={(v) => onUpdateField("teleopAccuracy", v)}
+            max={10}
+            label="Accuracy Estimation"
+            testId={`accuracy-${index}`}
+          />
+
+          <div className="flex items-center justify-between p-3 rounded-lg border">
+            <Label className="text-sm font-medium">Moves While Shooting?</Label>
+            <Switch
+              checked={form.teleopMoveWhileShoot}
+              onCheckedChange={(v) => onUpdateField("teleopMoveWhileShoot", v)}
+              data-testid={`switch-move-while-shoot-${index}`}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <ArrowUp className="h-4 w-4" />
+            Endgame / Climb
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-0">
+          <div>
+            <Label className="text-sm font-medium">Climb Result</Label>
+            <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+              {[
+                { value: "success", label: "Climbed" },
+                { value: "failed", label: "Failed" },
+                { value: "none", label: "Didn't Try" },
+              ].map((opt) => (
+                <Button
+                  key={opt.value}
+                  type="button"
+                  variant={form.climbSuccess === opt.value ? "default" : "outline"}
+                  className={`${compact ? "h-10 text-sm" : "h-14 text-base"}`}
+                  onClick={() => {
+                    onUpdateField("climbSuccess", opt.value);
+                    if (opt.value === "none") { onUpdateField("climbPosition", ""); onUpdateField("climbLevel", ""); }
+                  }}
+                  data-testid={`button-climb-${opt.value}-${index}`}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {form.climbSuccess !== "none" && (
+            <>
+              <div>
+                <Label className="text-sm font-medium">Climb Position</Label>
+                <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+                  {[
+                    { value: "left", label: "Left" },
+                    { value: "middle", label: "Middle" },
+                    { value: "right", label: "Right" },
+                  ].map((opt) => (
+                    <Button
+                      key={opt.value}
+                      type="button"
+                      variant={form.climbPosition === opt.value ? "default" : "outline"}
+                      className={`${compact ? "h-10 text-sm" : "h-14 text-base"}`}
+                      onClick={() => onUpdateField("climbPosition", opt.value)}
+                      data-testid={`button-climb-pos-${opt.value}-${index}`}
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Climb Level</Label>
+                <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+                  {[
+                    { value: "1", label: "Level 1" },
+                    { value: "2", label: "Level 2" },
+                    { value: "3", label: "Level 3" },
+                  ].map((opt) => (
+                    <Button
+                      key={opt.value}
+                      type="button"
+                      variant={form.climbLevel === opt.value ? "default" : "outline"}
+                      className={`${compact ? "h-10 text-sm" : "h-14 text-base"}`}
+                      onClick={() => onUpdateField("climbLevel", opt.value)}
+                      data-testid={`button-climb-level-${opt.value}-${index}`}
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Defense</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-0">
+          <RatingSelector
+            value={form.defenseRating}
+            onChange={(v) => onUpdateField("defenseRating", v)}
+            max={10}
+            label="Defense Rating"
+            testId={`defense-${index}`}
+          />
+          <div>
+            <Label className="text-sm font-medium">Defense Notes</Label>
+            <Textarea
+              value={form.defenseNotes}
+              onChange={(e) => onUpdateField("defenseNotes", e.target.value)}
+              placeholder="How did they play defense?"
+              className="resize-none mt-1.5"
+              rows={2}
+              data-testid={`textarea-defense-notes-${index}`}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Driver Skill & Notes</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-0">
+          <div>
+            <Label className="text-sm font-medium">Driver Skill Notes</Label>
+            <Textarea
+              value={form.driverSkillNotes}
+              onChange={(e) => onUpdateField("driverSkillNotes", e.target.value)}
+              placeholder="Driver awareness, gear shifts, movement patterns..."
+              className="resize-none mt-1.5"
+              rows={2}
+              data-testid={`textarea-driver-notes-${index}`}
+            />
+          </div>
+          <div>
+            <Label className="text-sm font-medium">General Notes</Label>
+            <Textarea
+              value={form.notes}
+              onChange={(e) => onUpdateField("notes", e.target.value)}
+              placeholder="Any other observations..."
+              className="resize-none mt-1.5"
+              rows={2}
+              data-testid={`textarea-notes-${index}`}
+            />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function ScoutForm() {
   const { toast } = useToast();
 
+  const [teamCount, setTeamCount] = useState(1);
   const [selectedTeams, setSelectedTeams] = useState<number[]>([0]);
-  const [activeTeamIndex, setActiveTeamIndex] = useState(0);
-
-  const [formDataMap, setFormDataMap] = useState<Record<number, {
-    autoBallsShot: number;
-    autoNotes: string;
-    autoDrawing: string;
-    autoClimbSuccess: string;
-    autoClimbPosition: string;
-    autoClimbLevel: string;
-    teleopBallsShot: number;
-    teleopShootPosition: string;
-    teleopMoveWhileShoot: boolean;
-    teleopFpsEstimate: number;
-    teleopAccuracy: number;
-    climbSuccess: string;
-    climbPosition: string;
-    climbLevel: string;
-    defenseRating: number;
-    defenseNotes: string;
-    driverSkillNotes: string;
-    notes: string;
-  }>>({
+  const [matchNumber, setMatchNumber] = useState<number | null>(null);
+  const [formDataMap, setFormDataMap] = useState<Record<number, FormData>>({
     0: getEmptyForm(),
   });
-
-  function getEmptyForm() {
-    return {
-      autoBallsShot: 0,
-      autoNotes: "",
-      autoDrawing: "",
-      autoClimbSuccess: "none",
-      autoClimbPosition: "",
-      autoClimbLevel: "",
-      teleopBallsShot: 0,
-      teleopShootPosition: "",
-      teleopMoveWhileShoot: false,
-      teleopFpsEstimate: 0,
-      teleopAccuracy: 5,
-      climbSuccess: "none",
-      climbPosition: "",
-      climbLevel: "",
-      defenseRating: 0,
-      defenseNotes: "",
-      driverSkillNotes: "",
-      notes: "",
-    };
-  }
 
   const { data: activeEvent, isLoading: eventLoading } = useQuery<Event | null>({
     queryKey: ["/api/active-event"],
     refetchInterval: 10000,
   });
+
+  useEffect(() => {
+    if (activeEvent && matchNumber === null) {
+      setMatchNumber(activeEvent.currentMatchNumber);
+    }
+  }, [activeEvent, matchNumber]);
 
   const { data: eventTeams } = useQuery<(EventTeam & { team: Team })[]>({
     queryKey: ["/api/events", activeEvent?.id, "teams"],
@@ -523,10 +909,60 @@ export default function ScoutForm() {
     },
   });
 
+  const changeTeamCount = (count: number) => {
+    const clamped = Math.max(1, Math.min(6, count));
+    setTeamCount(clamped);
+    setSelectedTeams((prev) => {
+      const next = [...prev];
+      while (next.length < clamped) next.push(0);
+      return next.slice(0, clamped);
+    });
+    setFormDataMap((prev) => {
+      const next = { ...prev };
+      for (let i = 0; i < clamped; i++) {
+        if (!next[i]) next[i] = getEmptyForm();
+      }
+      return next;
+    });
+  };
+
+  const updateFieldForIndex = (index: number, field: string, value: any) => {
+    setFormDataMap((prev) => ({
+      ...prev,
+      [index]: {
+        ...(prev[index] || getEmptyForm()),
+        [field]: value,
+      },
+    }));
+  };
+
+  const selectTeamForIndex = (index: number, teamId: number) => {
+    setSelectedTeams((prev) => {
+      const next = [...prev];
+      next[index] = teamId;
+      return next;
+    });
+  };
+
+  const removeRobotSlot = (index: number) => {
+    if (teamCount <= 1) return;
+    const newCount = teamCount - 1;
+    const newTeams = selectedTeams.filter((_, i) => i !== index);
+    const newMap: Record<number, FormData> = {};
+    newTeams.forEach((_, i) => {
+      const oldIdx = i >= index ? i + 1 : i;
+      newMap[i] = formDataMap[oldIdx] || getEmptyForm();
+    });
+    setTeamCount(newCount);
+    setSelectedTeams(newTeams);
+    setFormDataMap(newMap);
+  };
+
   const handleSubmitAll = async () => {
     if (!activeEvent) return;
 
     const validEntries = selectedTeams
+      .slice(0, teamCount)
       .map((teamId, idx) => ({ teamId, form: formDataMap[idx] }))
       .filter((e) => e.teamId > 0 && e.form);
 
@@ -541,7 +977,7 @@ export default function ScoutForm() {
         await submitMutation.mutateAsync({
           teamId: entry.teamId,
           eventId: activeEvent.id,
-          matchNumber: activeEvent.currentMatchNumber,
+          matchNumber: matchNumber || activeEvent.currentMatchNumber,
           ...entry.form,
         });
         successCount++;
@@ -550,42 +986,11 @@ export default function ScoutForm() {
 
     if (successCount > 0) {
       toast({ title: `${successCount} ${successCount === 1 ? "entry" : "entries"} submitted!` });
+      setTeamCount(1);
       setSelectedTeams([0]);
-      setActiveTeamIndex(0);
       setFormDataMap({ 0: getEmptyForm() });
+      setMatchNumber((matchNumber || 1) + 1);
     }
-  };
-
-  const currentForm = formDataMap[activeTeamIndex] || getEmptyForm();
-
-  const updateField = (field: string, value: any) => {
-    setFormDataMap((prev) => ({
-      ...prev,
-      [activeTeamIndex]: {
-        ...(prev[activeTeamIndex] || getEmptyForm()),
-        [field]: value,
-      },
-    }));
-  };
-
-  const addRobotSlot = () => {
-    const newIndex = selectedTeams.length;
-    setSelectedTeams([...selectedTeams, 0]);
-    setFormDataMap((prev) => ({ ...prev, [newIndex]: getEmptyForm() }));
-    setActiveTeamIndex(newIndex);
-  };
-
-  const removeRobotSlot = (index: number) => {
-    if (selectedTeams.length <= 1) return;
-    const newTeams = selectedTeams.filter((_, i) => i !== index);
-    setSelectedTeams(newTeams);
-    const newMap: typeof formDataMap = {};
-    newTeams.forEach((_, i) => {
-      const oldIdx = i >= index ? i + 1 : i;
-      newMap[i] = formDataMap[oldIdx] || getEmptyForm();
-    });
-    setFormDataMap(newMap);
-    setActiveTeamIndex(Math.min(activeTeamIndex, newTeams.length - 1));
   };
 
   if (eventLoading) {
@@ -615,422 +1020,131 @@ export default function ScoutForm() {
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-2xl mx-auto space-y-4 pb-24">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Scout</h1>
-          <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-            <Radio className="h-3 w-3 text-chart-2" />
-            <span>{activeEvent.name}</span>
+    <div className="pb-24">
+      <div className="sticky top-0 z-30 bg-background border-b shadow-sm px-4 py-3" data-testid="master-bar">
+        <div className="flex items-center justify-between gap-4 flex-wrap max-w-[1800px] mx-auto">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold tracking-tight" data-testid="text-page-title">Scout</h1>
+            <Badge variant="secondary" className="text-xs">
+              <Radio className="h-3 w-3 mr-1 text-chart-2" />
+              {activeEvent.name}
+            </Badge>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Match</span>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setMatchNumber((prev) => Math.max(1, (prev || 1) - 1))}
+                  disabled={(matchNumber || 1) <= 1}
+                  data-testid="button-match-minus"
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <input
+                  type="number"
+                  min={1}
+                  value={matchNumber || ""}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (!isNaN(v) && v >= 1) setMatchNumber(v);
+                    else if (e.target.value === "") setMatchNumber(1);
+                  }}
+                  className="h-8 w-14 text-center text-base font-bold tabular-nums bg-primary text-primary-foreground rounded-md border-0 focus:outline-none focus:ring-2 focus:ring-ring [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  data-testid="input-match-number"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setMatchNumber((prev) => (prev || 1) + 1)}
+                  data-testid="button-match-plus"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="h-6 w-px bg-border" />
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Teams</span>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => changeTeamCount(teamCount - 1)}
+                  disabled={teamCount <= 1}
+                  data-testid="button-team-count-minus"
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <Badge variant="secondary" className="text-base px-3 py-1 tabular-nums min-w-[2rem] text-center" data-testid="text-team-count">
+                  {teamCount}
+                </Badge>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => changeTeamCount(teamCount + 1)}
+                  disabled={teamCount >= 6}
+                  data-testid="button-team-count-plus"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
-        <Badge variant="default" className="text-sm px-3 py-1">
-          Match {activeEvent.currentMatchNumber}
-        </Badge>
       </div>
 
-      <div className="flex gap-2 flex-wrap items-center">
-        {selectedTeams.map((_, idx) => (
-          <Button
-            key={idx}
-            type="button"
-            variant={activeTeamIndex === idx ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveTeamIndex(idx)}
-            data-testid={`button-robot-tab-${idx}`}
-          >
-            <Bot className="h-4 w-4 mr-1" />
-            Robot {idx + 1}
-            {selectedTeams.length > 1 && (
-              <span
-                className="ml-1 cursor-pointer hover:text-destructive"
-                onClick={(e) => { e.stopPropagation(); removeRobotSlot(idx); }}
-              >
-                x
-              </span>
-            )}
-          </Button>
-        ))}
+      <div className={`p-4 ${teamCount > 1 ? "overflow-x-auto" : ""}`}>
+        <div className={`flex gap-4 ${teamCount > 1 ? "items-start" : "justify-center"}`}>
+          {Array.from({ length: teamCount }).map((_, idx) => (
+            <TeamFormColumn
+              key={idx}
+              index={idx}
+              form={formDataMap[idx] || getEmptyForm()}
+              selectedTeamId={selectedTeams[idx] || 0}
+              eventTeams={eventTeams}
+              onUpdateField={(field, value) => updateFieldForIndex(idx, field, value)}
+              onSelectTeam={(teamId) => selectTeamForIndex(idx, teamId)}
+              onRemove={() => removeRobotSlot(idx)}
+              canRemove={teamCount > 1}
+              teamCount={teamCount}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className={`px-4 mt-4 ${teamCount === 1 ? "max-w-2xl mx-auto" : ""}`}>
         <Button
           type="button"
-          variant="outline"
-          size="sm"
-          onClick={addRobotSlot}
-          data-testid="button-add-robot"
+          size="lg"
+          className="w-full h-16 text-xl font-bold"
+          disabled={submitMutation.isPending}
+          onClick={handleSubmitAll}
+          data-testid="button-submit-entry"
         >
-          <Plus className="h-4 w-4 mr-1" />
-          Add Robot
+          {submitMutation.isPending ? (
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+          ) : (
+            <Send className="h-6 w-6 mr-2" />
+          )}
+          Submit {selectedTeams.slice(0, teamCount).filter((t) => t > 0).length > 1
+            ? `${selectedTeams.slice(0, teamCount).filter((t) => t > 0).length} Entries`
+            : "Entry"}
         </Button>
       </div>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Target className="h-4 w-4" />
-            Team Selection
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <Select
-            value={selectedTeams[activeTeamIndex] ? selectedTeams[activeTeamIndex].toString() : ""}
-            onValueChange={(v) => {
-              const newTeams = [...selectedTeams];
-              newTeams[activeTeamIndex] = parseInt(v);
-              setSelectedTeams(newTeams);
-            }}
-          >
-            <SelectTrigger className="h-14 text-lg" data-testid="select-team">
-              <SelectValue placeholder="Select the team you're scouting" />
-            </SelectTrigger>
-            <SelectContent>
-              {eventTeams?.map((et) => (
-                <SelectItem key={et.teamId} value={et.teamId.toString()}>
-                  #{et.team.teamNumber} - {et.team.teamName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Bot className="h-4 w-4" />
-            Autonomous
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5 pt-0">
-          <BigCounterInput
-            value={currentForm.autoBallsShot}
-            onChange={(v) => updateField("autoBallsShot", v)}
-            label="Balls Shot in Auto"
-            testId="auto-balls"
-          />
-
-          <FieldDrawingCanvas
-            value={currentForm.autoDrawing}
-            onChange={(v) => updateField("autoDrawing", v)}
-          />
-
-          <div>
-            <Label className="text-sm font-medium">Auto Climb Result</Label>
-            <div className="grid grid-cols-3 gap-2 mt-1.5">
-              {[
-                { value: "success", label: "Climbed" },
-                { value: "failed", label: "Failed" },
-                { value: "none", label: "Didn't Try" },
-              ].map((opt) => (
-                <Button
-                  key={opt.value}
-                  type="button"
-                  variant={currentForm.autoClimbSuccess === opt.value ? "default" : "outline"}
-                  className="h-14 text-base"
-                  onClick={() => {
-                    updateField("autoClimbSuccess", opt.value);
-                    if (opt.value === "none") { updateField("autoClimbPosition", ""); updateField("autoClimbLevel", ""); }
-                  }}
-                  data-testid={`button-auto-climb-${opt.value}`}
-                >
-                  {opt.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {currentForm.autoClimbSuccess !== "none" && (
-            <>
-              <div>
-                <Label className="text-sm font-medium">Auto Climb Position</Label>
-                <div className="grid grid-cols-3 gap-2 mt-1.5">
-                  {[
-                    { value: "left", label: "Left" },
-                    { value: "middle", label: "Middle" },
-                    { value: "right", label: "Right" },
-                  ].map((opt) => (
-                    <Button
-                      key={opt.value}
-                      type="button"
-                      variant={currentForm.autoClimbPosition === opt.value ? "default" : "outline"}
-                      className="h-14 text-base"
-                      onClick={() => updateField("autoClimbPosition", opt.value)}
-                      data-testid={`button-auto-climb-pos-${opt.value}`}
-                    >
-                      {opt.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-sm font-medium">Auto Climb Level</Label>
-                <div className="grid grid-cols-3 gap-2 mt-1.5">
-                  {[
-                    { value: "1", label: "Level 1" },
-                    { value: "2", label: "Level 2" },
-                    { value: "3", label: "Level 3" },
-                  ].map((opt) => (
-                    <Button
-                      key={opt.value}
-                      type="button"
-                      variant={currentForm.autoClimbLevel === opt.value ? "default" : "outline"}
-                      className="h-14 text-base"
-                      onClick={() => updateField("autoClimbLevel", opt.value)}
-                      data-testid={`button-auto-climb-level-${opt.value}`}
-                    >
-                      {opt.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          <div>
-            <Label className="text-sm font-medium">Auto Notes</Label>
-            <Textarea
-              value={currentForm.autoNotes}
-              onChange={(e) => updateField("autoNotes", e.target.value)}
-              placeholder="What did the robot do in auto?"
-              className="resize-none mt-1.5"
-              rows={2}
-              data-testid="textarea-auto-notes"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Crosshair className="h-4 w-4" />
-            Teleop
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5 pt-0">
-          <ShootingHeatmap
-            value={currentForm.teleopShootPosition}
-            onChange={(v) => updateField("teleopShootPosition", v)}
-          />
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Estimated FPS (Fuel Per Second)</Label>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-16 w-16 text-2xl shrink-0"
-                onClick={() => updateField("teleopFpsEstimate", Math.max(0, currentForm.teleopFpsEstimate - 1))}
-                data-testid="button-fps-estimate-minus"
-              >
-                <Minus className="h-6 w-6" />
-              </Button>
-              <input
-                type="number"
-                min={0}
-                value={currentForm.teleopFpsEstimate === 0 ? "" : currentForm.teleopFpsEstimate}
-                placeholder="0"
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  if (raw === "") {
-                    updateField("teleopFpsEstimate", 0);
-                  } else {
-                    const v = parseInt(raw, 10);
-                    if (!isNaN(v)) updateField("teleopFpsEstimate", Math.max(0, v));
-                  }
-                }}
-                className="h-16 text-4xl font-bold text-center tabular-nums flex-1 min-w-0 bg-transparent border rounded-md focus:outline-none focus:ring-2 focus:ring-ring [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                data-testid="input-fps-estimate"
-              />
-              <Button
-                type="button"
-                variant="default"
-                className="h-16 w-16 text-2xl shrink-0"
-                onClick={() => updateField("teleopFpsEstimate", currentForm.teleopFpsEstimate + 1)}
-                data-testid="button-fps-estimate-plus"
-              >
-                <Plus className="h-6 w-6" />
-              </Button>
-            </div>
-          </div>
-
-          <RatingSelector
-            value={currentForm.teleopAccuracy}
-            onChange={(v) => updateField("teleopAccuracy", v)}
-            max={10}
-            label="Accuracy Estimation"
-            testId="accuracy"
-          />
-
-          <div className="flex items-center justify-between p-4 rounded-lg border">
-            <Label className="text-sm font-medium">Moves While Shooting?</Label>
-            <Switch
-              checked={currentForm.teleopMoveWhileShoot}
-              onCheckedChange={(v) => updateField("teleopMoveWhileShoot", v)}
-              data-testid="switch-move-while-shoot"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <ArrowUp className="h-4 w-4" />
-            Endgame / Climb
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5 pt-0">
-          <div>
-            <Label className="text-sm font-medium">Climb Result</Label>
-            <div className="grid grid-cols-3 gap-2 mt-1.5">
-              {[
-                { value: "success", label: "Climbed" },
-                { value: "failed", label: "Failed" },
-                { value: "none", label: "Didn't Try" },
-              ].map((opt) => (
-                <Button
-                  key={opt.value}
-                  type="button"
-                  variant={currentForm.climbSuccess === opt.value ? "default" : "outline"}
-                  className="h-14 text-base"
-                  onClick={() => {
-                    updateField("climbSuccess", opt.value);
-                    if (opt.value === "none") { updateField("climbPosition", ""); updateField("climbLevel", ""); }
-                  }}
-                  data-testid={`button-climb-${opt.value}`}
-                >
-                  {opt.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {currentForm.climbSuccess !== "none" && (
-            <>
-              <div>
-                <Label className="text-sm font-medium">Climb Position</Label>
-                <div className="grid grid-cols-3 gap-2 mt-1.5">
-                  {[
-                    { value: "left", label: "Left" },
-                    { value: "middle", label: "Middle" },
-                    { value: "right", label: "Right" },
-                  ].map((opt) => (
-                    <Button
-                      key={opt.value}
-                      type="button"
-                      variant={currentForm.climbPosition === opt.value ? "default" : "outline"}
-                      className="h-14 text-base"
-                      onClick={() => updateField("climbPosition", opt.value)}
-                      data-testid={`button-climb-pos-${opt.value}`}
-                    >
-                      {opt.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-sm font-medium">Climb Level</Label>
-                <div className="grid grid-cols-3 gap-2 mt-1.5">
-                  {[
-                    { value: "1", label: "Level 1" },
-                    { value: "2", label: "Level 2" },
-                    { value: "3", label: "Level 3" },
-                  ].map((opt) => (
-                    <Button
-                      key={opt.value}
-                      type="button"
-                      variant={currentForm.climbLevel === opt.value ? "default" : "outline"}
-                      className="h-14 text-base"
-                      onClick={() => updateField("climbLevel", opt.value)}
-                      data-testid={`button-climb-level-${opt.value}`}
-                    >
-                      {opt.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Defense</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5 pt-0">
-          <RatingSelector
-            value={currentForm.defenseRating}
-            onChange={(v) => updateField("defenseRating", v)}
-            max={10}
-            label="Defense Rating"
-            testId="defense"
-          />
-
-          <div>
-            <Label className="text-sm font-medium">Defense Notes</Label>
-            <Textarea
-              value={currentForm.defenseNotes}
-              onChange={(e) => updateField("defenseNotes", e.target.value)}
-              placeholder="How did they play defense?"
-              className="resize-none mt-1.5"
-              rows={2}
-              data-testid="textarea-defense-notes"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Driver Skill & Notes</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5 pt-0">
-          <div>
-            <Label className="text-sm font-medium">Driver Skill Notes</Label>
-            <Textarea
-              value={currentForm.driverSkillNotes}
-              onChange={(e) => updateField("driverSkillNotes", e.target.value)}
-              placeholder="Driver awareness, gear shifts, movement patterns..."
-              className="resize-none mt-1.5"
-              rows={3}
-              data-testid="textarea-driver-notes"
-            />
-          </div>
-
-          <div>
-            <Label className="text-sm font-medium">General Notes</Label>
-            <Textarea
-              value={currentForm.notes}
-              onChange={(e) => updateField("notes", e.target.value)}
-              placeholder="Any other observations..."
-              className="resize-none mt-1.5"
-              rows={2}
-              data-testid="textarea-notes"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Button
-        type="button"
-        size="lg"
-        className="w-full h-16 text-xl font-bold"
-        disabled={submitMutation.isPending}
-        onClick={handleSubmitAll}
-        data-testid="button-submit-entry"
-      >
-        {submitMutation.isPending ? (
-          <Loader2 className="h-6 w-6 animate-spin mr-2" />
-        ) : (
-          <Send className="h-6 w-6 mr-2" />
-        )}
-        Submit {selectedTeams.filter((t) => t > 0).length > 1
-          ? `${selectedTeams.filter((t) => t > 0).length} Entries`
-          : "Entry"}
-      </Button>
     </div>
   );
 }
