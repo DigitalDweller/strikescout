@@ -10,11 +10,17 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 - **State Management:** TanStack React Query
 
 ## Key Features
-- Admin/Scouter role-based authentication
+- Admin/Scouter role-based authentication (no self-registration, admin creates accounts)
 - Event management with team roster control
 - Active event system (admin sets which event scouters see)
 - Match control panel for advancing/resetting match numbers
-- Scouting form with counter inputs and defense rating
+- Detailed scouting form with:
+  - Auto: balls shot counter, field drawing canvas, notes
+  - Teleop: balls shot counter, shoot position, move-while-shoot toggle, FPS estimate, accuracy slider
+  - Endgame: climb result (success/failed/none), climb position (left/middle/right)
+  - Defense: 0-10 rating slider + notes
+  - Driver skill notes + general notes
+- Multi-robot scouting (one scouter can scout multiple robots per match)
 - Team profile pages with performance charts (recharts)
 - Individual scouter performance tracking
 - Alliance Creator (coming soon placeholder)
@@ -24,12 +30,17 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 - **events** - id, name, location, startDate, isActive, currentMatchNumber
 - **teams** - id, teamNumber, teamName
 - **event_teams** - junction table linking teams to events
-- **scouting_entries** - id, scouterId, eventId, teamId, matchNumber, autoScore, teleopScore, endgameScore, defenseRating, notes, createdAt
+- **scouting_entries** - id, scouterId, eventId, teamId, matchNumber, autoBallsShot, autoNotes, autoDrawing, teleopBallsShot, teleopShootPosition, teleopMoveWhileShoot, teleopFpsEstimate, teleopAccuracy, climbSuccess, climbPosition, defenseRating, defenseNotes, driverSkillNotes, notes, createdAt
 
 ## Default Credentials (Seed Data)
-- Admin: `admin` / `admin123`
+- Admin: `admin123` / `admin123`
 - Scouter 1: `scout1` / `scout123`
 - Scouter 2: `scout2` / `scout123`
+
+## User Preferences
+- No self-registration; admin creates all accounts
+- Big touch-friendly buttons for tablet use
+- Field drawing canvas for recording auto paths
 
 ## File Structure
 - `shared/schema.ts` - Drizzle schema, Zod validators, TypeScript types

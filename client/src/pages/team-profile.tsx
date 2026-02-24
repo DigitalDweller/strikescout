@@ -44,27 +44,30 @@ export default function TeamProfile() {
 
   const team = teams?.find((t) => t.id === teamId);
 
-  const avgAuto = entries?.length
-    ? Math.round(entries.reduce((s, e) => s + e.autoScore, 0) / entries.length)
-    : 0;
-  const avgTeleop = entries?.length
-    ? Math.round(entries.reduce((s, e) => s + e.teleopScore, 0) / entries.length)
-    : 0;
-  const avgEndgame = entries?.length
-    ? Math.round(entries.reduce((s, e) => s + e.endgameScore, 0) / entries.length)
-    : 0;
+  const avgAutoBalls = entries?.length
+    ? (entries.reduce((s, e) => s + e.autoBallsShot, 0) / entries.length).toFixed(1)
+    : "0";
+  const avgTeleopBalls = entries?.length
+    ? (entries.reduce((s, e) => s + e.teleopBallsShot, 0) / entries.length).toFixed(1)
+    : "0";
+  const avgAccuracy = entries?.length
+    ? (entries.reduce((s, e) => s + e.teleopAccuracy, 0) / entries.length).toFixed(1)
+    : "0";
   const avgDefense = entries?.length
     ? (entries.reduce((s, e) => s + e.defenseRating, 0) / entries.length).toFixed(1)
     : "0";
+  const climbRate = entries?.length
+    ? Math.round((entries.filter((e) => e.climbSuccess === "success").length / entries.length) * 100)
+    : 0;
 
   const chartData =
     entries
       ?.sort((a, b) => a.matchNumber - b.matchNumber)
       .map((e) => ({
         match: `M${e.matchNumber}`,
-        Auto: e.autoScore,
-        Teleop: e.teleopScore,
-        Endgame: e.endgameScore,
+        "Auto Balls": e.autoBallsShot,
+        "Teleop Balls": e.teleopBallsShot,
+        Accuracy: e.teleopAccuracy,
       })) || [];
 
   return (
@@ -84,29 +87,35 @@ export default function TeamProfile() {
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-5">
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-primary" data-testid="text-avg-auto">{avgAuto}</p>
-            <p className="text-xs text-muted-foreground">Avg Auto</p>
+            <p className="text-2xl font-bold text-primary" data-testid="text-avg-auto">{avgAutoBalls}</p>
+            <p className="text-xs text-muted-foreground">Avg Auto Balls</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-chart-2" data-testid="text-avg-teleop">{avgTeleop}</p>
-            <p className="text-xs text-muted-foreground">Avg Teleop</p>
+            <p className="text-2xl font-bold text-chart-2" data-testid="text-avg-teleop">{avgTeleopBalls}</p>
+            <p className="text-xs text-muted-foreground">Avg Teleop Balls</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-chart-3" data-testid="text-avg-endgame">{avgEndgame}</p>
-            <p className="text-xs text-muted-foreground">Avg Endgame</p>
+            <p className="text-2xl font-bold text-chart-3" data-testid="text-avg-accuracy">{avgAccuracy}/10</p>
+            <p className="text-xs text-muted-foreground">Avg Accuracy</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-chart-4" data-testid="text-avg-defense">{avgDefense}</p>
+            <p className="text-2xl font-bold text-chart-4" data-testid="text-avg-defense">{avgDefense}/10</p>
             <p className="text-xs text-muted-foreground">Avg Defense</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <p className="text-2xl font-bold text-chart-5" data-testid="text-climb-rate">{climbRate}%</p>
+            <p className="text-xs text-muted-foreground">Climb Rate</p>
           </CardContent>
         </Card>
       </div>
@@ -135,9 +144,9 @@ export default function TeamProfile() {
                     }}
                   />
                   <Legend />
-                  <Bar dataKey="Auto" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="Teleop" fill="hsl(var(--chart-2))" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="Endgame" fill="hsl(var(--chart-3))" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="Auto Balls" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="Teleop Balls" fill="hsl(var(--chart-2))" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="Accuracy" fill="hsl(var(--chart-3))" radius={[2, 2, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -162,11 +171,11 @@ export default function TeamProfile() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Match</TableHead>
-                    <TableHead className="text-center">Auto</TableHead>
-                    <TableHead className="text-center">Teleop</TableHead>
-                    <TableHead className="text-center">Endgame</TableHead>
+                    <TableHead className="text-center">Auto Balls</TableHead>
+                    <TableHead className="text-center">Teleop Balls</TableHead>
+                    <TableHead className="text-center">Accuracy</TableHead>
+                    <TableHead className="text-center">Climb</TableHead>
                     <TableHead className="text-center">Defense</TableHead>
-                    <TableHead className="text-center">Total</TableHead>
                     <TableHead>Notes</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -178,13 +187,15 @@ export default function TeamProfile() {
                         <TableCell>
                           <Badge variant="secondary">M{entry.matchNumber}</Badge>
                         </TableCell>
-                        <TableCell className="text-center">{entry.autoScore}</TableCell>
-                        <TableCell className="text-center">{entry.teleopScore}</TableCell>
-                        <TableCell className="text-center">{entry.endgameScore}</TableCell>
-                        <TableCell className="text-center">{entry.defenseRating}/5</TableCell>
-                        <TableCell className="text-center font-medium">
-                          {entry.autoScore + entry.teleopScore + entry.endgameScore}
+                        <TableCell className="text-center">{entry.autoBallsShot}</TableCell>
+                        <TableCell className="text-center">{entry.teleopBallsShot}</TableCell>
+                        <TableCell className="text-center">{entry.teleopAccuracy}/10</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={entry.climbSuccess === "success" ? "default" : "secondary"}>
+                            {entry.climbSuccess === "success" ? "Yes" : entry.climbSuccess === "failed" ? "Failed" : "No"}
+                          </Badge>
                         </TableCell>
+                        <TableCell className="text-center">{entry.defenseRating}/10</TableCell>
                         <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
                           {entry.notes || "-"}
                         </TableCell>

@@ -41,15 +41,15 @@ export default function ScoutHistory() {
   });
 
   const totalEntries = entries?.length || 0;
-  const avgAuto = totalEntries
-    ? Math.round(entries!.reduce((s, e) => s + e.autoScore, 0) / totalEntries)
-    : 0;
-  const avgTeleop = totalEntries
-    ? Math.round(entries!.reduce((s, e) => s + e.teleopScore, 0) / totalEntries)
-    : 0;
-  const avgEndgame = totalEntries
-    ? Math.round(entries!.reduce((s, e) => s + e.endgameScore, 0) / totalEntries)
-    : 0;
+  const avgAutoBalls = totalEntries
+    ? (entries!.reduce((s, e) => s + e.autoBallsShot, 0) / totalEntries).toFixed(1)
+    : "0";
+  const avgTeleopBalls = totalEntries
+    ? (entries!.reduce((s, e) => s + e.teleopBallsShot, 0) / totalEntries).toFixed(1)
+    : "0";
+  const avgAccuracy = totalEntries
+    ? (entries!.reduce((s, e) => s + e.teleopAccuracy, 0) / totalEntries).toFixed(1)
+    : "0";
 
   const eventMap = new Map(events?.map((e) => [e.id, e.name]) || []);
   const teamMap = new Map(
@@ -69,9 +69,9 @@ export default function ScoutHistory() {
       ?.reverse()
       .map((e, i) => ({
         entry: `${i + 1}`,
-        Auto: e.autoScore,
-        Teleop: e.teleopScore,
-        Endgame: e.endgameScore,
+        "Auto Balls": e.autoBallsShot,
+        "Teleop Balls": e.teleopBallsShot,
+        Accuracy: e.teleopAccuracy,
       })) || [];
 
   return (
@@ -96,20 +96,20 @@ export default function ScoutHistory() {
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-primary">{avgAuto}</p>
-            <p className="text-xs text-muted-foreground">Avg Auto Recorded</p>
+            <p className="text-2xl font-bold text-primary">{avgAutoBalls}</p>
+            <p className="text-xs text-muted-foreground">Avg Auto Balls</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-chart-2">{avgTeleop}</p>
-            <p className="text-xs text-muted-foreground">Avg Teleop Recorded</p>
+            <p className="text-2xl font-bold text-chart-2">{avgTeleopBalls}</p>
+            <p className="text-xs text-muted-foreground">Avg Teleop Balls</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-chart-3">{avgEndgame}</p>
-            <p className="text-xs text-muted-foreground">Avg Endgame Recorded</p>
+            <p className="text-2xl font-bold text-chart-3">{avgAccuracy}/10</p>
+            <p className="text-xs text-muted-foreground">Avg Accuracy</p>
           </CardContent>
         </Card>
       </div>
@@ -138,9 +138,9 @@ export default function ScoutHistory() {
                     }}
                   />
                   <Legend />
-                  <Bar dataKey="Auto" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="Teleop" fill="hsl(var(--chart-2))" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="Endgame" fill="hsl(var(--chart-3))" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="Auto Balls" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="Teleop Balls" fill="hsl(var(--chart-2))" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="Accuracy" fill="hsl(var(--chart-3))" radius={[2, 2, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -176,9 +176,9 @@ export default function ScoutHistory() {
                     <TableHead>Match</TableHead>
                     <TableHead className="text-center">Auto</TableHead>
                     <TableHead className="text-center">Teleop</TableHead>
-                    <TableHead className="text-center">Endgame</TableHead>
+                    <TableHead className="text-center">Accuracy</TableHead>
+                    <TableHead className="text-center">Climb</TableHead>
                     <TableHead className="text-center">Defense</TableHead>
-                    <TableHead className="text-center">Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -199,14 +199,16 @@ export default function ScoutHistory() {
                         <TableCell>
                           <Badge variant="secondary">M{entry.matchNumber}</Badge>
                         </TableCell>
-                        <TableCell className="text-center">{entry.autoScore}</TableCell>
-                        <TableCell className="text-center">{entry.teleopScore}</TableCell>
-                        <TableCell className="text-center">{entry.endgameScore}</TableCell>
+                        <TableCell className="text-center">{entry.autoBallsShot}</TableCell>
+                        <TableCell className="text-center">{entry.teleopBallsShot}</TableCell>
+                        <TableCell className="text-center">{entry.teleopAccuracy}/10</TableCell>
                         <TableCell className="text-center">
-                          {entry.defenseRating}/5
+                          <Badge variant={entry.climbSuccess === "success" ? "default" : "secondary"} className="text-xs">
+                            {entry.climbSuccess === "success" ? "Yes" : entry.climbSuccess === "failed" ? "Fail" : "-"}
+                          </Badge>
                         </TableCell>
-                        <TableCell className="text-center font-medium">
-                          {entry.autoScore + entry.teleopScore + entry.endgameScore}
+                        <TableCell className="text-center">
+                          {entry.defenseRating}/10
                         </TableCell>
                       </TableRow>
                     ))}

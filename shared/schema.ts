@@ -38,10 +38,25 @@ export const scoutingEntries = pgTable("scouting_entries", {
   eventId: integer("event_id").notNull(),
   teamId: integer("team_id").notNull(),
   matchNumber: integer("match_number").notNull(),
-  autoScore: integer("auto_score").notNull().default(0),
-  teleopScore: integer("teleop_score").notNull().default(0),
-  endgameScore: integer("endgame_score").notNull().default(0),
-  defenseRating: integer("defense_rating").notNull().default(3),
+
+  autoBallsShot: integer("auto_balls_shot").notNull().default(0),
+  autoNotes: text("auto_notes"),
+  autoDrawing: text("auto_drawing"),
+
+  teleopBallsShot: integer("teleop_balls_shot").notNull().default(0),
+  teleopShootPosition: text("teleop_shoot_position"),
+  teleopMoveWhileShoot: boolean("teleop_move_while_shoot").notNull().default(false),
+  teleopFpsEstimate: integer("teleop_fps_estimate").notNull().default(0),
+  teleopAccuracy: integer("teleop_accuracy").notNull().default(5),
+
+  climbSuccess: text("climb_success").notNull().default("none"),
+  climbPosition: text("climb_position"),
+
+  defenseRating: integer("defense_rating").notNull().default(0),
+  defenseNotes: text("defense_notes"),
+
+  driverSkillNotes: text("driver_skill_notes"),
+
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

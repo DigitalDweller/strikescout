@@ -48,15 +48,15 @@ export default function ScouterProfile() {
   const scouter = scouters?.find((s) => s.id === scouterId);
 
   const totalEntries = entries?.length || 0;
-  const avgAuto = totalEntries
-    ? Math.round(entries!.reduce((s, e) => s + e.autoScore, 0) / totalEntries)
-    : 0;
-  const avgTeleop = totalEntries
-    ? Math.round(entries!.reduce((s, e) => s + e.teleopScore, 0) / totalEntries)
-    : 0;
-  const avgEndgame = totalEntries
-    ? Math.round(entries!.reduce((s, e) => s + e.endgameScore, 0) / totalEntries)
-    : 0;
+  const avgAutoBalls = totalEntries
+    ? (entries!.reduce((s, e) => s + e.autoBallsShot, 0) / totalEntries).toFixed(1)
+    : "0";
+  const avgTeleopBalls = totalEntries
+    ? (entries!.reduce((s, e) => s + e.teleopBallsShot, 0) / totalEntries).toFixed(1)
+    : "0";
+  const avgAccuracy = totalEntries
+    ? (entries!.reduce((s, e) => s + e.teleopAccuracy, 0) / totalEntries).toFixed(1)
+    : "0";
 
   const eventMap = new Map(events?.map((e) => [e.id, e.name]) || []);
   const teamMap = new Map(teams?.map((t) => [t.id, `#${t.teamNumber} ${t.teamName}`]) || []);
@@ -106,20 +106,20 @@ export default function ScouterProfile() {
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-primary">{avgAuto}</p>
-            <p className="text-xs text-muted-foreground">Avg Auto Scored</p>
+            <p className="text-2xl font-bold text-primary">{avgAutoBalls}</p>
+            <p className="text-xs text-muted-foreground">Avg Auto Balls</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-chart-2">{avgTeleop}</p>
-            <p className="text-xs text-muted-foreground">Avg Teleop Scored</p>
+            <p className="text-2xl font-bold text-chart-2">{avgTeleopBalls}</p>
+            <p className="text-xs text-muted-foreground">Avg Teleop Balls</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-chart-3">{avgEndgame}</p>
-            <p className="text-xs text-muted-foreground">Avg Endgame Scored</p>
+            <p className="text-2xl font-bold text-chart-3">{avgAccuracy}/10</p>
+            <p className="text-xs text-muted-foreground">Avg Accuracy</p>
           </CardContent>
         </Card>
       </div>
@@ -179,7 +179,8 @@ export default function ScouterProfile() {
                     <TableHead>Match</TableHead>
                     <TableHead className="text-center">Auto</TableHead>
                     <TableHead className="text-center">Teleop</TableHead>
-                    <TableHead className="text-center">Endgame</TableHead>
+                    <TableHead className="text-center">Accuracy</TableHead>
+                    <TableHead className="text-center">Climb</TableHead>
                     <TableHead className="text-center">Defense</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -197,10 +198,15 @@ export default function ScouterProfile() {
                         <TableCell>
                           <Badge variant="secondary">M{entry.matchNumber}</Badge>
                         </TableCell>
-                        <TableCell className="text-center">{entry.autoScore}</TableCell>
-                        <TableCell className="text-center">{entry.teleopScore}</TableCell>
-                        <TableCell className="text-center">{entry.endgameScore}</TableCell>
-                        <TableCell className="text-center">{entry.defenseRating}/5</TableCell>
+                        <TableCell className="text-center">{entry.autoBallsShot}</TableCell>
+                        <TableCell className="text-center">{entry.teleopBallsShot}</TableCell>
+                        <TableCell className="text-center">{entry.teleopAccuracy}/10</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={entry.climbSuccess === "success" ? "default" : "secondary"} className="text-xs">
+                            {entry.climbSuccess === "success" ? "Yes" : entry.climbSuccess === "failed" ? "Fail" : "-"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">{entry.defenseRating}/10</TableCell>
                       </TableRow>
                     ))}
                 </TableBody>

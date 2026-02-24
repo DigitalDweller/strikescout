@@ -19,13 +19,12 @@ import {
   SkipForward,
   RotateCcw,
   Radio,
-  Calendar,
   Users,
   Loader2,
   ArrowRight,
   AlertTriangle,
 } from "lucide-react";
-import type { Event, ScoutingEntry, User } from "@shared/schema";
+import type { Event, ScoutingEntry, User, Team } from "@shared/schema";
 
 export default function AdminMatchControl() {
   const { toast } = useToast();
@@ -43,6 +42,10 @@ export default function AdminMatchControl() {
 
   const { data: scouters } = useQuery<User[]>({
     queryKey: ["/api/scouters"],
+  });
+
+  const { data: teams } = useQuery<Team[]>({
+    queryKey: ["/api/teams"],
   });
 
   const advanceMutation = useMutation({
@@ -70,6 +73,7 @@ export default function AdminMatchControl() {
   });
 
   const scouterMap = new Map(scouters?.map((s) => [s.id, s.displayName]) || []);
+  const teamMap = new Map(teams?.map((t) => [t.id, `#${t.teamNumber}`]) || []);
 
   if (!activeEvent) {
     return (
@@ -186,11 +190,12 @@ export default function AdminMatchControl() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Scouter</TableHead>
+                    <TableHead>Team</TableHead>
                     <TableHead className="text-center">Auto</TableHead>
                     <TableHead className="text-center">Teleop</TableHead>
-                    <TableHead className="text-center">Endgame</TableHead>
+                    <TableHead className="text-center">Accuracy</TableHead>
+                    <TableHead className="text-center">Climb</TableHead>
                     <TableHead className="text-center">Defense</TableHead>
-                    <TableHead className="text-center">Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -199,13 +204,18 @@ export default function AdminMatchControl() {
                       <TableCell className="font-medium">
                         {scouterMap.get(entry.scouterId) || `Scouter ${entry.scouterId}`}
                       </TableCell>
-                      <TableCell className="text-center">{entry.autoScore}</TableCell>
-                      <TableCell className="text-center">{entry.teleopScore}</TableCell>
-                      <TableCell className="text-center">{entry.endgameScore}</TableCell>
-                      <TableCell className="text-center">{entry.defenseRating}/5</TableCell>
-                      <TableCell className="text-center font-medium">
-                        {entry.autoScore + entry.teleopScore + entry.endgameScore}
+                      <TableCell>
+                        {teamMap.get(entry.teamId) || `Team ${entry.teamId}`}
                       </TableCell>
+                      <TableCell className="text-center">{entry.autoBallsShot}</TableCell>
+                      <TableCell className="text-center">{entry.teleopBallsShot}</TableCell>
+                      <TableCell className="text-center">{entry.teleopAccuracy}/10</TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={entry.climbSuccess === "success" ? "default" : "secondary"} className="text-xs">
+                          {entry.climbSuccess === "success" ? "Yes" : entry.climbSuccess === "failed" ? "Fail" : "-"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">{entry.defenseRating}/10</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

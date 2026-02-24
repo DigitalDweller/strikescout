@@ -88,13 +88,13 @@ export default function AdminEventDetail() {
   function getTeamStats(teamId: number) {
     const teamEntries = entries?.filter((e) => e.teamId === teamId) || [];
     if (teamEntries.length === 0)
-      return { count: 0, avgAuto: 0, avgTeleop: 0, avgEndgame: 0, avgTotal: 0 };
+      return { count: 0, avgAutoBalls: 0, avgTeleopBalls: 0, avgAccuracy: 0, climbRate: 0 };
     const count = teamEntries.length;
-    const avgAuto = Math.round(teamEntries.reduce((s, e) => s + e.autoScore, 0) / count);
-    const avgTeleop = Math.round(teamEntries.reduce((s, e) => s + e.teleopScore, 0) / count);
-    const avgEndgame = Math.round(teamEntries.reduce((s, e) => s + e.endgameScore, 0) / count);
-    const avgTotal = avgAuto + avgTeleop + avgEndgame;
-    return { count, avgAuto, avgTeleop, avgEndgame, avgTotal };
+    const avgAutoBalls = +(teamEntries.reduce((s, e) => s + e.autoBallsShot, 0) / count).toFixed(1);
+    const avgTeleopBalls = +(teamEntries.reduce((s, e) => s + e.teleopBallsShot, 0) / count).toFixed(1);
+    const avgAccuracy = +(teamEntries.reduce((s, e) => s + e.teleopAccuracy, 0) / count).toFixed(1);
+    const climbRate = Math.round((teamEntries.filter((e) => e.climbSuccess === "success").length / count) * 100);
+    return { count, avgAutoBalls, avgTeleopBalls, avgAccuracy, climbRate };
   }
 
   if (eventLoading) {
@@ -208,10 +208,10 @@ export default function AdminEventDetail() {
                   <TableRow>
                     <TableHead>Team</TableHead>
                     <TableHead className="text-center">Entries</TableHead>
-                    <TableHead className="text-center">Avg Auto</TableHead>
-                    <TableHead className="text-center">Avg Teleop</TableHead>
-                    <TableHead className="text-center">Avg Endgame</TableHead>
-                    <TableHead className="text-center">Avg Total</TableHead>
+                    <TableHead className="text-center">Auto Balls</TableHead>
+                    <TableHead className="text-center">Teleop Balls</TableHead>
+                    <TableHead className="text-center">Accuracy</TableHead>
+                    <TableHead className="text-center">Climb %</TableHead>
                     <TableHead className="w-20"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -228,10 +228,10 @@ export default function AdminEventDetail() {
                           </Link>
                         </TableCell>
                         <TableCell className="text-center">{stats.count}</TableCell>
-                        <TableCell className="text-center">{stats.avgAuto}</TableCell>
-                        <TableCell className="text-center">{stats.avgTeleop}</TableCell>
-                        <TableCell className="text-center">{stats.avgEndgame}</TableCell>
-                        <TableCell className="text-center font-medium">{stats.avgTotal}</TableCell>
+                        <TableCell className="text-center">{stats.avgAutoBalls}</TableCell>
+                        <TableCell className="text-center">{stats.avgTeleopBalls}</TableCell>
+                        <TableCell className="text-center">{stats.avgAccuracy}/10</TableCell>
+                        <TableCell className="text-center">{stats.climbRate}%</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 justify-end">
                             <Link href={`/events/${eventId}/teams/${et.teamId}`}>
