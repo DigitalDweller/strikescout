@@ -33,6 +33,7 @@ import {
   Crosshair,
 } from "lucide-react";
 import type { Event, Team, EventTeam } from "@shared/schema";
+import fieldImagePath from "@assets/6846b9eeb548474b11b6b16d828c2e6092a99131_1771896451988.png";
 
 function BigCounterInput({
   value,
@@ -90,6 +91,14 @@ function FieldDrawingCanvas({
   const [strokes, setStrokes] = useState<{ x: number; y: number }[][]>([]);
   const [currentStroke, setCurrentStroke] = useState<{ x: number; y: number }[]>([]);
   const prevValueRef = useRef(value);
+  const fieldImgRef = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    const img = new Image();
+    img.src = fieldImagePath;
+    img.onload = () => { fieldImgRef.current = img; redraw(); };
+    fieldImgRef.current = img;
+  }, []);
 
   useEffect(() => {
     if (value !== prevValueRef.current) {
@@ -117,23 +126,12 @@ function FieldDrawingCanvas({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "#1a5c1a";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.strokeStyle = "#ffffff33";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(canvas.width / 2, 0);
-    ctx.lineTo(canvas.width / 2, canvas.height);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(canvas.width / 2, canvas.height / 2, 40, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.strokeStyle = "#ffffff44";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(5, 5, canvas.width - 10, canvas.height - 10);
+    if (fieldImgRef.current?.complete) {
+      ctx.drawImage(fieldImgRef.current, 0, 0, canvas.width, canvas.height);
+    } else {
+      ctx.fillStyle = "#1a5c1a";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
     const allStrokes = [...strokes, currentStroke];
     ctx.strokeStyle = "#ffcc00";
@@ -255,6 +253,14 @@ function ShootingHeatmap({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [points, setPoints] = useState<{ x: number; y: number }[]>([]);
   const prevValueRef = useRef(value);
+  const fieldImgRef = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    const img = new Image();
+    img.src = fieldImagePath;
+    img.onload = () => { fieldImgRef.current = img; drawHeatmap(); };
+    fieldImgRef.current = img;
+  }, []);
 
   useEffect(() => {
     if (value !== prevValueRef.current) {
@@ -282,27 +288,12 @@ function ShootingHeatmap({
 
     ctx.clearRect(0, 0, W, H);
 
-    ctx.fillStyle = "#1e3a5f";
-    ctx.fillRect(0, 0, W, H);
-
-    ctx.strokeStyle = "#ffffff22";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(W / 2, 0);
-    ctx.lineTo(W / 2, H);
-    ctx.stroke();
-    ctx.strokeStyle = "#ffffff33";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(5, 5, W - 10, H - 10);
-
-    ctx.strokeStyle = "#ffffff22";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(W * 0.12, H / 2, 30, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(W * 0.88, H / 2, 30, 0, Math.PI * 2);
-    ctx.stroke();
+    if (fieldImgRef.current?.complete) {
+      ctx.drawImage(fieldImgRef.current, 0, 0, W, H);
+    } else {
+      ctx.fillStyle = "#1e3a5f";
+      ctx.fillRect(0, 0, W, H);
+    }
 
     if (points.length > 0) {
       const radius = 35;
