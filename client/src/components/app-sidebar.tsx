@@ -25,6 +25,7 @@ import {
   Moon,
   Sun,
   History,
+  Database,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import type { Event } from "@shared/schema";
@@ -44,6 +45,8 @@ export function AppSidebar({ eventId }: { eventId: number }) {
 
   const navItems = [
     { title: "Overview", url: `/events/${eventId}`, icon: LayoutDashboard },
+    { title: "Teams", url: `/events/${eventId}/teams`, icon: Users },
+    { title: "Schedule", url: `/events/${eventId}/schedule`, icon: CalendarDays },
     {
       title: "Scouting Form",
       url: `/events/${eventId}/scout`,
@@ -52,8 +55,7 @@ export function AppSidebar({ eventId }: { eventId: number }) {
         { title: "Form History", url: `/events/${eventId}/scout/history`, icon: History },
       ],
     },
-    { title: "Teams", url: `/events/${eventId}/teams`, icon: Users },
-    { title: "Schedule", url: `/events/${eventId}/schedule`, icon: CalendarDays },
+    { title: "Data Management", url: `/events/${eventId}/data`, icon: Database },
   ];
 
   return (
