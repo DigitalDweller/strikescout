@@ -1,4 +1,3 @@
-import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,8 +16,6 @@ import {
 import type { Event, ScoutingEntry } from "@shared/schema";
 
 export default function Dashboard() {
-  const { user } = useAuth();
-
   const { data: activeEvent, isLoading } = useQuery<Event | null>({
     queryKey: ["/api/active-event"],
   });
@@ -28,18 +25,13 @@ export default function Dashboard() {
     enabled: !!activeEvent,
   });
 
-  const { data: myEntries } = useQuery<ScoutingEntry[]>({
-    queryKey: ["/api/scouters", user?.id, "entries"],
-    enabled: !!user,
-  });
-
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">
-          Welcome, {user?.displayName}
+          Scout Hub
         </h1>
-        <p className="text-muted-foreground text-sm mt-1">Ready to scout some robots</p>
+        <p className="text-muted-foreground text-sm mt-1">FRC 2026 Scouting Dashboard</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -49,10 +41,10 @@ export default function Dashboard() {
               <ClipboardList className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-2xl font-bold" data-testid="text-my-entries">
-                {myEntries?.length || 0}
+              <p className="text-2xl font-bold" data-testid="text-total-entries">
+                {allEntries?.length || 0}
               </p>
-              <p className="text-xs text-muted-foreground">My Entries</p>
+              <p className="text-xs text-muted-foreground">Total Entries</p>
             </div>
           </CardContent>
         </Card>
@@ -62,10 +54,10 @@ export default function Dashboard() {
               <BarChart3 className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-2xl font-bold" data-testid="text-total-entries">
-                {allEntries?.length || 0}
+              <p className="text-2xl font-bold" data-testid="text-match-number">
+                {activeEvent?.currentMatchNumber || "-"}
               </p>
-              <p className="text-xs text-muted-foreground">Total Event Entries</p>
+              <p className="text-xs text-muted-foreground">Current Match</p>
             </div>
           </CardContent>
         </Card>
@@ -75,10 +67,14 @@ export default function Dashboard() {
               <Calendar className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-2xl font-bold" data-testid="text-match-number">
-                {activeEvent?.currentMatchNumber || "-"}
-              </p>
-              <p className="text-xs text-muted-foreground">Current Match</p>
+              {isLoading ? (
+                <Skeleton className="h-7 w-24" data-testid="text-event-name" />
+              ) : (
+                <p className="text-2xl font-bold" data-testid="text-event-name">
+                  {activeEvent ? "Active" : "None"}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">Event Status</p>
             </div>
           </CardContent>
         </Card>

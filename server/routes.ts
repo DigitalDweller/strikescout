@@ -1,36 +1,14 @@
 import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, hashPassword } from "./auth";
 import { insertEventSchema, insertTeamSchema, insertScoutingEntrySchema } from "@shared/schema";
 import { z } from "zod";
 
 async function seedDatabase() {
-  const existingAdmin = await storage.getUserByUsername("admin123");
-  if (existingAdmin) return;
+  const events = await storage.getEvents();
+  if (events.length > 0) return;
 
-  await storage.createUser({
-    username: "admin123",
-    password: await hashPassword("admin123"),
-    displayName: "Team Admin",
-    role: "scouter",
-  });
-
-  await storage.createUser({
-    username: "scout1",
-    password: await hashPassword("scout123"),
-    displayName: "Alex Johnson",
-    role: "scouter",
-  });
-
-  await storage.createUser({
-    username: "scout2",
-    password: await hashPassword("scout123"),
-    displayName: "Jordan Smith",
-    role: "scouter",
-  });
-
-  const event = await storage.createEvent({
+  await storage.createEvent({
     name: "2026 Houston Regional",
     location: "Houston, TX",
     startDate: "2026-03-15",
@@ -45,16 +23,13 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  setupAuth(app);
 
-  app.get("/api/events", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+  app.get("/api/events", async (_req, res) => {
     const allEvents = await storage.getEvents();
     res.json(allEvents);
   });
 
   app.post("/api/events", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     const parsed = insertEventSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const event = await storage.createEvent(parsed.data);
@@ -62,45 +37,38 @@ export async function registerRoutes(
   });
 
   app.get("/api/events/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     const event = await storage.getEvent(parseInt(req.params.id));
     if (!event) return res.sendStatus(404);
     res.json(event);
   });
 
   app.patch("/api/events/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     const event = await storage.updateEvent(parseInt(req.params.id), req.body);
     res.json(event);
   });
 
   app.delete("/api/events/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     await storage.deleteEvent(parseInt(req.params.id));
     res.sendStatus(204);
   });
 
   app.post("/api/events/:id/set-active", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     await storage.setActiveEvent(parseInt(req.params.id));
     const event = await storage.getEvent(parseInt(req.params.id));
     res.json(event);
   });
 
-  app.get("/api/active-event", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+  app.get("/api/active-event", async (_req, res) => {
     const event = await storage.getActiveEvent();
     res.json(event || null);
   });
 
-  app.get("/api/teams", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+  app.get("/api/teams", async (_req, res) => {
     const allTeams = await storage.getTeams();
     res.json(allTeams);
   });
 
   app.post("/api/teams", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     const parsed = insertTeamSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const existing = await storage.getTeamByNumber(parsed.data.teamNumber);
@@ -110,7 +78,6 @@ export async function registerRoutes(
   });
 
   app.post("/api/teams/import", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     const { teams: teamList, eventId } = req.body;
     if (!Array.isArray(teamList)) return res.status(400).send("teams must be an array");
 
@@ -135,19 +102,16 @@ export async function registerRoutes(
   });
 
   app.delete("/api/teams/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     await storage.deleteTeam(parseInt(req.params.id));
     res.sendStatus(204);
   });
 
   app.get("/api/events/:eventId/teams", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     const result = await storage.getEventTeams(parseInt(req.params.eventId));
     res.json(result);
   });
 
   app.post("/api/events/:eventId/teams", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     const eventTeam = await storage.addTeamToEvent({
       eventId: parseInt(req.params.eventId),
       teamId: req.body.teamId,
@@ -156,7 +120,6 @@ export async function registerRoutes(
   });
 
   app.delete("/api/events/:eventId/teams/:teamId", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     await storage.removeTeamFromEvent(
       parseInt(req.params.eventId),
       parseInt(req.params.teamId)
@@ -164,17 +127,10 @@ export async function registerRoutes(
     res.sendStatus(204);
   });
 
-  app.get("/api/scouters/:id/entries", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const entries = await storage.getEntriesByScouter(parseInt(req.params.id));
-    res.json(entries);
-  });
-
   app.post("/api/entries", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     const parsed = insertScoutingEntrySchema.safeParse({
       ...req.body,
-      scouterId: req.user!.id,
+      scouterId: 0,
     });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const entry = await storage.createScoutingEntry(parsed.data);
@@ -182,13 +138,11 @@ export async function registerRoutes(
   });
 
   app.get("/api/events/:eventId/entries", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     const entries = await storage.getEntriesByEvent(parseInt(req.params.eventId));
     res.json(entries);
   });
 
   app.get("/api/events/:eventId/teams/:teamId/entries", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     const entries = await storage.getEntriesByEventAndTeam(
       parseInt(req.params.eventId),
       parseInt(req.params.teamId)
@@ -197,7 +151,6 @@ export async function registerRoutes(
   });
 
   app.get("/api/events/:eventId/match/:matchNumber/entries", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     const entries = await storage.getEntriesByMatch(
       parseInt(req.params.eventId),
       parseInt(req.params.matchNumber)
@@ -206,13 +159,11 @@ export async function registerRoutes(
   });
 
   app.get("/api/events/:eventId/schedule", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     const schedule = await storage.getScheduleByEvent(parseInt(req.params.eventId));
     res.json(schedule);
   });
 
   app.post("/api/events/:eventId/schedule", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
     const eventId = parseInt(req.params.eventId);
     const { matches } = req.body;
     if (!Array.isArray(matches)) return res.status(400).send("matches must be an array");

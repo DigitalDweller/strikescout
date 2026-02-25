@@ -1,4 +1,3 @@
-import { useAuth } from "@/hooks/use-auth";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -12,7 +11,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
@@ -20,7 +18,6 @@ import {
   List,
   CalendarDays,
   Calendar,
-  LogOut,
   Bot,
   Moon,
   Sun,
@@ -36,11 +33,8 @@ const navItems = [
 ];
 
 export function AppSidebar() {
-  const { user, logoutMutation } = useAuth();
   const [location] = useLocation();
   const { theme, toggleTheme } = useTheme();
-
-  if (!user) return null;
 
   return (
     <Sidebar>
@@ -80,15 +74,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <div className="flex items-center gap-3 p-3">
-          <Avatar className="h-9 w-9">
-            <AvatarFallback className="text-xs font-medium">
-              {user.displayName.split(" ").map(n => n[0]).join("").toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate" data-testid="text-user-display-name">{user.displayName}</p>
-          </div>
+        <div className="flex items-center justify-end p-3">
           <Button
             size="icon"
             variant="ghost"
@@ -96,15 +82,6 @@ export function AppSidebar() {
             data-testid="button-toggle-theme"
           >
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => logoutMutation.mutate()}
-            disabled={logoutMutation.isPending}
-            data-testid="button-logout"
-          >
-            <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </SidebarFooter>

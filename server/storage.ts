@@ -1,25 +1,14 @@
 import {
-  users, events, teams, eventTeams, scoutingEntries, scheduleMatches,
-  type User, type InsertUser, type Event, type InsertEvent,
+  events, teams, eventTeams, scoutingEntries, scheduleMatches,
+  type Event, type InsertEvent,
   type Team, type InsertTeam, type EventTeam, type InsertEventTeam,
   type ScoutingEntry, type InsertScoutingEntry,
   type ScheduleMatch, type InsertScheduleMatch,
 } from "@shared/schema";
 import { db } from "./db";
-import { pool } from "./db";
 import { eq, and } from "drizzle-orm";
-import session from "express-session";
-import connectPg from "connect-pg-simple";
-
-const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
-  getUser(id: number): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  getAllUsers(): Promise<User[]>;
-  deleteUser(id: number): Promise<void>;
-
   getEvents(): Promise<Event[]>;
   getEvent(id: number): Promise<Event | undefined>;
   createEvent(event: InsertEvent): Promise<Event>;
@@ -42,47 +31,14 @@ export interface IStorage {
   createScoutingEntry(entry: InsertScoutingEntry): Promise<ScoutingEntry>;
   getEntriesByEvent(eventId: number): Promise<ScoutingEntry[]>;
   getEntriesByEventAndTeam(eventId: number, teamId: number): Promise<ScoutingEntry[]>;
-  getEntriesByScouter(scouterId: number): Promise<ScoutingEntry[]>;
   getEntriesByMatch(eventId: number, matchNumber: number): Promise<ScoutingEntry[]>;
 
   getScheduleByEvent(eventId: number): Promise<ScheduleMatch[]>;
   createScheduleMatch(match: InsertScheduleMatch): Promise<ScheduleMatch>;
   deleteScheduleByEvent(eventId: number): Promise<void>;
-
-  sessionStore: session.Store;
 }
 
 export class DatabaseStorage implements IStorage {
-  sessionStore: session.Store;
-
-  constructor() {
-    this.sessionStore = new PostgresSessionStore({ pool, createTableIfMissing: true });
-  }
-
-  async getUser(id: number): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user || undefined;
-  }
-
-  async createUser(user: InsertUser): Promise<User> {
-    const [created] = await db.insert(users).values(user).returning();
-    return created;
-  }
-
-  async getAllUsers(): Promise<User[]> {
-    return db.select().from(users);
-  }
-
-  async deleteUser(id: number): Promise<void> {
-    await db.delete(scoutingEntries).where(eq(scoutingEntries.scouterId, id));
-    await db.delete(users).where(eq(users.id, id));
-  }
-
   async getEvents(): Promise<Event[]> {
     return db.select().from(events);
   }
@@ -190,10 +146,6 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(scoutingEntries).where(
       and(eq(scoutingEntries.eventId, eventId), eq(scoutingEntries.teamId, teamId))
     );
-  }
-
-  async getEntriesByScouter(scouterId: number): Promise<ScoutingEntry[]> {
-    return db.select().from(scoutingEntries).where(eq(scoutingEntries.scouterId, scouterId));
   }
 
   async getEntriesByMatch(eventId: number, matchNumber: number): Promise<ScoutingEntry[]> {
