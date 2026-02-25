@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Target, Crosshair, Shield, ArrowUp, Bot, Video } from "lucide-react";
+import { ArrowLeft, Target, Crosshair, Shield, ArrowUp, Bot, Video, Swords } from "lucide-react";
 import type { Event, ScoutingEntry, Team, ScheduleMatch, EventTeam } from "@shared/schema";
 
-function formatStat(val: number, multiplier = 1, suffix = "") {
+function fmt(val: number, multiplier = 1, suffix = "") {
   const v = val * multiplier;
   return `${parseFloat(v.toFixed(1))}${suffix}`;
 }
@@ -56,10 +56,10 @@ export default function MatchDetail() {
     return null;
   };
 
-  const getEntriesForTeamNumber = (teamNum: number) => {
+  const getEntry = (teamNum: number) => {
     const team = getTeamByNumber(teamNum);
-    if (!team || !entries) return [];
-    return entries.filter(e => e.teamId === team.id);
+    if (!team || !entries) return undefined;
+    return entries.find(e => e.teamId === team.id);
   };
 
   const formatTime = (time: string | null) => {
@@ -74,60 +74,14 @@ export default function MatchDetail() {
     return time;
   };
 
-  const TeamCard = ({ teamNum, alliance, entry }: { teamNum: number; alliance: "red" | "blue"; entry?: ScoutingEntry }) => {
-    const team = getTeamByNumber(teamNum);
-    const allianceColor = alliance === "red"
-      ? "border-red-500/40 bg-red-500/5"
-      : "border-blue-500/40 bg-blue-500/5";
-    const headerColor = alliance === "red"
-      ? "text-red-600 dark:text-red-400"
-      : "text-blue-600 dark:text-blue-400";
-
-    return (
-      <Card className={`${allianceColor} border`}>
-        <CardHeader className="pb-2 pt-4 px-4">
-          <div className="flex items-center justify-between">
-            <Link href={team ? `/events/${eventId}/teams/${team.id}` : "#"}>
-              <span className={`font-bold text-lg ${headerColor} hover:underline cursor-pointer`} data-testid={`link-team-${teamNum}`}>
-                {teamNum} {team ? `- ${team.teamName}` : ""}
-              </span>
-            </Link>
-            {!entry && (
-              <Badge variant="outline" className="text-xs text-muted-foreground">No data</Badge>
-            )}
-          </div>
-        </CardHeader>
-        {entry ? (
-          <CardContent className="px-4 pb-4 space-y-3">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <StatBox icon={<Target className="h-4 w-4 text-blue-500" />} label="Auto" value={`${entry.autoBallsShot}`} />
-              <StatBox icon={<Crosshair className="h-4 w-4 text-green-500" />} label="Throughput" value={formatStat(entry.teleopFpsEstimate)} />
-              <StatBox icon={<Target className="h-4 w-4 text-emerald-500" />} label="Accuracy" value={formatStat(entry.teleopAccuracy, 10, "%")} />
-              <StatBox icon={<Shield className="h-4 w-4 text-orange-500" />} label="Defense" value={formatStat(entry.defenseRating, 10, "%")} />
-              <StatBox icon={<ArrowUp className="h-4 w-4 text-purple-500" />} label="Climb" value={entry.climbSuccess === "success" ? `L${entry.climbLevel || "?"}` : entry.climbSuccess || "none"} />
-              <StatBox icon={<Bot className="h-4 w-4 text-cyan-500" />} label="Move & Shoot" value={entry.teleopMoveWhileShoot ? "Yes" : "No"} />
-            </div>
-
-            {(entry.autoNotes || entry.defenseNotes || entry.driverSkillNotes || entry.notes) && (
-              <div className="space-y-1.5 pt-1">
-                {entry.autoNotes && <NoteRow label="Auto" text={entry.autoNotes} />}
-                {entry.defenseNotes && <NoteRow label="Defense" text={entry.defenseNotes} />}
-                {entry.driverSkillNotes && <NoteRow label="Driver" text={entry.driverSkillNotes} />}
-                {entry.notes && <NoteRow label="Misc." text={entry.notes} />}
-              </div>
-            )}
-          </CardContent>
-        ) : (
-          <CardContent className="px-4 pb-4">
-            <p className="text-sm text-muted-foreground">No scouting data has been recorded for this team in this match.</p>
-          </CardContent>
-        )}
-      </Card>
-    );
+  const calcAllianceAvg = (teamNums: number[], field: (e: ScoutingEntry) => number) => {
+    const vals = teamNums.map(n => getEntry(n)).filter(Boolean).map(e => field(e!));
+    if (vals.length === 0) return "-";
+    return fmt(vals.reduce((a, b) => a + b, 0) / vals.length);
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-5 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 space-y-5 max-w-6xl mx-auto">
       <div className="flex items-center gap-3">
         <Link href={`/events/${eventId}/schedule`}>
           <Button variant="ghost" size="icon" data-testid="button-back-schedule">
@@ -145,10 +99,7 @@ export default function MatchDetail() {
       </div>
 
       {isLoading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-40 w-full" />
-          <Skeleton className="h-40 w-full" />
-        </div>
+        <Skeleton className="h-96 w-full" />
       ) : !match ? (
         <Card>
           <CardContent className="p-8 text-center">
@@ -159,7 +110,60 @@ export default function MatchDetail() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+            <div className="text-right">
+              <p className="text-xl font-extrabold text-red-600 dark:text-red-400">Red Alliance</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {redTeams.map(n => n).join(" · ")}
+              </p>
+            </div>
+            <div className="flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                <Swords className="h-6 w-6 text-muted-foreground" />
+              </div>
+            </div>
+            <div className="text-left">
+              <p className="text-xl font-extrabold text-blue-600 dark:text-blue-400">Blue Alliance</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {blueTeams.map(n => n).join(" · ")}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-3">
+            <StatCompareColumn teamNums={redTeams} getEntry={getEntry} getTeamByNumber={getTeamByNumber} alliance="red" />
+            <div className="flex flex-col items-center gap-0">
+              {["Auto", "Throughput", "Accuracy", "Defense", "Climb", "Move&Shoot"].map(label => (
+                <div key={label} className="h-[52px] flex items-center justify-center">
+                  <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">{label}</span>
+                </div>
+              ))}
+            </div>
+            <StatCompareColumn teamNums={blueTeams} getEntry={getEntry} getTeamByNumber={getTeamByNumber} alliance="blue" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
+                Red Teams
+              </h3>
+              {redTeams.map(num => (
+                <TeamDetailCard key={num} teamNum={num} entry={getEntry(num)} team={getTeamByNumber(num)} eventId={eventId} alliance="red" />
+              ))}
+            </div>
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" />
+                Blue Teams
+              </h3>
+              {blueTeams.map(num => (
+                <TeamDetailCard key={num} teamNum={num} entry={getEntry(num)} team={getTeamByNumber(num)} eventId={eventId} alliance="blue" />
+              ))}
+            </div>
+          </div>
+
           {match.videoUrl && (
             <Card>
               <CardContent className="p-4">
@@ -178,66 +182,129 @@ export default function MatchDetail() {
                     />
                   </div>
                 ) : (
-                  <a
-                    href={match.videoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline text-sm"
-                    data-testid="link-match-video"
-                  >
+                  <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm" data-testid="link-match-video">
                     {match.videoUrl}
                   </a>
                 )}
               </CardContent>
             </Card>
           )}
-
-          <div>
-            <h2 className="text-base font-bold text-red-600 dark:text-red-400 mb-2 flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-red-500 inline-block" />
-              Red Alliance
-            </h2>
-            <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
-              {redTeams.map(num => (
-                <TeamCard key={num} teamNum={num} alliance="red" entry={getEntriesForTeamNumber(num)[0]} />
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-base font-bold text-blue-600 dark:text-blue-400 mb-2 flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-blue-500 inline-block" />
-              Blue Alliance
-            </h2>
-            <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
-              {blueTeams.map(num => (
-                <TeamCard key={num} teamNum={num} alliance="blue" entry={getEntriesForTeamNumber(num)[0]} />
-              ))}
-            </div>
-          </div>
         </div>
       )}
     </div>
   );
 }
 
-function StatBox({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function StatCompareColumn({
+  teamNums,
+  getEntry,
+  getTeamByNumber,
+  alliance,
+}: {
+  teamNums: number[];
+  getEntry: (n: number) => ScoutingEntry | undefined;
+  getTeamByNumber: (n: number) => Team | null;
+  alliance: "red" | "blue";
+}) {
+  const entries = teamNums.map(n => getEntry(n)).filter(Boolean) as ScoutingEntry[];
+  const count = entries.length;
+
+  const avg = (fn: (e: ScoutingEntry) => number) => {
+    if (count === 0) return "-";
+    return fmt(entries.reduce((s, e) => s + fn(e), 0) / count);
+  };
+
+  const borderColor = alliance === "red" ? "border-red-500/30" : "border-blue-500/30";
+  const bgColor = alliance === "red" ? "bg-red-500/5" : "bg-blue-500/5";
+  const textColor = alliance === "red" ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400";
+  const align = alliance === "red" ? "text-right" : "text-left";
+
+  const stats = [
+    { value: avg(e => e.autoBallsShot) },
+    { value: avg(e => e.teleopFpsEstimate) },
+    { value: count > 0 ? `${fmt(entries.reduce((s, e) => s + e.teleopAccuracy, 0) / count, 10)}%` : "-" },
+    { value: count > 0 ? `${fmt(entries.reduce((s, e) => s + e.defenseRating, 0) / count, 10)}%` : "-" },
+    { value: count > 0 ? (() => {
+        const successes = entries.filter(e => e.climbSuccess === "success");
+        return `${Math.round(successes.length / count * 100)}%`;
+      })() : "-" },
+    { value: count > 0 ? `${entries.filter(e => e.teleopMoveWhileShoot).length}/${count}` : "-" },
+  ];
+
   return (
-    <div className="flex items-center gap-2 bg-background/60 rounded-md px-3 py-2 border" data-testid={`stat-${label.toLowerCase()}`}>
-      {icon}
-      <div>
-        <p className="text-[11px] text-muted-foreground leading-none">{label}</p>
-        <p className="text-sm font-bold mt-0.5">{value}</p>
-      </div>
+    <div className={`rounded-lg border ${borderColor} ${bgColor} overflow-hidden`}>
+      {stats.map((s, i) => (
+        <div key={i} className={`h-[52px] flex items-center px-4 ${align} ${i > 0 ? "border-t border-border/50" : ""}`}>
+          <span className={`text-lg font-bold ${textColor} ${alliance === "red" ? "ml-auto" : ""}`}>
+            {s.value}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
 
-function NoteRow({ label, text }: { label: string; text: string }) {
+function TeamDetailCard({
+  teamNum,
+  entry,
+  team,
+  eventId,
+  alliance,
+}: {
+  teamNum: number;
+  entry?: ScoutingEntry;
+  team: Team | null;
+  eventId: number;
+  alliance: "red" | "blue";
+}) {
+  const borderColor = alliance === "red" ? "border-l-red-500" : "border-l-blue-500";
+  const nameColor = alliance === "red" ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400";
+
   return (
-    <div className="text-sm">
-      <span className="font-semibold text-muted-foreground">{label}:</span>{" "}
-      <span>{text}</span>
+    <Card className={`border-l-4 ${borderColor}`}>
+      <CardContent className="p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <Link href={team ? `/events/${eventId}/teams/${team.id}` : "#"}>
+            <span className={`font-bold ${nameColor} hover:underline cursor-pointer`} data-testid={`link-team-${teamNum}`}>
+              {teamNum} {team ? `- ${team.teamName}` : ""}
+            </span>
+          </Link>
+          {!entry && <Badge variant="outline" className="text-xs">No data</Badge>}
+        </div>
+
+        {entry && (
+          <>
+            <div className="grid grid-cols-3 gap-2">
+              <MiniStat icon={<Target className="h-3.5 w-3.5 text-blue-500" />} label="Auto" value={`${entry.autoBallsShot}`} />
+              <MiniStat icon={<Crosshair className="h-3.5 w-3.5 text-green-500" />} label="FPS" value={fmt(entry.teleopFpsEstimate)} />
+              <MiniStat icon={<Target className="h-3.5 w-3.5 text-emerald-500" />} label="Acc" value={fmt(entry.teleopAccuracy, 10, "%")} />
+              <MiniStat icon={<Shield className="h-3.5 w-3.5 text-orange-500" />} label="Def" value={fmt(entry.defenseRating, 10, "%")} />
+              <MiniStat icon={<ArrowUp className="h-3.5 w-3.5 text-purple-500" />} label="Climb" value={entry.climbSuccess === "success" ? `L${entry.climbLevel || "?"}` : entry.climbSuccess || "none"} />
+              <MiniStat icon={<Bot className="h-3.5 w-3.5 text-cyan-500" />} label="M&S" value={entry.teleopMoveWhileShoot ? "Yes" : "No"} />
+            </div>
+            {(entry.autoNotes || entry.defenseNotes || entry.driverSkillNotes || entry.notes) && (
+              <div className="text-xs space-y-0.5 text-muted-foreground border-t pt-2 mt-1">
+                {entry.autoNotes && <p><span className="font-semibold">Auto:</span> {entry.autoNotes}</p>}
+                {entry.defenseNotes && <p><span className="font-semibold">Defense:</span> {entry.defenseNotes}</p>}
+                {entry.driverSkillNotes && <p><span className="font-semibold">Driver:</span> {entry.driverSkillNotes}</p>}
+                {entry.notes && <p><span className="font-semibold">Misc.:</span> {entry.notes}</p>}
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MiniStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-1.5 bg-background/60 rounded px-2 py-1.5 border">
+      {icon}
+      <div className="min-w-0">
+        <p className="text-[10px] text-muted-foreground leading-none">{label}</p>
+        <p className="text-xs font-bold mt-0.5 truncate">{value}</p>
+      </div>
     </div>
   );
 }
