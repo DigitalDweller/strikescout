@@ -157,40 +157,55 @@ export default function TeamProfile() {
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card>
-          <CardContent className="p-5 text-center space-y-1">
-            {rankings && <RankBadge rank={rankings.autoRank} total={rankings.total} />}
-            <p className="text-sm font-medium text-foreground/70">Avg Auto</p>
-            <p className="text-4xl font-extrabold text-primary leading-none" data-testid="text-avg-auto">{avgAutoBalls}</p>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-bold text-primary">Auto</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="text-center space-y-1">
+              {rankings && <RankBadge rank={rankings.autoRank} total={rankings.total} />}
+              <p className="text-sm font-medium text-foreground/70">Balls Shot</p>
+              <p className="text-4xl font-extrabold text-primary leading-none" data-testid="text-avg-auto">{avgAutoBalls}</p>
+            </div>
           </CardContent>
         </Card>
+
         <Card>
-          <CardContent className="p-5 text-center space-y-1">
-            {rankings && <RankBadge rank={rankings.throughputRank} total={rankings.total} />}
-            <p className="text-sm font-medium text-foreground/70">Throughput</p>
-            <p className="text-4xl font-extrabold text-chart-2 leading-none" data-testid="text-avg-throughput">{avgThroughput}</p>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-bold text-chart-2">Teleop</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="text-center space-y-1">
+                {rankings && <RankBadge rank={rankings.throughputRank} total={rankings.total} />}
+                <p className="text-sm font-medium text-foreground/70">Throughput</p>
+                <p className="text-3xl font-extrabold text-chart-2 leading-none" data-testid="text-avg-throughput">{avgThroughput}</p>
+              </div>
+              <div className="text-center space-y-1">
+                {rankings && <RankBadge rank={rankings.accuracyRank} total={rankings.total} />}
+                <p className="text-sm font-medium text-foreground/70">Accuracy</p>
+                <p className="text-3xl font-extrabold text-chart-3 leading-none" data-testid="text-avg-accuracy">{avgAccuracy}<span className="text-lg">%</span></p>
+              </div>
+            </div>
+            <div className="text-center space-y-1 pt-1">
+              {rankings && <RankBadge rank={rankings.defenseRank} total={rankings.total} />}
+              <p className="text-sm font-medium text-foreground/70">Defense</p>
+              <p className="text-3xl font-extrabold text-chart-4 leading-none" data-testid="text-avg-defense">{avgDefense}<span className="text-lg">%</span></p>
+            </div>
           </CardContent>
         </Card>
+
         <Card>
-          <CardContent className="p-5 text-center space-y-1">
-            {rankings && <RankBadge rank={rankings.accuracyRank} total={rankings.total} />}
-            <p className="text-sm font-medium text-foreground/70">Accuracy</p>
-            <p className="text-4xl font-extrabold text-chart-3 leading-none" data-testid="text-avg-accuracy">{avgAccuracy}<span className="text-lg">%</span></p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5 text-center space-y-1">
-            {rankings && <RankBadge rank={rankings.defenseRank} total={rankings.total} />}
-            <p className="text-sm font-medium text-foreground/70">Defense</p>
-            <p className="text-4xl font-extrabold text-chart-4 leading-none" data-testid="text-avg-defense">{avgDefense}<span className="text-lg">%</span></p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5 text-center space-y-1">
-            {rankings && <RankBadge rank={rankings.climbRank} total={rankings.total} />}
-            <p className="text-sm font-medium text-foreground/70">Climb Rate</p>
-            <p className="text-4xl font-extrabold text-chart-5 leading-none" data-testid="text-climb-rate">{climbRate}<span className="text-lg">%</span></p>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-bold text-chart-5">Endgame</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="text-center space-y-1">
+              {rankings && <RankBadge rank={rankings.climbRank} total={rankings.total} />}
+              <p className="text-sm font-medium text-foreground/70">Climb Rate</p>
+              <p className="text-4xl font-extrabold text-chart-5 leading-none" data-testid="text-climb-rate">{climbRate}<span className="text-lg">%</span></p>
+            </div>
           </CardContent>
         </Card>
       </div>
