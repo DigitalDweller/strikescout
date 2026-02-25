@@ -344,7 +344,7 @@ export default function TeamProfile() {
       })()}
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-4">
-        <Card className="sm:col-span-1">
+        <Card className="sm:col-span-1 border-t-4 border-primary/30">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-bold text-primary text-center">Auto</CardTitle>
           </CardHeader>
@@ -357,7 +357,7 @@ export default function TeamProfile() {
           </CardContent>
         </Card>
 
-        <Card className="sm:col-span-2">
+        <Card className="sm:col-span-2 border-t-4 border-chart-2/30">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-bold text-chart-2 text-center">Teleop</CardTitle>
           </CardHeader>
@@ -386,7 +386,7 @@ export default function TeamProfile() {
           </CardContent>
         </Card>
 
-        <Card className="sm:col-span-1">
+        <Card className="sm:col-span-1 border-t-4 border-chart-5/30">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-bold text-chart-5 text-center">Endgame</CardTitle>
           </CardHeader>
