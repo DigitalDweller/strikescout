@@ -150,7 +150,7 @@ export default function TeamProfile() {
           </Button>
         </Link>
         <h1 className="text-3xl font-bold tracking-tight" data-testid="text-team-name">
-          {team ? `#${team.teamNumber} ${team.teamName}` : <Skeleton className="h-9 w-56 inline-block" />}
+          {team ? `${team.teamNumber} - ${team.teamName}` : <Skeleton className="h-9 w-56 inline-block" />}
         </h1>
         {event && (
           <p className="text-base text-muted-foreground mt-1">{event.name}</p>

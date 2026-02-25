@@ -85,7 +85,7 @@ function TeamSearchCombobox({
           ref={inputRef}
           type="text"
           className={`flex-1 bg-transparent outline-none placeholder:text-muted-foreground ${compact ? "text-sm" : "text-lg"}`}
-          placeholder={selectedTeam ? `#${selectedTeam.team.teamNumber} - ${selectedTeam.team.teamName}` : "Search team..."}
+          placeholder={selectedTeam ? `${selectedTeam.team.teamNumber} - ${selectedTeam.team.teamName}` : "Search team..."}
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -132,7 +132,7 @@ function TeamSearchCombobox({
                   <Check className="h-4 w-4 text-primary shrink-0" />
                 )}
                 <span className={et.teamId === selectedTeamId ? "" : "ml-6"}>
-                  <span className="font-bold text-primary">#{et.team.teamNumber}</span>
+                  <span className="font-bold text-primary">{et.team.teamNumber}</span>
                   <span className="ml-1.5">{et.team.teamName}</span>
                 </span>
               </div>

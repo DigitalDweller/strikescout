@@ -81,7 +81,7 @@ function LeaderboardCard({
                         {getOrdinal(rank)}
                       </span>
                       <div>
-                        <span className="font-bold text-primary">#{ts.team?.teamNumber}</span>
+                        <span className="font-bold text-primary">{ts.team?.teamNumber}</span>
                         <span className="ml-1.5 text-sm font-medium">{ts.team?.teamName}</span>
                       </div>
                     </div>
