@@ -11,6 +11,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +24,7 @@ import {
   LayoutDashboard,
   Moon,
   Sun,
+  History,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import type { Event } from "@shared/schema";
@@ -40,7 +44,14 @@ export function AppSidebar({ eventId }: { eventId: number }) {
 
   const navItems = [
     { title: "Overview", url: `/events/${eventId}`, icon: LayoutDashboard },
-    { title: "Scout", url: `/events/${eventId}/scout`, icon: ClipboardList },
+    {
+      title: "Scouting Form",
+      url: `/events/${eventId}/scout`,
+      icon: ClipboardList,
+      children: [
+        { title: "Form History", url: `/events/${eventId}/scout/history`, icon: History },
+      ],
+    },
     { title: "Teams", url: `/events/${eventId}/teams`, icon: Users },
     { title: "Schedule", url: `/events/${eventId}/schedule`, icon: CalendarDays },
   ];
@@ -74,14 +85,30 @@ export function AppSidebar({ eventId }: { eventId: number }) {
             <SidebarMenu>
               {navItems.map((item) => {
                 const isActive = location === item.url;
+                const hasChildren = "children" in item && item.children;
+                const isChildActive = hasChildren && item.children!.some(c => location === c.url);
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild data-active={isActive || undefined}>
+                    <SidebarMenuButton asChild data-active={isActive || isChildActive || undefined}>
                       <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
                         <item.icon className="h-4 w-4" />
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
+                    {hasChildren && (
+                      <SidebarMenuSub>
+                        {item.children!.map(child => (
+                          <SidebarMenuSubItem key={child.title}>
+                            <SidebarMenuSubButton asChild data-active={location === child.url || undefined}>
+                              <Link href={child.url} data-testid={`nav-${child.title.toLowerCase().replace(/\s+/g, "-")}`}>
+                                <child.icon className="h-3.5 w-3.5" />
+                                <span>{child.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    )}
                   </SidebarMenuItem>
                 );
               })}

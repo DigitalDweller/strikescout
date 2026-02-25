@@ -14,6 +14,7 @@ import TeamList from "@/pages/team-list";
 import Schedule from "@/pages/schedule";
 import ScoutForm from "@/pages/scout-form";
 import TeamNotes from "@/pages/team-notes";
+import FormHistory from "@/pages/form-history";
 
 function EventLayout() {
   const params = useParams<{ id: string }>();
@@ -31,6 +32,7 @@ function EventLayout() {
             <Switch>
               <Route path="/events/:id" component={AdminEventDetail} />
               <Route path="/events/:id/scout" component={ScoutForm} />
+              <Route path="/events/:id/scout/history" component={FormHistory} />
               <Route path="/events/:id/teams" component={TeamList} />
               <Route path="/events/:id/schedule" component={Schedule} />
               <Route path="/events/:id/teams/:teamId" component={TeamProfile} />

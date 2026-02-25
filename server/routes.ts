@@ -137,6 +137,18 @@ export async function registerRoutes(
     res.status(201).json(entry);
   });
 
+  app.patch("/api/entries/:id", async (req, res) => {
+    const id = parseInt(req.params.id);
+    const updated = await storage.updateScoutingEntry(id, req.body);
+    res.json(updated);
+  });
+
+  app.delete("/api/entries/:id", async (req, res) => {
+    const id = parseInt(req.params.id);
+    await storage.deleteScoutingEntry(id);
+    res.sendStatus(204);
+  });
+
   app.get("/api/events/:eventId/entries", async (req, res) => {
     const entries = await storage.getEntriesByEvent(parseInt(req.params.eventId));
     res.json(entries);

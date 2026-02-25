@@ -53,10 +53,12 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 - `client/src/components/app-sidebar.tsx` - Navigation sidebar
 - `client/src/pages/admin-events.tsx` - Event selection home page (default `/` route)
 - `client/src/pages/scout-form.tsx` - Multi-robot scouting form
+- `client/src/pages/form-history.tsx` - Entry history with edit/delete
 - `client/src/pages/team-list.tsx` - Searchable/sortable team list
 - `client/src/pages/schedule.tsx` - Match schedule with CSV import
 - `client/src/pages/admin-event-detail.tsx` - Event overview with leaderboards and team roster
-- `client/src/pages/team-profile.tsx` - Individual team stats
+- `client/src/pages/team-profile.tsx` - Individual team stats (Auto/Teleop/Endgame sections + heatmap)
+- `client/src/pages/team-notes.tsx` - Full scout notes view for a team
 
 ## Running
 - `npm run dev` starts both Express backend and Vite frontend

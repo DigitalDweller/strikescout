@@ -29,6 +29,8 @@ export interface IStorage {
   removeTeamFromEvent(eventId: number, teamId: number): Promise<void>;
 
   createScoutingEntry(entry: InsertScoutingEntry): Promise<ScoutingEntry>;
+  updateScoutingEntry(id: number, data: Partial<ScoutingEntry>): Promise<ScoutingEntry>;
+  deleteScoutingEntry(id: number): Promise<void>;
   getEntriesByEvent(eventId: number): Promise<ScoutingEntry[]>;
   getEntriesByEventAndTeam(eventId: number, teamId: number): Promise<ScoutingEntry[]>;
   getEntriesByMatch(eventId: number, matchNumber: number): Promise<ScoutingEntry[]>;
@@ -136,6 +138,15 @@ export class DatabaseStorage implements IStorage {
   async createScoutingEntry(entry: InsertScoutingEntry): Promise<ScoutingEntry> {
     const [created] = await db.insert(scoutingEntries).values(entry).returning();
     return created;
+  }
+
+  async updateScoutingEntry(id: number, data: Partial<ScoutingEntry>): Promise<ScoutingEntry> {
+    const [updated] = await db.update(scoutingEntries).set(data).where(eq(scoutingEntries.id, id)).returning();
+    return updated;
+  }
+
+  async deleteScoutingEntry(id: number): Promise<void> {
+    await db.delete(scoutingEntries).where(eq(scoutingEntries.id, id));
   }
 
   async getEntriesByEvent(eventId: number): Promise<ScoutingEntry[]> {
