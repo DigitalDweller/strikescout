@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,119 @@ import {
 } from "@/components/ui/table";
 import { ArrowLeft } from "lucide-react";
 import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
+import heatmapFieldPath from "@assets/hehehehe_1771897335677.png";
+
+function AggregateHeatmap({ entries }: { entries: ScoutingEntry[] }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fieldImgRef = useRef<HTMLImageElement | null>(null);
+
+  const allPoints = useMemo(() => {
+    const pts: { x: number; y: number }[] = [];
+    for (const entry of entries) {
+      if (entry.teleopShootPosition) {
+        try {
+          const parsed = JSON.parse(entry.teleopShootPosition);
+          if (Array.isArray(parsed)) {
+            for (const p of parsed) {
+              if (typeof p.x === "number" && typeof p.y === "number") {
+                pts.push(p);
+              }
+            }
+          }
+        } catch {}
+      }
+    }
+    return pts;
+  }, [entries]);
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const W = canvas.width;
+    const H = canvas.height;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "#f0f0f0";
+    ctx.fillRect(0, 0, W, H);
+    if (fieldImgRef.current?.complete) {
+      const img = fieldImgRef.current;
+      const scale = Math.min(W / img.naturalWidth, H / img.naturalHeight);
+      const dw = img.naturalWidth * scale;
+      const dh = img.naturalHeight * scale;
+      ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    }
+
+    if (allPoints.length > 0) {
+      const radius = 35;
+      const grid = 4;
+      const intensity: Record<string, number> = {};
+      let maxI = 0;
+      for (const p of allPoints) {
+        const gx = Math.floor((p.x * W) / grid);
+        const gy = Math.floor((p.y * H) / grid);
+        for (let dx = -Math.ceil(radius / grid); dx <= Math.ceil(radius / grid); dx++) {
+          for (let dy = -Math.ceil(radius / grid); dy <= Math.ceil(radius / grid); dy++) {
+            const cx = (gx + dx) * grid + grid / 2;
+            const cy = (gy + dy) * grid + grid / 2;
+            const dist = Math.sqrt((cx - p.x * W) ** 2 + (cy - p.y * H) ** 2);
+            if (dist < radius) {
+              const key = `${gx + dx},${gy + dy}`;
+              const weight = 1 - dist / radius;
+              intensity[key] = (intensity[key] || 0) + weight;
+              if (intensity[key] > maxI) maxI = intensity[key];
+            }
+          }
+        }
+      }
+
+      for (const [key, val] of Object.entries(intensity)) {
+        const [gx, gy] = key.split(",").map(Number);
+        const norm = val / maxI;
+        const r = 255;
+        const g = Math.floor((1 - norm) * 255);
+        ctx.fillStyle = `rgba(${r}, ${g}, 0, ${Math.min(norm * 0.85 + 0.15, 0.95)})`;
+        ctx.fillRect(gx * grid, gy * grid, grid, grid);
+      }
+
+      for (const p of allPoints) {
+        ctx.beginPath();
+        ctx.arc(p.x * W, p.y * H, 2, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffffaa";
+        ctx.fill();
+      }
+    }
+  }, [allPoints]);
+
+  useEffect(() => {
+    const img = new Image();
+    img.src = heatmapFieldPath;
+    img.onload = () => { fieldImgRef.current = img; draw(); };
+    fieldImgRef.current = img;
+  }, []);
+
+  useEffect(() => { draw(); }, [draw]);
+
+  if (allPoints.length === 0) {
+    return (
+      <div className="rounded-md border border-border bg-muted/30 flex items-center justify-center" style={{ aspectRatio: "400/250" }}>
+        <p className="text-sm text-muted-foreground">No shooting data yet</p>
+      </div>
+    );
+  }
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={400}
+      height={250}
+      className="w-full rounded-md border border-border"
+      style={{ aspectRatio: "400/250" }}
+      data-testid="canvas-aggregate-heatmap"
+    />
+  );
+}
 
 function getOrdinal(n: number) {
   const s = ["th", "st", "nd", "rd"];
@@ -157,12 +270,12 @@ export default function TeamProfile() {
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-4">
+        <Card className="sm:col-span-1">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-bold text-primary">Auto</CardTitle>
+            <CardTitle className="text-base font-bold text-primary text-center">Auto</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent>
             <div className="text-center space-y-1">
               {rankings && <RankBadge rank={rankings.autoRank} total={rankings.total} />}
               <p className="text-sm font-medium text-foreground/70">Balls Shot</p>
@@ -171,12 +284,12 @@ export default function TeamProfile() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="sm:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-bold text-chart-2">Teleop</CardTitle>
+            <CardTitle className="text-base font-bold text-chart-2 text-center">Teleop</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
               <div className="text-center space-y-1">
                 {rankings && <RankBadge rank={rankings.throughputRank} total={rankings.total} />}
                 <p className="text-sm font-medium text-foreground/70">Throughput</p>
@@ -187,20 +300,24 @@ export default function TeamProfile() {
                 <p className="text-sm font-medium text-foreground/70">Accuracy</p>
                 <p className="text-3xl font-extrabold text-chart-3 leading-none" data-testid="text-avg-accuracy">{avgAccuracy}<span className="text-lg">%</span></p>
               </div>
+              <div className="text-center space-y-1">
+                {rankings && <RankBadge rank={rankings.defenseRank} total={rankings.total} />}
+                <p className="text-sm font-medium text-foreground/70">Defense</p>
+                <p className="text-3xl font-extrabold text-chart-4 leading-none" data-testid="text-avg-defense">{avgDefense}<span className="text-lg">%</span></p>
+              </div>
             </div>
-            <div className="text-center space-y-1 pt-1">
-              {rankings && <RankBadge rank={rankings.defenseRank} total={rankings.total} />}
-              <p className="text-sm font-medium text-foreground/70">Defense</p>
-              <p className="text-3xl font-extrabold text-chart-4 leading-none" data-testid="text-avg-defense">{avgDefense}<span className="text-lg">%</span></p>
+            <div>
+              <p className="text-sm font-medium text-foreground/70 text-center mb-2">Shooting Heatmap</p>
+              <AggregateHeatmap entries={entries || []} />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="sm:col-span-1">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-bold text-chart-5">Endgame</CardTitle>
+            <CardTitle className="text-base font-bold text-chart-5 text-center">Endgame</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent>
             <div className="text-center space-y-1">
               {rankings && <RankBadge rank={rankings.climbRank} total={rankings.total} />}
               <p className="text-sm font-medium text-foreground/70">Climb Rate</p>
