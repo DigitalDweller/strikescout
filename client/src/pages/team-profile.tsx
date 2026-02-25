@@ -16,6 +16,12 @@ import {
 import { ArrowLeft } from "lucide-react";
 import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
 
+function getOrdinal(n: number) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 function getRankColor(rank: number, total: number) {
   if (total === 0) return "text-muted-foreground";
   const pct = ((rank - 1) / Math.max(total - 1, 1)) * 100;
@@ -23,15 +29,6 @@ function getRankColor(rank: number, total: number) {
   if (pct <= 25) return "text-green-500";
   if (pct <= 50) return "text-blue-500";
   return "text-muted-foreground";
-}
-
-function getRankLabel(rank: number, total: number) {
-  if (total === 0) return "";
-  const pct = ((rank - 1) / Math.max(total - 1, 1)) * 100;
-  if (pct <= 10) return "Top 10%";
-  if (pct <= 25) return "Top 25%";
-  if (pct <= 50) return "Top 50%";
-  return "";
 }
 
 export default function TeamProfile() {
@@ -128,16 +125,10 @@ export default function TeamProfile() {
 
   const RankBadge = ({ rank, total }: { rank: number; total: number }) => {
     const color = getRankColor(rank, total);
-    const label = getRankLabel(rank, total);
     return (
-      <div className="mt-1">
-        <p className={`text-xs font-semibold ${color}`} data-testid={`text-rank-${rank}`}>
-          #{rank}/{total}
-        </p>
-        {label && (
-          <p className={`text-[10px] font-medium ${color}`}>{label}</p>
-        )}
-      </div>
+      <p className={`text-xs font-semibold ${color}`}>
+        {getOrdinal(rank)}
+      </p>
     );
   };
 
@@ -161,37 +152,37 @@ export default function TeamProfile() {
       <div className="grid gap-4 sm:grid-cols-5">
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-primary" data-testid="text-avg-auto">{avgAutoBalls}</p>
-            <p className="text-xs text-muted-foreground">Avg Auto Balls</p>
             {rankings && <RankBadge rank={rankings.autoRank} total={rankings.total} />}
+            <p className="text-xs text-muted-foreground mb-1">Avg Auto Balls</p>
+            <p className="text-2xl font-bold text-primary" data-testid="text-avg-auto">{avgAutoBalls}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-chart-2" data-testid="text-avg-teleop">{avgTeleopBalls}</p>
-            <p className="text-xs text-muted-foreground">Avg Teleop Balls</p>
             {rankings && <RankBadge rank={rankings.teleopRank} total={rankings.total} />}
+            <p className="text-xs text-muted-foreground mb-1">Avg Teleop Balls</p>
+            <p className="text-2xl font-bold text-chart-2" data-testid="text-avg-teleop">{avgTeleopBalls}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-chart-3" data-testid="text-avg-accuracy">{avgAccuracy}/10</p>
-            <p className="text-xs text-muted-foreground">Avg Accuracy</p>
             {rankings && <RankBadge rank={rankings.accuracyRank} total={rankings.total} />}
+            <p className="text-xs text-muted-foreground mb-1">Avg Accuracy</p>
+            <p className="text-2xl font-bold text-chart-3" data-testid="text-avg-accuracy">{avgAccuracy}/10</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-chart-4" data-testid="text-avg-defense">{avgDefense}/10</p>
-            <p className="text-xs text-muted-foreground">Avg Defense</p>
             {rankings && <RankBadge rank={rankings.defenseRank} total={rankings.total} />}
+            <p className="text-xs text-muted-foreground mb-1">Avg Defense</p>
+            <p className="text-2xl font-bold text-chart-4" data-testid="text-avg-defense">{avgDefense}/10</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-chart-5" data-testid="text-climb-rate">{climbRate}%</p>
-            <p className="text-xs text-muted-foreground">Climb Rate</p>
             {rankings && <RankBadge rank={rankings.climbRank} total={rankings.total} />}
+            <p className="text-xs text-muted-foreground mb-1">Climb Rate</p>
+            <p className="text-2xl font-bold text-chart-5" data-testid="text-climb-rate">{climbRate}%</p>
           </CardContent>
         </Card>
       </div>
