@@ -286,22 +286,31 @@ export default function TeamProfile() {
                 Scout Notes
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                {noteGroups.map(group => (
-                  <div key={group.label} className="space-y-2">
-                    <p className="text-sm font-bold text-foreground/70">{group.label}</p>
-                    <div className="space-y-1.5">
-                      {group.notes.sort((a, b) => a.match - b.match).map((n, i) => (
-                        <div key={i} className="flex gap-2 text-sm">
-                          <span className="font-semibold text-muted-foreground shrink-0">M{n.match}</span>
-                          <span>{n.text}</span>
-                        </div>
-                      ))}
+                {noteGroups.map(group => {
+                  const sorted = group.notes.sort((a, b) => b.match - a.match);
+                  const recent = sorted.slice(0, 2);
+                  return (
+                    <div key={group.label} className="space-y-2">
+                      <p className="text-sm font-bold text-foreground/70">{group.label}</p>
+                      <div className="space-y-1.5">
+                        {recent.map((n, i) => (
+                          <div key={i} className="flex gap-2 text-sm">
+                            <span className="font-semibold text-muted-foreground shrink-0">M{n.match}</span>
+                            <span>{n.text}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
+              <Link href={`/events/${eventId}/teams/${teamId}/notes`}>
+                <Button variant="outline" size="sm" className="w-full" data-testid="button-view-all-notes">
+                  View All Notes
+                </Button>
+              </Link>
             </CardContent>
           </Card>
         );
