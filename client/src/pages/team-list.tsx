@@ -220,8 +220,8 @@ export default function TeamList() {
                         <TableCell className="text-muted-foreground">
                           {[team.city, team.stateProv].filter(Boolean).join(", ") || "-"}
                         </TableCell>
-                        <TableCell className="text-center font-bold text-base">{stats?.avgAuto?.toFixed(1) || "0.0"}</TableCell>
-                        <TableCell className="text-center font-bold text-base">{stats?.avgThroughput?.toFixed(1) || "0.0"}</TableCell>
+                        <TableCell className="text-center font-bold text-base">{stats?.avgAuto != null ? parseFloat(stats.avgAuto.toFixed(1)) : 0}</TableCell>
+                        <TableCell className="text-center font-bold text-base">{stats?.avgThroughput != null ? parseFloat(stats.avgThroughput.toFixed(1)) : 0}</TableCell>
                         <TableCell className="text-center font-bold text-base">{Math.round(stats?.avgAccuracy || 0)}<span className="text-xs text-muted-foreground">%</span></TableCell>
                         <TableCell className="text-center font-bold text-base">{Math.round(stats?.avgDefense || 0)}<span className="text-xs text-muted-foreground">%</span></TableCell>
                         <TableCell className="text-center font-bold text-base">{stats?.climbRate?.toFixed(0) || "0"}<span className="text-xs text-muted-foreground">%</span></TableCell>

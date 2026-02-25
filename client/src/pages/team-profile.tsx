@@ -172,10 +172,10 @@ export default function TeamProfile() {
   const team = teams?.find((t) => t.id === teamId);
 
   const avgAutoBalls = entries?.length
-    ? (entries.reduce((s, e) => s + e.autoBallsShot, 0) / entries.length).toFixed(1)
+    ? parseFloat((entries.reduce((s, e) => s + e.autoBallsShot, 0) / entries.length).toFixed(1)).toString()
     : "0";
   const avgThroughput = entries?.length
-    ? (entries.reduce((s, e) => s + e.teleopFpsEstimate, 0) / entries.length).toFixed(1)
+    ? parseFloat((entries.reduce((s, e) => s + e.teleopFpsEstimate, 0) / entries.length).toFixed(1)).toString()
     : "0";
   const avgAccuracy = entries?.length
     ? Math.round(entries.reduce((s, e) => s + e.teleopAccuracy, 0) / entries.length * 10)

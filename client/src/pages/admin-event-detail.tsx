@@ -214,7 +214,7 @@ export default function AdminEventDetail() {
               icon={<Zap className="h-4 w-4 text-primary" />}
               teams={teamsWithData}
               getValue={t => t.avgAuto}
-              formatValue={v => v.toFixed(1)}
+              formatValue={v => parseFloat(v.toFixed(1)).toString()}
               eventId={eventId}
             />
             <LeaderboardCard
@@ -222,7 +222,7 @@ export default function AdminEventDetail() {
               icon={<Target className="h-4 w-4 text-chart-2" />}
               teams={teamsWithData}
               getValue={t => t.avgThroughput}
-              formatValue={v => v.toFixed(1)}
+              formatValue={v => parseFloat(v.toFixed(1)).toString()}
               eventId={eventId}
             />
             <LeaderboardCard
