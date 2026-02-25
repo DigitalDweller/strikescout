@@ -229,7 +229,16 @@ export default function Schedule() {
                         Q{match.matchNumber}
                       </TableCell>
                       <TableCell className="text-muted-foreground font-medium">
-                        {match.time || "-"}
+                        {match.time ? (() => {
+                          const parsed = new Date(match.time);
+                          if (!isNaN(parsed.getTime())) {
+                            const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+                            const day = days[parsed.getDay()];
+                            const timePart = match.time.replace(/^\d{4}-\d{2}-\d{2}\s*/, "");
+                            return `${day} ${timePart}`;
+                          }
+                          return match.time;
+                        })() : "-"}
                       </TableCell>
                       <TableCell className="text-center bg-red-500/5">
                         <TeamBadge teamNum={match.red1} alliance="red" />
