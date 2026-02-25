@@ -34,12 +34,14 @@ import {
   Calendar,
   MapPin,
   Radio,
-  ArrowRight,
   Loader2,
   Settings,
   AlertTriangle,
-  Bot,
+  Crosshair,
+  Moon,
+  Sun,
 } from "lucide-react";
+import { useTheme } from "@/hooks/use-theme";
 import type { Event } from "@shared/schema";
 
 const createEventSchema = z.object({
@@ -261,6 +263,7 @@ export default function AdminEvents() {
   const [, setLocation] = useLocation();
   const [createOpen, setCreateOpen] = useState(false);
   const [settingsEvent, setSettingsEvent] = useState<Event | null>(null);
+  const { theme, toggleTheme } = useTheme();
 
   const { data: events, isLoading } = useQuery<Event[]>({
     queryKey: ["/api/events"],
@@ -300,24 +303,53 @@ export default function AdminEvents() {
   });
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Bot className="h-6 w-6" />
+    <div className="min-h-screen bg-background">
+      <div className="absolute top-4 right-4">
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={toggleTheme}
+          data-testid="button-toggle-theme"
+        >
+          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </Button>
+      </div>
+
+      <div className="p-4 sm:p-6 space-y-8 max-w-3xl mx-auto pt-8 sm:pt-16">
+        <div className="text-center space-y-3">
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <Crosshair className="h-8 w-8" />
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Scout Hub</h1>
-            <p className="text-muted-foreground text-sm">Select an event to get started</p>
-          </div>
+          <h1 className="text-4xl font-bold tracking-tight" data-testid="text-page-title">StrikeScout</h1>
+          <p className="text-muted-foreground text-base max-w-md mx-auto">
+            FRC scouting for the 2026 Rebuilt season. Select an event below to start scouting, or create a new one.
+          </p>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-create-event">
-              <Plus className="h-4 w-4 mr-1" />
-              New Event
-            </Button>
-          </DialogTrigger>
+
+        <Card className="border-dashed">
+          <CardContent className="p-4 sm:p-5">
+            <p className="font-semibold text-sm mb-2">How to use StrikeScout</p>
+            <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+              <li>Create an event for your competition using the + button below</li>
+              <li>Tap an event to open it and access scouting, team list, and schedule</li>
+              <li>Scout multiple robots per match side-by-side on the Scout tab</li>
+              <li>Import your match schedule via CSV on the Schedule tab</li>
+              <li>View team stats and performance on the Team List tab</li>
+            </ol>
+          </CardContent>
+        </Card>
+
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-lg font-semibold" data-testid="text-events-heading">Your Events</h2>
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-create-event">
+                <Plus className="h-4 w-4 mr-1" />
+                New Event
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create Event</DialogTitle>
@@ -381,118 +413,119 @@ export default function AdminEvents() {
         </Dialog>
       </div>
 
-      {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <Card key={i}>
-              <CardContent className="p-4">
-                <Skeleton className="h-16 w-full" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : events?.length === 0 ? (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="font-semibold text-lg">No events yet</p>
-            <p className="text-sm text-muted-foreground mt-1 mb-4">
-              Create your first event to start scouting robots.
-            </p>
-            <Button onClick={() => setCreateOpen(true)} data-testid="button-create-event-empty">
-              <Plus className="h-4 w-4 mr-1" />
-              Create Event
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {events?.map((event) => (
-            <Card
-              key={event.id}
-              className={`cursor-pointer hover-elevate transition-colors ${event.isActive ? "border-primary/50" : ""}`}
-              data-testid={`card-event-${event.id}`}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div
-                    className="flex-1 min-w-0"
-                    onClick={() => {
-                      if (!event.isActive) {
-                        setActiveMutation.mutate(event.id);
-                      }
-                      setLocation(`/events/${event.id}`);
-                    }}
-                  >
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-lg" data-testid={`text-event-name-${event.id}`}>
-                        {event.name}
-                      </span>
-                      {event.isActive && (
-                        <Badge variant="default" className="text-xs">
-                          <Radio className="h-3 w-3 mr-1" />
-                          Active
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
-                      {event.location && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          {event.location}
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <Card key={i}>
+                <CardContent className="p-4">
+                  <Skeleton className="h-16 w-full" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : events?.length === 0 ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <p className="font-semibold text-lg">No events yet</p>
+              <p className="text-sm text-muted-foreground mt-1 mb-4">
+                Create your first event to start scouting robots.
+              </p>
+              <Button onClick={() => setCreateOpen(true)} data-testid="button-create-event-empty">
+                <Plus className="h-4 w-4 mr-1" />
+                Create Event
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {events?.map((event) => (
+              <Card
+                key={event.id}
+                className={`cursor-pointer hover-elevate transition-colors ${event.isActive ? "border-primary/50" : ""}`}
+                data-testid={`card-event-${event.id}`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div
+                      className="flex-1 min-w-0"
+                      onClick={() => {
+                        if (!event.isActive) {
+                          setActiveMutation.mutate(event.id);
+                        }
+                        setLocation(`/events/${event.id}`);
+                      }}
+                    >
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-lg" data-testid={`text-event-name-${event.id}`}>
+                          {event.name}
                         </span>
-                      )}
-                      {event.startDate && (
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {event.startDate}
-                        </span>
-                      )}
+                        {event.isActive && (
+                          <Badge variant="default" className="text-xs">
+                            <Radio className="h-3 w-3 mr-1" />
+                            Active
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
+                        {event.location && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {event.location}
+                          </span>
+                        )}
+                        {event.startDate && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {event.startDate}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {!event.isActive && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      {!event.isActive && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMutation.mutate(event.id);
+                          }}
+                          disabled={setActiveMutation.isPending}
+                          data-testid={`button-set-active-${event.id}`}
+                        >
+                          Set Active
+                        </Button>
+                      )}
                       <Button
-                        size="sm"
-                        variant="outline"
+                        size="icon"
+                        variant="ghost"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setActiveMutation.mutate(event.id);
+                          setSettingsEvent(event);
                         }}
-                        disabled={setActiveMutation.isPending}
-                        data-testid={`button-set-active-${event.id}`}
+                        data-testid={`button-settings-${event.id}`}
                       >
-                        Set Active
+                        <Settings className="h-4 w-4" />
                       </Button>
-                    )}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSettingsEvent(event);
-                      }}
-                      data-testid={`button-settings-${event.id}`}
-                    >
-                      <Settings className="h-4 w-4" />
-                    </Button>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
 
-      {settingsEvent && (
-        <EventSettingsDialog
-          event={settingsEvent}
-          open={!!settingsEvent}
-          onOpenChange={(open) => {
-            if (!open) setSettingsEvent(null);
-          }}
-        />
-      )}
+        {settingsEvent && (
+          <EventSettingsDialog
+            event={settingsEvent}
+            open={!!settingsEvent}
+            onOpenChange={(open) => {
+              if (!open) setSettingsEvent(null);
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }

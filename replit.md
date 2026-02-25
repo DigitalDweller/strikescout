@@ -1,4 +1,4 @@
-# FRC Scout Hub
+# StrikeScout
 
 ## Overview
 A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" season. Unified team scouting app — no sign-in required, no role distinctions. Anyone can scout as many robots as they want per match, view all team stats, browse a searchable/sortable team list, and view the full competition schedule (imported via CSV).

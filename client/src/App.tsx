@@ -14,7 +14,7 @@ import TeamList from "@/pages/team-list";
 import Schedule from "@/pages/schedule";
 import ScoutForm from "@/pages/scout-form";
 
-function AppLayout() {
+function EventLayout() {
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full">
@@ -25,7 +25,6 @@ function AppLayout() {
           </header>
           <main className="flex-1 overflow-auto">
             <Switch>
-              <Route path="/" component={AdminEvents} />
               <Route path="/scout" component={ScoutForm} />
               <Route path="/teams" component={TeamList} />
               <Route path="/schedule" component={Schedule} />
@@ -46,7 +45,12 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <Toaster />
-          <AppLayout />
+          <Switch>
+            <Route path="/" component={AdminEvents} />
+            <Route>
+              <EventLayout />
+            </Route>
+          </Switch>
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>

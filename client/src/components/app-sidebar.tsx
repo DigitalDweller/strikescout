@@ -13,18 +13,18 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
-  Calendar,
+  Home,
   ClipboardList,
   List,
   CalendarDays,
-  Bot,
+  Crosshair,
   Moon,
   Sun,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 
 const navItems = [
-  { title: "Events", url: "/", icon: Calendar },
+  { title: "Home", url: "/", icon: Home },
   { title: "Scout", url: "/scout", icon: ClipboardList },
   { title: "Team List", url: "/teams", icon: List },
   { title: "Schedule", url: "/schedule", icon: CalendarDays },
@@ -39,10 +39,10 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex items-center gap-3 px-3 py-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Bot className="h-6 w-6" />
+            <Crosshair className="h-6 w-6" />
           </div>
           <div>
-            <h2 className="font-bold text-base leading-tight">Scout Hub</h2>
+            <h2 className="font-bold text-base leading-tight">StrikeScout</h2>
             <p className="text-xs text-muted-foreground">FRC Scouting</p>
           </div>
         </div>
