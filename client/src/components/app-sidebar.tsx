@@ -13,11 +13,10 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
-  LayoutDashboard,
+  Calendar,
   ClipboardList,
   List,
   CalendarDays,
-  Calendar,
   Bot,
   Moon,
   Sun,
@@ -25,11 +24,10 @@ import {
 import { useTheme } from "@/hooks/use-theme";
 
 const navItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Events", url: "/", icon: Calendar },
   { title: "Scout", url: "/scout", icon: ClipboardList },
   { title: "Team List", url: "/teams", icon: List },
   { title: "Schedule", url: "/schedule", icon: CalendarDays },
-  { title: "Events", url: "/events", icon: Calendar },
 ];
 
 export function AppSidebar() {

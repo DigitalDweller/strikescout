@@ -12,8 +12,9 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 
 ## Key Features
 - No authentication — open access for the entire scouting team
-- Event management with team roster control
-- Active event system (anyone can set which event is active)
+- Event selection as the home page (list of events with + button to add)
+- Event settings dialog (rename, change location, delete with 5-step confirmation)
+- Active event system (clicking an event sets it active and navigates to it)
 - Detailed scouting form with:
   - Auto: balls shot counter, field drawing canvas, climb tracking, notes
   - Teleop: shooting heatmap, FPS estimate, accuracy slider, move-while-shoot toggle
@@ -48,11 +49,10 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 - `server/db.ts` - Database connection pool
 - `client/src/hooks/use-theme.tsx` - Dark mode theme provider
 - `client/src/components/app-sidebar.tsx` - Navigation sidebar
-- `client/src/pages/dashboard.tsx` - Home page with quick links
+- `client/src/pages/admin-events.tsx` - Event selection home page (default `/` route)
 - `client/src/pages/scout-form.tsx` - Multi-robot scouting form
 - `client/src/pages/team-list.tsx` - Searchable/sortable team list
 - `client/src/pages/schedule.tsx` - Match schedule with CSV import
-- `client/src/pages/admin-events.tsx` - Event management
 - `client/src/pages/admin-event-detail.tsx` - Event detail with team roster
 - `client/src/pages/team-profile.tsx` - Individual team stats
 
