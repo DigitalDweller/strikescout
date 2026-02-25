@@ -1,32 +1,17 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   MapPin,
   Calendar,
-  Plus,
-  Trash2,
-  Users,
-  Loader2,
   Trophy,
   Target,
   Shield,
   ChevronUp,
   Zap,
-  ArrowRight,
 } from "lucide-react";
 import type { Event, Team, EventTeam, ScoutingEntry } from "@shared/schema";
 
@@ -115,58 +100,18 @@ function LeaderboardCard({
 export default function AdminEventDetail() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id!);
-  const { toast } = useToast();
-  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
 
   const { data: event, isLoading: eventLoading } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
   });
 
-  const { data: eventTeams, isLoading: teamsLoading } = useQuery<(EventTeam & { team: Team })[]>({
+  const { data: eventTeams } = useQuery<(EventTeam & { team: Team })[]>({
     queryKey: ["/api/events", eventId, "teams"],
-  });
-
-  const { data: allTeams } = useQuery<Team[]>({
-    queryKey: ["/api/teams"],
   });
 
   const { data: entries } = useQuery<ScoutingEntry[]>({
     queryKey: ["/api/events", eventId, "entries"],
   });
-
-  const addTeamMutation = useMutation({
-    mutationFn: async (teamId: number) => {
-      const res = await apiRequest("POST", `/api/events/${eventId}/teams`, { teamId });
-      return await res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "teams"] });
-      setSelectedTeamId("");
-      toast({ title: "Team added to event" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to add team", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const removeTeamMutation = useMutation({
-    mutationFn: async (teamId: number) => {
-      await apiRequest("DELETE", `/api/events/${eventId}/teams/${teamId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "teams"] });
-      toast({ title: "Team removed from event" });
-    },
-  });
-
-  const eventTeamIds = new Set(eventTeams?.map((et) => et.teamId) || []);
-  const availableTeams = allTeams?.filter((t) => !eventTeamIds.has(t.id)) || [];
-
-  const teamMap = useMemo(() => {
-    const m = new globalThis.Map<number, Team>();
-    allTeams?.forEach(t => m.set(t.id, t));
-    return m;
-  }, [allTeams]);
 
   const teamStatsList = useMemo((): TeamStats[] => {
     if (!eventTeams || !entries) return [];
@@ -194,7 +139,6 @@ export default function AdminEventDetail() {
   }, [eventTeams, entries]);
 
   const teamsWithData = teamStatsList.filter(t => t.avgAuto > 0 || t.avgTeleop > 0 || t.avgAccuracy > 0 || t.avgDefense > 0 || t.climbRate > 0);
-  const totalEntries = entries?.length || 0;
   const matchesScouted = entries ? new Set(entries.map(e => e.matchNumber)).size : 0;
 
   if (eventLoading) {
@@ -243,78 +187,6 @@ export default function AdminEventDetail() {
           </Badge>
         </div>
       </div>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-lg font-bold flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Teams ({eventTeams?.length || 0})
-            </CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {availableTeams.length > 0 && (
-            <div className="flex items-center gap-2">
-              <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-                <SelectTrigger className="flex-1" data-testid="select-add-team">
-                  <SelectValue placeholder="Select a team to add" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableTeams.map((team) => (
-                    <SelectItem key={team.id} value={team.id.toString()}>
-                      #{team.teamNumber} - {team.teamName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                onClick={() => {
-                  if (selectedTeamId) addTeamMutation.mutate(parseInt(selectedTeamId));
-                }}
-                disabled={!selectedTeamId || addTeamMutation.isPending}
-                data-testid="button-add-team"
-              >
-                {addTeamMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-          )}
-
-          {teamsLoading ? (
-            <Skeleton className="h-20 w-full" />
-          ) : eventTeams?.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              No teams added to this event yet.
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {eventTeams?.map((et) => (
-                <div key={et.id} className="flex items-center gap-1 bg-muted/50 rounded-lg px-3 py-1.5" data-testid={`chip-team-${et.teamId}`}>
-                  <Link href={`/events/${eventId}/teams/${et.teamId}`}>
-                    <span className="font-bold text-primary hover:underline cursor-pointer">
-                      #{et.team.teamNumber}
-                    </span>
-                    <span className="ml-1.5 font-medium text-sm">{et.team.teamName}</span>
-                  </Link>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-6 w-6 ml-1"
-                    onClick={() => removeTeamMutation.mutate(et.teamId)}
-                    data-testid={`button-remove-team-${et.teamId}`}
-                  >
-                    <Trash2 className="h-3 w-3 text-destructive" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       <div>
         <h2 className="text-xl font-bold flex items-center gap-2 mb-4">
