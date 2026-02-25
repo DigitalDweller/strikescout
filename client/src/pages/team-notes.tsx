@@ -25,7 +25,7 @@ const NOTE_COLUMNS = [
     ].filter(Boolean).join("\n"),
   },
   {
-    label: "General",
+    label: "Misc.",
     color: "text-chart-5",
     borderColor: "border-chart-5/30",
     bgColor: "bg-chart-5/5",

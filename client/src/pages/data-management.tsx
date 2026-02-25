@@ -60,7 +60,7 @@ export default function DataManagement() {
       "Throughput", "Accuracy (0-10)", "Accuracy %", "Move While Shoot",
       "Climb Result", "Climb Position", "Climb Level",
       "Defense Rating (0-10)", "Defense %", "Defense Notes",
-      "Driver Skill Notes", "General Notes", "Date"
+      "Driver Skill Notes", "Misc.", "Date"
     ];
 
     const rows = [...entries]

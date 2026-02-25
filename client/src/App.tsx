@@ -16,6 +16,7 @@ import ScoutForm from "@/pages/scout-form";
 import TeamNotes from "@/pages/team-notes";
 import FormHistory from "@/pages/form-history";
 import DataManagement from "@/pages/data-management";
+import MatchDetail from "@/pages/match-detail";
 
 function EventLayout() {
   const params = useParams<{ id: string }>();
@@ -37,6 +38,7 @@ function EventLayout() {
               <Route path="/events/:id/data" component={DataManagement} />
               <Route path="/events/:id/teams" component={TeamList} />
               <Route path="/events/:id/schedule" component={Schedule} />
+              <Route path="/events/:id/schedule/:matchNumber" component={MatchDetail} />
               <Route path="/events/:id/teams/:teamId" component={TeamProfile} />
               <Route path="/events/:id/teams/:teamId/notes" component={TeamNotes} />
               <Route component={NotFound} />

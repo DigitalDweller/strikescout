@@ -949,7 +949,7 @@ function TeamFormColumn({
             />
           </div>
           <div>
-            <Label className="text-sm font-medium">General Notes</Label>
+            <Label className="text-sm font-medium">Misc.</Label>
             <Textarea
               value={form.notes}
               onChange={(e) => onUpdateField("notes", e.target.value)}

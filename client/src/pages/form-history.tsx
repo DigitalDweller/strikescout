@@ -374,7 +374,7 @@ export default function FormHistory() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium">General Notes</Label>
+              <Label className="text-sm font-medium">Misc.</Label>
               <Textarea
                 value={editForm.notes || ""}
                 onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}

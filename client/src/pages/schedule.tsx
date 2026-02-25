@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,6 +23,7 @@ export default function Schedule() {
   const { toast } = useToast();
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id || "0");
+  const [, navigate] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
 
@@ -224,7 +225,12 @@ export default function Schedule() {
                 </TableHeader>
                 <TableBody>
                   {sortedSchedule.map(match => (
-                    <TableRow key={match.id} data-testid={`row-match-${match.matchNumber}`} className="h-12">
+                    <TableRow
+                      key={match.id}
+                      data-testid={`row-match-${match.matchNumber}`}
+                      className="h-12 cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => navigate(`/events/${eventId}/schedule/${match.matchNumber}`)}
+                    >
                       <TableCell className="font-bold text-base">
                         Q{match.matchNumber}
                       </TableCell>
