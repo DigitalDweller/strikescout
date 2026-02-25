@@ -21,21 +21,25 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
   - Teleop: shooting heatmap, FPS estimate, accuracy slider, move-while-shoot toggle
   - Endgame: climb result (success/failed/none), climb position (left/middle/right), climb level (1/2/3)
   - Defense: 0-10 rating slider + notes
-  - Driver skill notes + general notes
+  - Driver skill notes + misc. notes
 - Multi-robot scouting (scout multiple robots per match side-by-side)
 - Local match number control (starts at 1, auto-increments after submission)
 - Team List page with search and sort by any stat column (no entry count)
-- Schedule page with CSV import for competition match schedule
+- Schedule page with CSV import for competition match schedule (clickable rows → match detail)
+- Match detail page with alliance cards, scouting data, and embedded YouTube videos
 - Team profile pages with ranking badges (ordinal, color-coded by percentile) and match history
+- The Blue Alliance integration: TBA event key config, manual + auto-sync (every 5 min) for match videos
+- Event Settings page for TBA configuration
+- Data Management page for CSV export (scouting data, team summary, schedule)
 - Dark mode toggle (moon/sun icon in sidebar)
 - High-readability design: large bold fonts, strong contrast, touch-friendly
 
 ## Data Model
-- **events** - id, name, location, startDate, isActive (legacy, unused in UI), currentMatchNumber (legacy, unused in UI)
+- **events** - id, name, location, startDate, isActive (legacy), currentMatchNumber (legacy), tbaEventKey, tbaAutoSync
 - **teams** - id, teamNumber, teamName, city, stateProv, country
 - **event_teams** - junction table linking teams to events
 - **scouting_entries** - id, scouterId (always 0), eventId, teamId, matchNumber, autoBallsShot, autoNotes, autoDrawing, autoClimbSuccess, autoClimbPosition, autoClimbLevel, teleopBallsShot, teleopShootPosition, teleopMoveWhileShoot, teleopFpsEstimate, teleopAccuracy, climbSuccess, climbPosition, climbLevel, defenseRating, defenseNotes, driverSkillNotes, notes, createdAt
-- **schedule_matches** - id, eventId, matchNumber, red1, red2, red3, blue1, blue2, blue3, time
+- **schedule_matches** - id, eventId, matchNumber, red1, red2, red3, blue1, blue2, blue3, time, videoUrl
 - **users** - legacy table (not used, kept for schema compatibility)
 
 ## User Preferences
@@ -60,6 +64,8 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 - `client/src/pages/team-profile.tsx` - Individual team stats (Auto/Teleop/Endgame sections + heatmap)
 - `client/src/pages/team-notes.tsx` - Full scout notes view for a team
 - `client/src/pages/match-detail.tsx` - Match detail view (Red/Blue alliance cards with scouting data)
+- `client/src/pages/event-settings.tsx` - Event settings (TBA integration config)
+- `server/tba.ts` - The Blue Alliance API service
 
 ## Running
 - `npm run dev` starts both Express backend and Vite frontend

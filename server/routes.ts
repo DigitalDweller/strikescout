@@ -3,6 +3,7 @@ import { type Server } from "http";
 import { storage } from "./storage";
 import { insertEventSchema, insertTeamSchema, insertScoutingEntrySchema } from "@shared/schema";
 import { z } from "zod";
+import { fetchMatchVideos, getVideoUrl, validateEventKey } from "./tba";
 
 async function seedDatabase() {
   const events = await storage.getEvents();
@@ -200,7 +201,105 @@ export async function registerRoutes(
     res.status(201).json(results);
   });
 
+  app.post("/api/events/:eventId/tba/validate", async (req, res) => {
+    const { eventKey } = req.body;
+    if (!eventKey) return res.status(400).json({ message: "eventKey required" });
+    try {
+      const result = await validateEventKey(eventKey);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/events/:eventId/tba/sync-videos", async (req, res) => {
+    const eventId = parseInt(req.params.eventId);
+    const event = await storage.getEvent(eventId);
+    if (!event) return res.sendStatus(404);
+    if (!event.tbaEventKey) return res.status(400).json({ message: "No TBA event key configured" });
+
+    try {
+      const tbaMatches = await fetchMatchVideos(event.tbaEventKey);
+      const qualMatches = tbaMatches.filter(m => m.compLevel === "qm");
+      let synced = 0;
+
+      for (const m of qualMatches) {
+        const url = getVideoUrl(m.videos);
+        if (url) {
+          await storage.updateScheduleMatchVideo(eventId, m.matchNumber, url);
+          synced++;
+        }
+      }
+
+      res.json({ synced, total: qualMatches.length });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  const autoSyncIntervals = new Map<number, NodeJS.Timeout>();
+
+  function startAutoSync(eventId: number) {
+    if (autoSyncIntervals.has(eventId)) return;
+    const interval = setInterval(async () => {
+      try {
+        const event = await storage.getEvent(eventId);
+        if (!event || !event.tbaAutoSync || !event.tbaEventKey) {
+          stopAutoSync(eventId);
+          return;
+        }
+        const tbaMatches = await fetchMatchVideos(event.tbaEventKey);
+        const qualMatches = tbaMatches.filter(m => m.compLevel === "qm");
+        for (const m of qualMatches) {
+          const url = getVideoUrl(m.videos);
+          if (url) {
+            await storage.updateScheduleMatchVideo(eventId, m.matchNumber, url);
+          }
+        }
+        console.log(`[TBA Auto-Sync] Event ${eventId}: synced videos for ${qualMatches.length} matches`);
+      } catch (err) {
+        console.error(`[TBA Auto-Sync] Error for event ${eventId}:`, err);
+      }
+    }, 5 * 60 * 1000);
+    autoSyncIntervals.set(eventId, interval);
+    console.log(`[TBA Auto-Sync] Started for event ${eventId}`);
+  }
+
+  function stopAutoSync(eventId: number) {
+    const interval = autoSyncIntervals.get(eventId);
+    if (interval) {
+      clearInterval(interval);
+      autoSyncIntervals.delete(eventId);
+      console.log(`[TBA Auto-Sync] Stopped for event ${eventId}`);
+    }
+  }
+
+  async function initAutoSync() {
+    const allEvents = await storage.getEvents();
+    for (const event of allEvents) {
+      if (event.tbaAutoSync && event.tbaEventKey) {
+        startAutoSync(event.id);
+      }
+    }
+  }
+
+  app.patch("/api/events/:id/settings", async (req, res) => {
+    const id = parseInt(req.params.id);
+    const { tbaEventKey, tbaAutoSync } = req.body;
+    const updates: any = {};
+    if (tbaEventKey !== undefined) updates.tbaEventKey = tbaEventKey || null;
+    if (tbaAutoSync !== undefined) updates.tbaAutoSync = !!tbaAutoSync;
+    const event = await storage.updateEvent(id, updates);
+    if (event.tbaAutoSync && event.tbaEventKey) {
+      startAutoSync(event.id);
+    } else {
+      stopAutoSync(event.id);
+    }
+    res.json(event);
+  });
+
   await seedDatabase();
+  await initAutoSync();
 
   return httpServer;
 }

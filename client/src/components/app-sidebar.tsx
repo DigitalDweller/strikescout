@@ -26,6 +26,7 @@ import {
   Sun,
   History,
   Database,
+  Settings,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import type { Event } from "@shared/schema";
@@ -56,6 +57,7 @@ export function AppSidebar({ eventId }: { eventId: number }) {
       ],
     },
     { title: "Data Management", url: `/events/${eventId}/data`, icon: Database },
+    { title: "Settings", url: `/events/${eventId}/settings`, icon: Settings },
   ];
 
   return (

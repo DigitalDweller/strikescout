@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Target, Crosshair, Shield, ArrowUp, Bot } from "lucide-react";
+import { ArrowLeft, Target, Crosshair, Shield, ArrowUp, Bot, Video } from "lucide-react";
 import type { Event, ScoutingEntry, Team, ScheduleMatch, EventTeam } from "@shared/schema";
 
 function formatStat(val: number, multiplier = 1, suffix = "") {
@@ -160,6 +160,38 @@ export default function MatchDetail() {
         </Card>
       ) : (
         <div className="space-y-6">
+          {match.videoUrl && (
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Video className="h-5 w-5 text-red-500" />
+                  <span className="font-bold text-sm">Match Video</span>
+                </div>
+                {match.videoUrl.includes("youtube.com") || match.videoUrl.includes("youtu.be") ? (
+                  <div className="aspect-video rounded-md overflow-hidden bg-black">
+                    <iframe
+                      src={`https://www.youtube.com/embed/${match.videoUrl.split("v=")[1]?.split("&")[0] || match.videoUrl.split("/").pop()}`}
+                      className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      title={`Match ${matchNum} Video`}
+                    />
+                  </div>
+                ) : (
+                  <a
+                    href={match.videoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline text-sm"
+                    data-testid="link-match-video"
+                  >
+                    {match.videoUrl}
+                  </a>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <div>
             <h2 className="text-base font-bold text-red-600 dark:text-red-400 mb-2 flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-red-500 inline-block" />

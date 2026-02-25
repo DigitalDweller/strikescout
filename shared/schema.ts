@@ -18,6 +18,8 @@ export const events = pgTable("events", {
   startDate: text("start_date"),
   isActive: boolean("is_active").notNull().default(false),
   currentMatchNumber: integer("current_match_number").notNull().default(1),
+  tbaEventKey: text("tba_event_key"),
+  tbaAutoSync: boolean("tba_auto_sync").notNull().default(false),
 });
 
 export const teams = pgTable("teams", {
@@ -79,6 +81,7 @@ export const scheduleMatches = pgTable("schedule_matches", {
   blue2: integer("blue2"),
   blue3: integer("blue3"),
   time: text("time"),
+  videoUrl: text("video_url"),
 });
 
 export const usersRelations = relations(users, ({ many }) => ({

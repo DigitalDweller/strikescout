@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Upload, CalendarDays, Search } from "lucide-react";
+import { Upload, CalendarDays, Search, Video } from "lucide-react";
 import type { Event, ScheduleMatch, Team } from "@shared/schema";
 
 export default function Schedule() {
@@ -232,7 +232,10 @@ export default function Schedule() {
                       onClick={() => navigate(`/events/${eventId}/schedule/${match.matchNumber}`)}
                     >
                       <TableCell className="font-bold text-base">
-                        Q{match.matchNumber}
+                        <span className="flex items-center gap-1.5">
+                          Q{match.matchNumber}
+                          {match.videoUrl && <Video className="h-3.5 w-3.5 text-red-500" />}
+                        </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground font-medium">
                         {match.time ? (() => {
