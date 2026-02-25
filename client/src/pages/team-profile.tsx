@@ -126,7 +126,7 @@ export default function TeamProfile() {
   const RankBadge = ({ rank, total }: { rank: number; total: number }) => {
     const color = getRankColor(rank, total);
     return (
-      <p className={`text-xs font-semibold ${color}`}>
+      <p className={`text-sm font-bold ${color}`}>
         {getOrdinal(rank)}
       </p>
     );
@@ -141,61 +141,61 @@ export default function TeamProfile() {
             Back to Teams
           </Button>
         </Link>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-team-name">
-          {team ? `#${team.teamNumber} ${team.teamName}` : <Skeleton className="h-7 w-48 inline-block" />}
+        <h1 className="text-3xl font-bold tracking-tight" data-testid="text-team-name">
+          {team ? `#${team.teamNumber} ${team.teamName}` : <Skeleton className="h-9 w-56 inline-block" />}
         </h1>
         {event && (
-          <p className="text-sm text-muted-foreground mt-1">{event.name}</p>
+          <p className="text-base text-muted-foreground mt-1">{event.name}</p>
         )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-5">
         <Card>
-          <CardContent className="p-4 text-center">
+          <CardContent className="p-5 text-center space-y-1">
             {rankings && <RankBadge rank={rankings.autoRank} total={rankings.total} />}
-            <p className="text-xs text-muted-foreground mb-1">Avg Auto Balls</p>
-            <p className="text-2xl font-bold text-primary" data-testid="text-avg-auto">{avgAutoBalls}</p>
+            <p className="text-sm font-medium text-foreground/70">Avg Auto</p>
+            <p className="text-4xl font-extrabold text-primary leading-none" data-testid="text-avg-auto">{avgAutoBalls}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 text-center">
+          <CardContent className="p-5 text-center space-y-1">
             {rankings && <RankBadge rank={rankings.teleopRank} total={rankings.total} />}
-            <p className="text-xs text-muted-foreground mb-1">Avg Teleop Balls</p>
-            <p className="text-2xl font-bold text-chart-2" data-testid="text-avg-teleop">{avgTeleopBalls}</p>
+            <p className="text-sm font-medium text-foreground/70">Avg Teleop</p>
+            <p className="text-4xl font-extrabold text-chart-2 leading-none" data-testid="text-avg-teleop">{avgTeleopBalls}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 text-center">
+          <CardContent className="p-5 text-center space-y-1">
             {rankings && <RankBadge rank={rankings.accuracyRank} total={rankings.total} />}
-            <p className="text-xs text-muted-foreground mb-1">Avg Accuracy</p>
-            <p className="text-2xl font-bold text-chart-3" data-testid="text-avg-accuracy">{avgAccuracy}/10</p>
+            <p className="text-sm font-medium text-foreground/70">Accuracy</p>
+            <p className="text-4xl font-extrabold text-chart-3 leading-none" data-testid="text-avg-accuracy">{avgAccuracy}<span className="text-lg">/10</span></p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 text-center">
+          <CardContent className="p-5 text-center space-y-1">
             {rankings && <RankBadge rank={rankings.defenseRank} total={rankings.total} />}
-            <p className="text-xs text-muted-foreground mb-1">Avg Defense</p>
-            <p className="text-2xl font-bold text-chart-4" data-testid="text-avg-defense">{avgDefense}/10</p>
+            <p className="text-sm font-medium text-foreground/70">Defense</p>
+            <p className="text-4xl font-extrabold text-chart-4 leading-none" data-testid="text-avg-defense">{avgDefense}<span className="text-lg">/10</span></p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4 text-center">
+          <CardContent className="p-5 text-center space-y-1">
             {rankings && <RankBadge rank={rankings.climbRank} total={rankings.total} />}
-            <p className="text-xs text-muted-foreground mb-1">Climb Rate</p>
-            <p className="text-2xl font-bold text-chart-5" data-testid="text-climb-rate">{climbRate}%</p>
+            <p className="text-sm font-medium text-foreground/70">Climb Rate</p>
+            <p className="text-4xl font-extrabold text-chart-5 leading-none" data-testid="text-climb-rate">{climbRate}<span className="text-lg">%</span></p>
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Match Entries ({entries?.length || 0})</CardTitle>
+          <CardTitle className="text-lg font-bold">Match Entries ({entries?.length || 0})</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <Skeleton className="h-32 w-full" />
           ) : entries?.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">
+            <p className="text-base text-muted-foreground text-center py-6">
               No scouting entries for this team yet.
             </p>
           ) : (
@@ -203,13 +203,13 @@ export default function TeamProfile() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Match</TableHead>
-                    <TableHead className="text-center">Auto Balls</TableHead>
-                    <TableHead className="text-center">Teleop Balls</TableHead>
-                    <TableHead className="text-center">Accuracy</TableHead>
-                    <TableHead className="text-center">Climb</TableHead>
-                    <TableHead className="text-center">Defense</TableHead>
-                    <TableHead>Notes</TableHead>
+                    <TableHead className="text-sm font-bold">Match</TableHead>
+                    <TableHead className="text-center text-sm font-bold">Auto</TableHead>
+                    <TableHead className="text-center text-sm font-bold">Teleop</TableHead>
+                    <TableHead className="text-center text-sm font-bold">Accuracy</TableHead>
+                    <TableHead className="text-center text-sm font-bold">Climb</TableHead>
+                    <TableHead className="text-center text-sm font-bold">Defense</TableHead>
+                    <TableHead className="text-sm font-bold">Notes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -217,19 +217,22 @@ export default function TeamProfile() {
                     ?.sort((a, b) => a.matchNumber - b.matchNumber)
                     .map((entry) => (
                       <TableRow key={entry.id} data-testid={`row-entry-${entry.id}`}>
-                        <TableCell>
-                          <Badge variant="secondary">M{entry.matchNumber}</Badge>
+                        <TableCell className="font-bold text-base">
+                          M{entry.matchNumber}
                         </TableCell>
-                        <TableCell className="text-center">{entry.autoBallsShot}</TableCell>
-                        <TableCell className="text-center">{entry.teleopBallsShot}</TableCell>
-                        <TableCell className="text-center">{entry.teleopAccuracy}/10</TableCell>
+                        <TableCell className="text-center text-base font-semibold">{entry.autoBallsShot}</TableCell>
+                        <TableCell className="text-center text-base font-semibold">{entry.teleopBallsShot}</TableCell>
+                        <TableCell className="text-center text-base font-semibold">{entry.teleopAccuracy}<span className="text-muted-foreground text-xs">/10</span></TableCell>
                         <TableCell className="text-center">
-                          <Badge variant={entry.climbSuccess === "success" ? "default" : "secondary"}>
+                          <Badge
+                            variant={entry.climbSuccess === "success" ? "default" : "secondary"}
+                            className={`text-sm font-semibold ${entry.climbSuccess === "success" ? "bg-green-600 text-white" : entry.climbSuccess === "failed" ? "bg-red-500/15 text-red-500" : ""}`}
+                          >
                             {entry.climbSuccess === "success" ? "Yes" : entry.climbSuccess === "failed" ? "Failed" : "No"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-center">{entry.defenseRating}/10</TableCell>
-                        <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
+                        <TableCell className="text-center text-base font-semibold">{entry.defenseRating}<span className="text-muted-foreground text-xs">/10</span></TableCell>
+                        <TableCell className="max-w-[250px] truncate text-sm">
                           {entry.notes || "-"}
                         </TableCell>
                       </TableRow>

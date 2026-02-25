@@ -125,11 +125,11 @@ export default function Schedule() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const TeamBadge = ({ teamNum }: { teamNum: number | null }) => {
+  const TeamBadge = ({ teamNum, alliance }: { teamNum: number | null; alliance: "red" | "blue" }) => {
     if (!teamNum) return <span className="text-muted-foreground">-</span>;
     const team = teamMap.get(teamNum);
     return (
-      <span className="font-mono text-sm" title={team?.teamName}>
+      <span className={`font-mono font-bold text-base ${alliance === "red" ? "text-red-500 dark:text-red-400" : "text-blue-500 dark:text-blue-400"}`} title={team?.teamName}>
         {teamNum}
       </span>
     );
@@ -155,8 +155,8 @@ export default function Schedule() {
     <div className="p-4 sm:p-6 space-y-4 max-w-6xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Schedule</h1>
-          <p className="text-muted-foreground text-sm mt-1">
+          <h1 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">Schedule</h1>
+          <p className="text-muted-foreground text-base mt-1">
             {event?.name || "Loading..."} — {sortedSchedule.length} matches
           </p>
         </div>
@@ -212,42 +212,42 @@ export default function Schedule() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-20">Match</TableHead>
-                    <TableHead>Time</TableHead>
-                    <TableHead className="text-center text-red-500">Red 1</TableHead>
-                    <TableHead className="text-center text-red-500">Red 2</TableHead>
-                    <TableHead className="text-center text-red-500">Red 3</TableHead>
-                    <TableHead className="text-center text-blue-500">Blue 1</TableHead>
-                    <TableHead className="text-center text-blue-500">Blue 2</TableHead>
-                    <TableHead className="text-center text-blue-500">Blue 3</TableHead>
+                    <TableHead className="w-20 text-sm font-bold">Match</TableHead>
+                    <TableHead className="text-sm font-bold">Time</TableHead>
+                    <TableHead className="text-center text-sm font-bold text-red-500 dark:text-red-400">Red 1</TableHead>
+                    <TableHead className="text-center text-sm font-bold text-red-500 dark:text-red-400">Red 2</TableHead>
+                    <TableHead className="text-center text-sm font-bold text-red-500 dark:text-red-400">Red 3</TableHead>
+                    <TableHead className="text-center text-sm font-bold text-blue-500 dark:text-blue-400">Blue 1</TableHead>
+                    <TableHead className="text-center text-sm font-bold text-blue-500 dark:text-blue-400">Blue 2</TableHead>
+                    <TableHead className="text-center text-sm font-bold text-blue-500 dark:text-blue-400">Blue 3</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sortedSchedule.map(match => (
-                    <TableRow key={match.id} data-testid={`row-match-${match.matchNumber}`}>
-                      <TableCell>
-                        <Badge variant="secondary">Q{match.matchNumber}</Badge>
+                    <TableRow key={match.id} data-testid={`row-match-${match.matchNumber}`} className="h-12">
+                      <TableCell className="font-bold text-base">
+                        Q{match.matchNumber}
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
+                      <TableCell className="text-muted-foreground font-medium">
                         {match.time || "-"}
                       </TableCell>
                       <TableCell className="text-center bg-red-500/5">
-                        <TeamBadge teamNum={match.red1} />
+                        <TeamBadge teamNum={match.red1} alliance="red" />
                       </TableCell>
                       <TableCell className="text-center bg-red-500/5">
-                        <TeamBadge teamNum={match.red2} />
+                        <TeamBadge teamNum={match.red2} alliance="red" />
                       </TableCell>
                       <TableCell className="text-center bg-red-500/5">
-                        <TeamBadge teamNum={match.red3} />
+                        <TeamBadge teamNum={match.red3} alliance="red" />
                       </TableCell>
                       <TableCell className="text-center bg-blue-500/5">
-                        <TeamBadge teamNum={match.blue1} />
+                        <TeamBadge teamNum={match.blue1} alliance="blue" />
                       </TableCell>
                       <TableCell className="text-center bg-blue-500/5">
-                        <TeamBadge teamNum={match.blue2} />
+                        <TeamBadge teamNum={match.blue2} alliance="blue" />
                       </TableCell>
                       <TableCell className="text-center bg-blue-500/5">
-                        <TeamBadge teamNum={match.blue3} />
+                        <TeamBadge teamNum={match.blue3} alliance="blue" />
                       </TableCell>
                     </TableRow>
                   ))}

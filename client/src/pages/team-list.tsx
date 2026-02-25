@@ -143,8 +143,8 @@ export default function TeamList() {
   return (
     <div className="p-4 sm:p-6 space-y-4 max-w-6xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Team List</h1>
-        <p className="text-muted-foreground text-sm mt-1">
+        <h1 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">Team List</h1>
+        <p className="text-muted-foreground text-base mt-1">
           {event ? `Teams at ${event.name}` : "Loading..."} — {filteredTeams.length} teams
         </p>
       </div>
@@ -200,35 +200,35 @@ export default function TeamList() {
                     <SortableHeader field="teamName">Name</SortableHeader>
                     <TableHead>Location</TableHead>
                     <SortableHeader field="entries">Entries</SortableHeader>
-                    <SortableHeader field="avgAuto">Avg Auto</SortableHeader>
-                    <SortableHeader field="avgTeleop">Avg Teleop</SortableHeader>
+                    <SortableHeader field="avgAuto">Auto</SortableHeader>
+                    <SortableHeader field="avgTeleop">Teleop</SortableHeader>
                     <SortableHeader field="avgAccuracy">Accuracy</SortableHeader>
                     <SortableHeader field="avgDefense">Defense</SortableHeader>
-                    <SortableHeader field="climbRate">Climb %</SortableHeader>
+                    <SortableHeader field="climbRate">Climb</SortableHeader>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredTeams.map(team => {
                     const stats = teamStats.get(team.id);
                     return (
-                      <TableRow key={team.id} data-testid={`row-team-${team.id}`}>
+                      <TableRow key={team.id} data-testid={`row-team-${team.id}`} className="h-12">
                         <TableCell>
                           <Link href={`/events/${eventId}/teams/${team.id}`}>
-                            <Badge variant="secondary" className="cursor-pointer hover:bg-primary hover:text-primary-foreground">
+                            <span className="font-bold text-base text-primary cursor-pointer hover:underline">
                               {team.teamNumber}
-                            </Badge>
+                            </span>
                           </Link>
                         </TableCell>
-                        <TableCell className="font-medium">{team.teamName}</TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
+                        <TableCell className="font-semibold text-base">{team.teamName}</TableCell>
+                        <TableCell className="text-muted-foreground">
                           {[team.city, team.stateProv].filter(Boolean).join(", ") || "-"}
                         </TableCell>
-                        <TableCell className="text-center">{stats?.entries || 0}</TableCell>
-                        <TableCell className="text-center">{stats?.avgAuto?.toFixed(1) || "0.0"}</TableCell>
-                        <TableCell className="text-center">{stats?.avgTeleop?.toFixed(1) || "0.0"}</TableCell>
-                        <TableCell className="text-center">{stats?.avgAccuracy?.toFixed(1) || "0.0"}/10</TableCell>
-                        <TableCell className="text-center">{stats?.avgDefense?.toFixed(1) || "0.0"}/10</TableCell>
-                        <TableCell className="text-center">{stats?.climbRate?.toFixed(0) || "0"}%</TableCell>
+                        <TableCell className="text-center font-medium text-base">{stats?.entries || 0}</TableCell>
+                        <TableCell className="text-center font-bold text-base">{stats?.avgAuto?.toFixed(1) || "0.0"}</TableCell>
+                        <TableCell className="text-center font-bold text-base">{stats?.avgTeleop?.toFixed(1) || "0.0"}</TableCell>
+                        <TableCell className="text-center font-bold text-base">{stats?.avgAccuracy?.toFixed(1) || "0.0"}<span className="text-xs text-muted-foreground">/10</span></TableCell>
+                        <TableCell className="text-center font-bold text-base">{stats?.avgDefense?.toFixed(1) || "0.0"}<span className="text-xs text-muted-foreground">/10</span></TableCell>
+                        <TableCell className="text-center font-bold text-base">{stats?.climbRate?.toFixed(0) || "0"}<span className="text-xs text-muted-foreground">%</span></TableCell>
                       </TableRow>
                     );
                   })}

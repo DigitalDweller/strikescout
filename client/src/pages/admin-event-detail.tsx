@@ -118,31 +118,31 @@ export default function AdminEventDetail() {
       <div>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2" data-testid="text-event-name">
+            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2" data-testid="text-event-name">
               {event.name}
               {event.isActive && (
-                <Badge variant="default" className="text-xs">
+                <Badge variant="default" className="text-sm">
                   <Radio className="h-3 w-3 mr-1" />
                   Active
                 </Badge>
               )}
             </h1>
-            <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
+            <div className="flex items-center gap-3 mt-1 text-base text-muted-foreground flex-wrap">
               {event.location && (
                 <span className="flex items-center gap-1">
-                  <MapPin className="h-3 w-3" />
+                  <MapPin className="h-4 w-4" />
                   {event.location}
                 </span>
               )}
               {event.startDate && (
                 <span className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
+                  <Calendar className="h-4 w-4" />
                   {event.startDate}
                 </span>
               )}
             </div>
           </div>
-          <Badge variant="secondary" className="text-sm">
+          <Badge variant="secondary" className="text-base font-bold px-3 py-1">
             Match {event.currentMatchNumber}
           </Badge>
         </div>
@@ -199,12 +199,12 @@ export default function AdminEventDetail() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Team</TableHead>
-                    <TableHead className="text-center">Entries</TableHead>
-                    <TableHead className="text-center">Auto Balls</TableHead>
-                    <TableHead className="text-center">Teleop Balls</TableHead>
-                    <TableHead className="text-center">Accuracy</TableHead>
-                    <TableHead className="text-center">Climb %</TableHead>
+                    <TableHead className="text-sm font-bold">Team</TableHead>
+                    <TableHead className="text-center text-sm font-bold">Entries</TableHead>
+                    <TableHead className="text-center text-sm font-bold">Auto</TableHead>
+                    <TableHead className="text-center text-sm font-bold">Teleop</TableHead>
+                    <TableHead className="text-center text-sm font-bold">Accuracy</TableHead>
+                    <TableHead className="text-center text-sm font-bold">Climb</TableHead>
                     <TableHead className="w-20"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -212,19 +212,20 @@ export default function AdminEventDetail() {
                   {eventTeams?.map((et) => {
                     const stats = getTeamStats(et.teamId);
                     return (
-                      <TableRow key={et.id} data-testid={`row-team-${et.teamId}`}>
+                      <TableRow key={et.id} data-testid={`row-team-${et.teamId}`} className="h-12">
                         <TableCell>
                           <Link href={`/events/${eventId}/teams/${et.teamId}`}>
-                            <span className="font-medium hover:underline cursor-pointer">
-                              #{et.team.teamNumber} {et.team.teamName}
+                            <span className="font-bold text-base text-primary hover:underline cursor-pointer">
+                              #{et.team.teamNumber}
                             </span>
+                            <span className="ml-2 font-medium text-base">{et.team.teamName}</span>
                           </Link>
                         </TableCell>
-                        <TableCell className="text-center">{stats.count}</TableCell>
-                        <TableCell className="text-center">{stats.avgAutoBalls}</TableCell>
-                        <TableCell className="text-center">{stats.avgTeleopBalls}</TableCell>
-                        <TableCell className="text-center">{stats.avgAccuracy}/10</TableCell>
-                        <TableCell className="text-center">{stats.climbRate}%</TableCell>
+                        <TableCell className="text-center font-medium text-base">{stats.count}</TableCell>
+                        <TableCell className="text-center font-bold text-base">{stats.avgAutoBalls}</TableCell>
+                        <TableCell className="text-center font-bold text-base">{stats.avgTeleopBalls}</TableCell>
+                        <TableCell className="text-center font-bold text-base">{stats.avgAccuracy}<span className="text-xs text-muted-foreground">/10</span></TableCell>
+                        <TableCell className="text-center font-bold text-base">{stats.climbRate}<span className="text-xs text-muted-foreground">%</span></TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 justify-end">
                             <Link href={`/events/${eventId}/teams/${et.teamId}`}>
