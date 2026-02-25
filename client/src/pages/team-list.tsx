@@ -172,7 +172,6 @@ export default function TeamList() {
             <SelectItem value="avgAccuracy">Avg Accuracy</SelectItem>
             <SelectItem value="avgDefense">Avg Defense</SelectItem>
             <SelectItem value="climbRate">Climb Rate</SelectItem>
-            <SelectItem value="entries">Entries</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -199,7 +198,6 @@ export default function TeamList() {
                     <SortableHeader field="teamNumber">#</SortableHeader>
                     <SortableHeader field="teamName">Name</SortableHeader>
                     <TableHead>Location</TableHead>
-                    <SortableHeader field="entries">Entries</SortableHeader>
                     <SortableHeader field="avgAuto">Auto</SortableHeader>
                     <SortableHeader field="avgTeleop">Teleop</SortableHeader>
                     <SortableHeader field="avgAccuracy">Accuracy</SortableHeader>
@@ -223,7 +221,6 @@ export default function TeamList() {
                         <TableCell className="text-muted-foreground">
                           {[team.city, team.stateProv].filter(Boolean).join(", ") || "-"}
                         </TableCell>
-                        <TableCell className="text-center font-medium text-base">{stats?.entries || 0}</TableCell>
                         <TableCell className="text-center font-bold text-base">{stats?.avgAuto?.toFixed(1) || "0.0"}</TableCell>
                         <TableCell className="text-center font-bold text-base">{stats?.avgTeleop?.toFixed(1) || "0.0"}</TableCell>
                         <TableCell className="text-center font-bold text-base">{stats?.avgAccuracy?.toFixed(1) || "0.0"}<span className="text-xs text-muted-foreground">/10</span></TableCell>

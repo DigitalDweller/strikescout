@@ -189,7 +189,7 @@ export default function TeamProfile() {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-bold">Match Entries ({entries?.length || 0})</CardTitle>
+          <CardTitle className="text-lg font-bold">Match History</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
