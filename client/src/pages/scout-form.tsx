@@ -12,13 +12,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Minus,
   Plus,
   Send,
@@ -31,10 +24,125 @@ import {
   Bot,
   ArrowUp,
   Crosshair,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react";
 import type { Event, Team, EventTeam } from "@shared/schema";
 import fieldImagePath from "@assets/6846b9eeb548474b11b6b16d828c2e6092a99131_1771896624665.png";
 import heatmapFieldPath from "@assets/hehehehe_1771897335677.png";
+
+function TeamSearchCombobox({
+  eventTeams,
+  selectedTeamId,
+  onSelectTeam,
+  compact,
+  testId,
+}: {
+  eventTeams?: (EventTeam & { team: Team })[];
+  selectedTeamId: number;
+  onSelectTeam: (teamId: number) => void;
+  compact: boolean;
+  testId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedTeam = eventTeams?.find((et) => et.teamId === selectedTeamId);
+
+  const filtered = (eventTeams || []).filter((et) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      et.team.teamNumber.toString().includes(q) ||
+      et.team.teamName.toLowerCase().includes(q)
+    );
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <div
+        className={`flex items-center border rounded-md bg-background px-3 gap-2 cursor-text ${compact ? "h-11" : "h-14"} ${open ? "ring-2 ring-ring" : ""}`}
+        onClick={() => {
+          setOpen(true);
+          setTimeout(() => inputRef.current?.focus(), 0);
+        }}
+        data-testid={testId}
+      >
+        <input
+          ref={inputRef}
+          type="text"
+          className={`flex-1 bg-transparent outline-none placeholder:text-muted-foreground ${compact ? "text-sm" : "text-lg"}`}
+          placeholder={selectedTeam ? `#${selectedTeam.team.teamNumber} - ${selectedTeam.team.teamName}` : "Search team..."}
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setOpen(false);
+              setSearch("");
+              inputRef.current?.blur();
+            }
+            if (e.key === "Enter" && filtered.length === 1) {
+              onSelectTeam(filtered[0].teamId);
+              setSearch("");
+              setOpen(false);
+              inputRef.current?.blur();
+            }
+          }}
+          data-testid={`${testId}-input`}
+        />
+        <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </div>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg max-h-60 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+              No teams found
+            </div>
+          ) : (
+            filtered.map((et) => (
+              <div
+                key={et.teamId}
+                className={`flex items-center gap-2 px-3 cursor-pointer hover:bg-accent ${compact ? "py-2 text-sm" : "py-3 text-base"} ${et.teamId === selectedTeamId ? "bg-accent/50" : ""}`}
+                onClick={() => {
+                  onSelectTeam(et.teamId);
+                  setSearch("");
+                  setOpen(false);
+                }}
+                data-testid={`${testId}-option-${et.team.teamNumber}`}
+              >
+                {et.teamId === selectedTeamId && (
+                  <Check className="h-4 w-4 text-primary shrink-0" />
+                )}
+                <span className={et.teamId === selectedTeamId ? "" : "ml-6"}>
+                  <span className="font-bold text-primary">#{et.team.teamNumber}</span>
+                  <span className="ml-1.5">{et.team.teamName}</span>
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function BigCounterInput({
   value,
@@ -527,21 +635,13 @@ function TeamFormColumn({
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <Select
-            value={selectedTeamId ? selectedTeamId.toString() : ""}
-            onValueChange={(v) => onSelectTeam(parseInt(v))}
-          >
-            <SelectTrigger className={`${compact ? "h-11 text-sm" : "h-14 text-lg"}`} data-testid={`select-team-${index}`}>
-              <SelectValue placeholder="Select team" />
-            </SelectTrigger>
-            <SelectContent>
-              {eventTeams?.map((et) => (
-                <SelectItem key={et.teamId} value={et.teamId.toString()}>
-                  #{et.team.teamNumber} - {et.team.teamName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <TeamSearchCombobox
+            eventTeams={eventTeams}
+            selectedTeamId={selectedTeamId}
+            onSelectTeam={onSelectTeam}
+            compact={compact}
+            testId={`select-team-${index}`}
+          />
         </CardContent>
       </Card>
 
