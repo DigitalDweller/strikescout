@@ -328,19 +328,6 @@ export default function AdminEvents() {
           </p>
         </div>
 
-        <Card className="border-dashed">
-          <CardContent className="p-4 sm:p-5">
-            <p className="font-semibold text-sm mb-2">How to use StrikeScout</p>
-            <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-              <li>Create an event for your competition using the + button below</li>
-              <li>Tap an event to open it and access scouting, team list, and schedule</li>
-              <li>Scout multiple robots per match side-by-side on the Scout tab</li>
-              <li>Import your match schedule via CSV on the Schedule tab</li>
-              <li>View team stats and performance on the Team List tab</li>
-            </ol>
-          </CardContent>
-        </Card>
-
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold" data-testid="text-events-heading">Your Events</h2>
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
