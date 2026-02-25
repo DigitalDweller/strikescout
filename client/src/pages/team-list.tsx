@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "wouter";
+import { Link, useParams, useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,7 @@ type SortDir = "asc" | "desc";
 export default function TeamList() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id || "0");
+  const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("teamNumber");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -209,13 +210,11 @@ export default function TeamList() {
                   {filteredTeams.map(team => {
                     const stats = teamStats.get(team.id);
                     return (
-                      <TableRow key={team.id} data-testid={`row-team-${team.id}`} className="h-12">
+                      <TableRow key={team.id} data-testid={`row-team-${team.id}`} className="h-12 cursor-pointer hover:bg-accent/50" onClick={() => navigate(`/events/${eventId}/teams/${team.id}`)}>
                         <TableCell>
-                          <Link href={`/events/${eventId}/teams/${team.id}`}>
-                            <span className="font-bold text-base text-primary cursor-pointer hover:underline">
-                              {team.teamNumber}
-                            </span>
-                          </Link>
+                          <span className="font-bold text-base text-primary">
+                            {team.teamNumber}
+                          </span>
                         </TableCell>
                         <TableCell className="font-semibold text-base">{team.teamName}</TableCell>
                         <TableCell className="text-muted-foreground">
