@@ -12,9 +12,10 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 
 ## Key Features
 - No authentication — open access for the entire scouting team
-- Event selection as the home page (list of events with + button to add)
+- Event selection as the home page (list of events with + button to add, no sidebar)
 - Event settings dialog (rename, change location, delete with 5-step confirmation)
 - Active event system (clicking an event sets it active and navigates to it)
+- Event-scoped sidebar navigation showing event name, location, back button, and event tabs (Overview, Scout, Teams, Schedule)
 - Detailed scouting form with:
   - Auto: balls shot counter, field drawing canvas, climb tracking, notes
   - Teleop: shooting heatmap, FPS estimate, accuracy slider, move-while-shoot toggle

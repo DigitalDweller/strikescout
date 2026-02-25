@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Link, useParams } from "wouter";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,33 +27,33 @@ type SortField = "teamNumber" | "teamName" | "avgAuto" | "avgTeleop" | "avgAccur
 type SortDir = "asc" | "desc";
 
 export default function TeamList() {
+  const { id } = useParams<{ id: string }>();
+  const eventId = parseInt(id || "0");
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("teamNumber");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  const { data: activeEvent } = useQuery<Event | null>({
-    queryKey: ["/api/active-event"],
+  const { data: event } = useQuery<Event>({
+    queryKey: ["/api/events", eventId],
+    queryFn: async () => {
+      const res = await fetch(`/api/events/${eventId}`);
+      return res.json();
+    },
+    enabled: !!eventId,
   });
 
   const { data: eventTeams, isLoading: teamsLoading } = useQuery<(EventTeam & { team: Team })[]>({
-    queryKey: ["/api/events", activeEvent?.id, "teams"],
-    enabled: !!activeEvent,
+    queryKey: ["/api/events", eventId, "teams"],
+    enabled: !!eventId,
   });
 
   const { data: entries } = useQuery<ScoutingEntry[]>({
-    queryKey: ["/api/events", activeEvent?.id, "entries"],
-    enabled: !!activeEvent,
+    queryKey: ["/api/events", eventId, "entries"],
+    enabled: !!eventId,
   });
 
-  const { data: allTeams, isLoading: allTeamsLoading } = useQuery<Team[]>({
-    queryKey: ["/api/teams"],
-  });
-
-  const teams = activeEvent && eventTeams
-    ? eventTeams.map(et => et.team)
-    : allTeams || [];
-
-  const isLoading = activeEvent ? teamsLoading : allTeamsLoading;
+  const teams = eventTeams ? eventTeams.map(et => et.team) : [];
+  const isLoading = teamsLoading;
 
   const teamStats = useMemo(() => {
     if (!entries || !teams) return new Map();
@@ -145,7 +145,7 @@ export default function TeamList() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Team List</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          {activeEvent ? `Teams at ${activeEvent.name}` : "All registered teams"} — {filteredTeams.length} teams
+          {event ? `Teams at ${event.name}` : "Loading..."} — {filteredTeams.length} teams
         </p>
       </div>
 
@@ -213,15 +213,11 @@ export default function TeamList() {
                     return (
                       <TableRow key={team.id} data-testid={`row-team-${team.id}`}>
                         <TableCell>
-                          {activeEvent ? (
-                            <Link href={`/events/${activeEvent.id}/teams/${team.id}`}>
-                              <Badge variant="secondary" className="cursor-pointer hover:bg-primary hover:text-primary-foreground">
-                                {team.teamNumber}
-                              </Badge>
-                            </Link>
-                          ) : (
-                            <Badge variant="secondary">{team.teamNumber}</Badge>
-                          )}
+                          <Link href={`/events/${eventId}/teams/${team.id}`}>
+                            <Badge variant="secondary" className="cursor-pointer hover:bg-primary hover:text-primary-foreground">
+                              {team.teamNumber}
+                            </Badge>
+                          </Link>
                         </TableCell>
                         <TableCell className="font-medium">{team.teamName}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">

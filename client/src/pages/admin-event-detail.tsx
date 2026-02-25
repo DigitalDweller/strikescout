@@ -117,7 +117,7 @@ export default function AdminEventDetail() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
       <div>
-        <Link href="/events">
+        <Link href="/">
           <Button variant="ghost" size="sm" className="mb-2" data-testid="button-back-events">
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to Events

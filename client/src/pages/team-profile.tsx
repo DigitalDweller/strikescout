@@ -26,7 +26,7 @@ import {
 import type { Event, Team, ScoutingEntry } from "@shared/schema";
 
 export default function TeamProfile() {
-  const { eventId: eid, teamId: tid } = useParams<{ eventId: string; teamId: string }>();
+  const { id: eid, teamId: tid } = useParams<{ id: string; teamId: string }>();
   const eventId = parseInt(eid!);
   const teamId = parseInt(tid!);
 
@@ -73,7 +73,7 @@ export default function TeamProfile() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
       <div>
-        <Link href={`/events/${eventId}`}>
+        <Link href={`/events/${eventId}/teams`}>
           <Button variant="ghost" size="sm" className="mb-2" data-testid="button-back-event">
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to Event

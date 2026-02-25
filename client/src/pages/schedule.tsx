@@ -1,8 +1,9 @@
 import { useState, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useParams } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -15,21 +16,28 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Upload, CalendarDays, Search, Trash2 } from "lucide-react";
+import { Upload, CalendarDays, Search } from "lucide-react";
 import type { Event, ScheduleMatch, Team } from "@shared/schema";
 
 export default function Schedule() {
   const { toast } = useToast();
+  const { id } = useParams<{ id: string }>();
+  const eventId = parseInt(id || "0");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
 
-  const { data: activeEvent } = useQuery<Event | null>({
-    queryKey: ["/api/active-event"],
+  const { data: event } = useQuery<Event>({
+    queryKey: ["/api/events", eventId],
+    queryFn: async () => {
+      const res = await fetch(`/api/events/${eventId}`);
+      return res.json();
+    },
+    enabled: !!eventId,
   });
 
   const { data: schedule, isLoading } = useQuery<ScheduleMatch[]>({
-    queryKey: ["/api/events", activeEvent?.id, "schedule"],
-    enabled: !!activeEvent,
+    queryKey: ["/api/events", eventId, "schedule"],
+    enabled: !!eventId,
   });
 
   const { data: teams } = useQuery<Team[]>({
@@ -44,11 +52,11 @@ export default function Schedule() {
 
   const uploadMutation = useMutation({
     mutationFn: async (matches: any[]) => {
-      const res = await apiRequest("POST", `/api/events/${activeEvent!.id}/schedule`, { matches });
+      const res = await apiRequest("POST", `/api/events/${eventId}/schedule`, { matches });
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events", activeEvent?.id, "schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "schedule"] });
       toast({ title: "Schedule imported successfully!" });
     },
     onError: (err: Error) => {
@@ -58,7 +66,7 @@ export default function Schedule() {
 
   const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !activeEvent) return;
+    if (!file || !eventId) return;
 
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -143,28 +151,13 @@ export default function Schedule() {
     return list;
   }, [schedule, search]);
 
-  if (!activeEvent) {
-    return (
-      <div className="p-4 sm:p-6 max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold tracking-tight mb-6" data-testid="text-page-title">Schedule</h1>
-        <Card>
-          <CardContent className="p-8 text-center">
-            <CalendarDays className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-            <p className="font-medium">No Active Event</p>
-            <p className="text-sm text-muted-foreground mt-1">Set an event as active first.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="p-4 sm:p-6 space-y-4 max-w-6xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Schedule</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {activeEvent.name} — {sortedSchedule.length} matches
+            {event?.name || "Loading..."} — {sortedSchedule.length} matches
           </p>
         </div>
         <div>

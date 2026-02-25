@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   Sidebar,
   SidebarContent,
@@ -13,49 +14,66 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
-  Home,
+  ArrowLeft,
   ClipboardList,
-  List,
+  Users,
   CalendarDays,
-  Crosshair,
+  LayoutDashboard,
   Moon,
   Sun,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
+import type { Event } from "@shared/schema";
 
-const navItems = [
-  { title: "Home", url: "/", icon: Home },
-  { title: "Scout", url: "/scout", icon: ClipboardList },
-  { title: "Team List", url: "/teams", icon: List },
-  { title: "Schedule", url: "/schedule", icon: CalendarDays },
-];
-
-export function AppSidebar() {
+export function AppSidebar({ eventId }: { eventId: number }) {
   const [location] = useLocation();
   const { theme, toggleTheme } = useTheme();
+
+  const { data: event } = useQuery<Event>({
+    queryKey: ["/api/events", eventId],
+    queryFn: async () => {
+      const res = await fetch(`/api/events/${eventId}`);
+      if (!res.ok) throw new Error("Failed to load event");
+      return res.json();
+    },
+  });
+
+  const navItems = [
+    { title: "Overview", url: `/events/${eventId}`, icon: LayoutDashboard },
+    { title: "Scout", url: `/events/${eventId}/scout`, icon: ClipboardList },
+    { title: "Teams", url: `/events/${eventId}/teams`, icon: Users },
+    { title: "Schedule", url: `/events/${eventId}/schedule`, icon: CalendarDays },
+  ];
 
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex items-center gap-3 px-3 py-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Crosshair className="h-6 w-6" />
-          </div>
+        <div className="px-3 py-4">
+          <Link href="/">
+            <button className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3" data-testid="button-back-events">
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back to Events</span>
+            </button>
+          </Link>
           <div>
-            <h2 className="font-bold text-base leading-tight">StrikeScout</h2>
-            <p className="text-xs text-muted-foreground">FRC Scouting</p>
+            <h2 className="font-bold text-base leading-tight" data-testid="text-event-name">
+              {event?.name || "Loading..."}
+            </h2>
+            {event?.location && (
+              <p className="text-xs text-muted-foreground mt-0.5" data-testid="text-event-location">
+                {event.location}
+              </p>
+            )}
           </div>
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>Event</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
-                const isActive = item.url === "/"
-                  ? location === "/"
-                  : location === item.url || location.startsWith(item.url + "/");
+                const isActive = location === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild data-active={isActive || undefined}>

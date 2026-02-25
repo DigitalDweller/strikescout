@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useParams } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -874,9 +875,16 @@ export default function ScoutForm() {
     0: getEmptyForm(),
   });
 
-  const { data: activeEvent, isLoading: eventLoading } = useQuery<Event | null>({
-    queryKey: ["/api/active-event"],
-    refetchInterval: 10000,
+  const { id: eventIdParam } = useParams<{ id: string }>();
+  const eventId = parseInt(eventIdParam || "0");
+
+  const { data: activeEvent, isLoading: eventLoading } = useQuery<Event>({
+    queryKey: ["/api/events", eventId],
+    queryFn: async () => {
+      const res = await fetch(`/api/events/${eventId}`);
+      return res.json();
+    },
+    enabled: !!eventId,
   });
 
   useEffect(() => {
@@ -886,8 +894,8 @@ export default function ScoutForm() {
   }, [activeEvent, matchNumber]);
 
   const { data: eventTeams } = useQuery<(EventTeam & { team: Team })[]>({
-    queryKey: ["/api/events", activeEvent?.id, "teams"],
-    enabled: !!activeEvent,
+    queryKey: ["/api/events", eventId, "teams"],
+    enabled: !!eventId,
   });
 
   const submitMutation = useMutation({
@@ -958,7 +966,7 @@ export default function ScoutForm() {
   };
 
   const handleSubmitAll = async () => {
-    if (!activeEvent) return;
+    if (!eventId) return;
 
     const validEntries = selectedTeams
       .slice(0, teamCount)
@@ -975,8 +983,8 @@ export default function ScoutForm() {
       try {
         await submitMutation.mutateAsync({
           teamId: entry.teamId,
-          eventId: activeEvent.id,
-          matchNumber: matchNumber || activeEvent.currentMatchNumber,
+          eventId: eventId,
+          matchNumber: matchNumber || activeEvent?.currentMatchNumber || 1,
           ...entry.form,
         });
         successCount++;
