@@ -6,6 +6,33 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, MessageSquare } from "lucide-react";
 import type { Event, Team, ScoutingEntry } from "@shared/schema";
 
+const NOTE_COLUMNS = [
+  {
+    label: "Auto",
+    color: "text-primary",
+    borderColor: "border-primary/30",
+    bgColor: "bg-primary/5",
+    extract: (e: ScoutingEntry) => e.autoNotes,
+  },
+  {
+    label: "Teleop & Defense",
+    color: "text-chart-2",
+    borderColor: "border-chart-2/30",
+    bgColor: "bg-chart-2/5",
+    extract: (e: ScoutingEntry) => [
+      e.driverSkillNotes ? `[Driver] ${e.driverSkillNotes}` : "",
+      e.defenseNotes ? `[Defense] ${e.defenseNotes}` : "",
+    ].filter(Boolean).join("\n"),
+  },
+  {
+    label: "General",
+    color: "text-chart-5",
+    borderColor: "border-chart-5/30",
+    bgColor: "bg-chart-5/5",
+    extract: (e: ScoutingEntry) => e.notes,
+  },
+];
+
 export default function TeamNotes() {
   const { id: eid, teamId: tid } = useParams<{ id: string; teamId: string }>();
   const eventId = parseInt(eid!);
@@ -25,15 +52,18 @@ export default function TeamNotes() {
 
   const team = teams?.find((t) => t.id === teamId);
 
-  const noteGroups = entries ? [
-    { label: "Auto Notes", notes: entries.map(e => ({ match: e.matchNumber, text: e.autoNotes })).filter(n => n.text) },
-    { label: "Driver Skill", notes: entries.map(e => ({ match: e.matchNumber, text: e.driverSkillNotes })).filter(n => n.text) },
-    { label: "Defense Notes", notes: entries.map(e => ({ match: e.matchNumber, text: e.defenseNotes })).filter(n => n.text) },
-    { label: "General Notes", notes: entries.map(e => ({ match: e.matchNumber, text: e.notes })).filter(n => n.text) },
-  ].filter(g => g.notes.length > 0) : [];
+  const columns = NOTE_COLUMNS.map(col => ({
+    ...col,
+    notes: (entries || [])
+      .map(e => ({ match: e.matchNumber, text: col.extract(e) }))
+      .filter(n => n.text)
+      .sort((a, b) => a.match - b.match),
+  }));
+
+  const hasAnyNotes = columns.some(c => c.notes.length > 0);
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-6 space-y-6 max-w-6xl mx-auto">
       <div>
         <Link href={`/events/${eventId}/teams/${teamId}`}>
           <Button variant="ghost" size="sm" className="mb-2" data-testid="button-back-team">
@@ -52,30 +82,36 @@ export default function TeamNotes() {
 
       {isLoading ? (
         <Skeleton className="h-48 w-full" />
-      ) : noteGroups.length === 0 ? (
+      ) : !hasAnyNotes ? (
         <Card>
           <CardContent className="py-10 text-center">
             <p className="text-base text-muted-foreground">No notes have been recorded for this team yet.</p>
           </CardContent>
         </Card>
       ) : (
-        noteGroups.map(group => (
-          <Card key={group.label}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-bold">{group.label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {group.notes.sort((a, b) => a.match - b.match).map((n, i) => (
-                  <div key={i} className="flex gap-3 text-sm border-b last:border-0 pb-2 last:pb-0" data-testid={`note-${group.label}-${i}`}>
-                    <span className="font-bold text-muted-foreground shrink-0 w-8">M{n.match}</span>
-                    <span>{n.text}</span>
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+          {columns.map(col => (
+            <Card key={col.label} className={`border-t-4 ${col.borderColor}`}>
+              <CardHeader className="pb-2">
+                <CardTitle className={`text-base font-bold ${col.color} text-center`}>{col.label}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {col.notes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No notes</p>
+                ) : (
+                  <div className="space-y-2">
+                    {col.notes.map((n, i) => (
+                      <div key={i} className={`rounded-md px-3 py-2 ${col.bgColor}`} data-testid={`note-${col.label}-${i}`}>
+                        <span className={`text-xs font-bold ${col.color}`}>M{n.match}</span>
+                        <p className="text-sm mt-0.5 whitespace-pre-line">{n.text}</p>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );

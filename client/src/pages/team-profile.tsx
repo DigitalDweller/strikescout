@@ -271,48 +271,75 @@ export default function TeamProfile() {
       </div>
 
       {entries && entries.length > 0 && (() => {
-        const noteGroups = [
-          { label: "Auto Notes", notes: entries.map(e => ({ match: e.matchNumber, text: e.autoNotes })).filter(n => n.text) },
-          { label: "Driver Skill", notes: entries.map(e => ({ match: e.matchNumber, text: e.driverSkillNotes })).filter(n => n.text) },
-          { label: "Defense Notes", notes: entries.map(e => ({ match: e.matchNumber, text: e.defenseNotes })).filter(n => n.text) },
-          { label: "General Notes", notes: entries.map(e => ({ match: e.matchNumber, text: e.notes })).filter(n => n.text) },
-        ].filter(g => g.notes.length > 0);
-        if (noteGroups.length === 0) return null;
+        const noteCols = [
+          {
+            label: "Auto",
+            color: "text-primary",
+            borderColor: "border-primary/30",
+            bgColor: "bg-primary/5",
+            notes: entries.map(e => ({ match: e.matchNumber, text: e.autoNotes })).filter(n => n.text),
+          },
+          {
+            label: "Teleop & Defense",
+            color: "text-chart-2",
+            borderColor: "border-chart-2/30",
+            bgColor: "bg-chart-2/5",
+            notes: entries.map(e => ({
+              match: e.matchNumber,
+              text: [
+                e.driverSkillNotes ? `[Driver] ${e.driverSkillNotes}` : "",
+                e.defenseNotes ? `[Defense] ${e.defenseNotes}` : "",
+              ].filter(Boolean).join("\n"),
+            })).filter(n => n.text),
+          },
+          {
+            label: "General",
+            color: "text-chart-5",
+            borderColor: "border-chart-5/30",
+            bgColor: "bg-chart-5/5",
+            notes: entries.map(e => ({ match: e.matchNumber, text: e.notes })).filter(n => n.text),
+          },
+        ];
+        const hasAny = noteCols.some(c => c.notes.length > 0);
+        if (!hasAny) return null;
         return (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                Scout Notes
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                {noteGroups.map(group => {
-                  const sorted = group.notes.sort((a, b) => b.match - a.match);
-                  const recent = sorted.slice(0, 2);
-                  return (
-                    <div key={group.label} className="space-y-2">
-                      <p className="text-sm font-bold text-foreground/70">{group.label}</p>
-                      <div className="space-y-1.5">
-                        {recent.map((n, i) => (
-                          <div key={i} className="flex gap-2 text-sm">
-                            <span className="font-semibold text-muted-foreground shrink-0">M{n.match}</span>
-                            <span>{n.text}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <Link href={`/events/${eventId}/teams/${teamId}/notes`}>
-                <Button variant="outline" size="sm" className="w-full" data-testid="button-view-all-notes">
-                  View All Notes
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+          <div className="space-y-3">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              Scout Notes
+            </h2>
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+              {noteCols.map(col => {
+                const recent = [...col.notes].sort((a, b) => b.match - a.match).slice(0, 2);
+                return (
+                  <Card key={col.label} className={`border-t-4 ${col.borderColor}`}>
+                    <CardHeader className="pb-1 pt-3 px-4">
+                      <CardTitle className={`text-sm font-bold ${col.color} text-center`}>{col.label}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-3">
+                      {recent.length === 0 ? (
+                        <p className="text-xs text-muted-foreground text-center py-2">No notes</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {recent.map((n, i) => (
+                            <div key={i} className={`rounded px-2.5 py-1.5 ${col.bgColor}`}>
+                              <span className={`text-xs font-bold ${col.color}`}>M{n.match}</span>
+                              <p className="text-sm mt-0.5 whitespace-pre-line">{n.text}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+            <Link href={`/events/${eventId}/teams/${teamId}/notes`}>
+              <Button variant="outline" size="sm" className="w-full" data-testid="button-view-all-notes">
+                View All Notes
+              </Button>
+            </Link>
+          </div>
         );
       })()}
 
