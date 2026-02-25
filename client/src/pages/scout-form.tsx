@@ -765,7 +765,7 @@ function TeamFormColumn({
           />
 
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Estimated FPS (Fuel Per Second)</Label>
+            <Label className="text-sm font-medium">Estimated Throughput</Label>
             <div className="flex items-center gap-2">
               <Button
                 type="button"

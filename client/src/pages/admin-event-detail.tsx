@@ -19,11 +19,11 @@ type TeamStats = {
   teamId: number;
   team?: Team;
   avgAuto: number;
-  avgTeleop: number;
+  avgThroughput: number;
   avgAccuracy: number;
   avgDefense: number;
   climbRate: number;
-  totalBalls: number;
+  avgClimbLevel: number;
 };
 
 function getOrdinal(n: number) {
@@ -46,6 +46,7 @@ function LeaderboardCard({
   getValue,
   formatValue,
   eventId,
+  sortFn,
 }: {
   title: string;
   icon: React.ReactNode;
@@ -53,8 +54,9 @@ function LeaderboardCard({
   getValue: (t: TeamStats) => number;
   formatValue: (v: number) => string;
   eventId: number;
+  sortFn?: (a: TeamStats, b: TeamStats) => number;
 }) {
-  const sorted = [...teams].sort((a, b) => getValue(b) - getValue(a)).slice(0, 5);
+  const sorted = [...teams].sort(sortFn ? (a, b) => sortFn(b, a) : (a, b) => getValue(b) - getValue(a)).slice(0, 5);
 
   return (
     <Card>
@@ -122,23 +124,24 @@ export default function AdminEventDetail() {
         return {
           teamId: et.teamId,
           team: et.team,
-          avgAuto: 0, avgTeleop: 0, avgAccuracy: 0, avgDefense: 0, climbRate: 0, totalBalls: 0,
+          avgAuto: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, climbRate: 0, avgClimbLevel: 0,
         };
       }
+      const climbs = te.filter(e => e.climbSuccess === "success");
       return {
         teamId: et.teamId,
         team: et.team,
         avgAuto: te.reduce((s, e) => s + e.autoBallsShot, 0) / count,
-        avgTeleop: te.reduce((s, e) => s + e.teleopBallsShot, 0) / count,
-        avgAccuracy: te.reduce((s, e) => s + e.teleopAccuracy, 0) / count,
-        avgDefense: te.reduce((s, e) => s + e.defenseRating, 0) / count,
-        climbRate: te.filter(e => e.climbSuccess === "success").length / count * 100,
-        totalBalls: te.reduce((s, e) => s + e.autoBallsShot + e.teleopBallsShot, 0) / count,
+        avgThroughput: te.reduce((s, e) => s + e.teleopFpsEstimate, 0) / count,
+        avgAccuracy: te.reduce((s, e) => s + e.teleopAccuracy, 0) / count * 10,
+        avgDefense: te.reduce((s, e) => s + e.defenseRating, 0) / count * 10,
+        climbRate: climbs.length / count * 100,
+        avgClimbLevel: climbs.length > 0 ? climbs.reduce((s, e) => s + (parseInt(e.climbLevel || "0") || 0), 0) / climbs.length : 0,
       };
     });
   }, [eventTeams, entries]);
 
-  const teamsWithData = teamStatsList.filter(t => t.avgAuto > 0 || t.avgTeleop > 0 || t.avgAccuracy > 0 || t.avgDefense > 0 || t.climbRate > 0);
+  const teamsWithData = teamStatsList.filter(t => t.avgAuto > 0 || t.avgThroughput > 0 || t.avgAccuracy > 0 || t.avgDefense > 0 || t.climbRate > 0);
   const matchesScouted = entries ? new Set(entries.map(e => e.matchNumber)).size : 0;
 
   if (eventLoading) {
@@ -207,15 +210,7 @@ export default function AdminEventDetail() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             <LeaderboardCard
-              title="Total Scoring"
-              icon={<Zap className="h-4 w-4 text-chart-1" />}
-              teams={teamsWithData}
-              getValue={t => t.totalBalls}
-              formatValue={v => v.toFixed(1)}
-              eventId={eventId}
-            />
-            <LeaderboardCard
-              title="Auto Performance"
+              title="Auto Balls Shot"
               icon={<Zap className="h-4 w-4 text-primary" />}
               teams={teamsWithData}
               getValue={t => t.avgAuto}
@@ -223,10 +218,10 @@ export default function AdminEventDetail() {
               eventId={eventId}
             />
             <LeaderboardCard
-              title="Teleop Performance"
+              title="Throughput"
               icon={<Target className="h-4 w-4 text-chart-2" />}
               teams={teamsWithData}
-              getValue={t => t.avgTeleop}
+              getValue={t => t.avgThroughput}
               formatValue={v => v.toFixed(1)}
               eventId={eventId}
             />
@@ -235,7 +230,7 @@ export default function AdminEventDetail() {
               icon={<Target className="h-4 w-4 text-chart-3" />}
               teams={teamsWithData}
               getValue={t => t.avgAccuracy}
-              formatValue={v => `${v.toFixed(1)}/10`}
+              formatValue={v => `${Math.round(v)}%`}
               eventId={eventId}
             />
             <LeaderboardCard
@@ -243,7 +238,7 @@ export default function AdminEventDetail() {
               icon={<Shield className="h-4 w-4 text-chart-4" />}
               teams={teamsWithData}
               getValue={t => t.avgDefense}
-              formatValue={v => `${v.toFixed(1)}/10`}
+              formatValue={v => `${Math.round(v)}%`}
               eventId={eventId}
             />
             <LeaderboardCard
@@ -253,6 +248,11 @@ export default function AdminEventDetail() {
               getValue={t => t.climbRate}
               formatValue={v => `${Math.round(v)}%`}
               eventId={eventId}
+              sortFn={(a, b) => {
+                const diff = a.climbRate - b.climbRate;
+                if (diff !== 0) return diff;
+                return a.avgClimbLevel - b.avgClimbLevel;
+              }}
             />
           </div>
         )}

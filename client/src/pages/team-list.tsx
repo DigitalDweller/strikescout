@@ -23,7 +23,7 @@ import {
 import { Search, ArrowUpDown, List } from "lucide-react";
 import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
 
-type SortField = "teamNumber" | "teamName" | "avgAuto" | "avgTeleop" | "avgAccuracy" | "avgDefense" | "climbRate" | "entries";
+type SortField = "teamNumber" | "teamName" | "avgAuto" | "avgThroughput" | "avgAccuracy" | "avgDefense" | "climbRate" | "entries";
 type SortDir = "asc" | "desc";
 
 export default function TeamList() {
@@ -59,7 +59,7 @@ export default function TeamList() {
     if (!entries || !teams) return new Map();
     const map = new Map<number, {
       avgAuto: number;
-      avgTeleop: number;
+      avgThroughput: number;
       avgAccuracy: number;
       avgDefense: number;
       climbRate: number;
@@ -70,13 +70,13 @@ export default function TeamList() {
       const teamEntries = entries.filter(e => e.teamId === team.id);
       const count = teamEntries.length;
       if (count === 0) {
-        map.set(team.id, { avgAuto: 0, avgTeleop: 0, avgAccuracy: 0, avgDefense: 0, climbRate: 0, entries: 0 });
+        map.set(team.id, { avgAuto: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, climbRate: 0, entries: 0 });
       } else {
         map.set(team.id, {
           avgAuto: teamEntries.reduce((s, e) => s + e.autoBallsShot, 0) / count,
-          avgTeleop: teamEntries.reduce((s, e) => s + e.teleopBallsShot, 0) / count,
-          avgAccuracy: teamEntries.reduce((s, e) => s + e.teleopAccuracy, 0) / count,
-          avgDefense: teamEntries.reduce((s, e) => s + e.defenseRating, 0) / count,
+          avgThroughput: teamEntries.reduce((s, e) => s + e.teleopFpsEstimate, 0) / count,
+          avgAccuracy: teamEntries.reduce((s, e) => s + e.teleopAccuracy, 0) / count * 10,
+          avgDefense: teamEntries.reduce((s, e) => s + e.defenseRating, 0) / count * 10,
           climbRate: teamEntries.filter(e => e.climbSuccess === "success").length / count * 100,
           entries: count,
         });
@@ -102,7 +102,7 @@ export default function TeamList() {
         case "teamNumber": valA = a.teamNumber; valB = b.teamNumber; break;
         case "teamName": valA = a.teamName.toLowerCase(); valB = b.teamName.toLowerCase(); break;
         case "avgAuto": valA = teamStats.get(a.id)?.avgAuto || 0; valB = teamStats.get(b.id)?.avgAuto || 0; break;
-        case "avgTeleop": valA = teamStats.get(a.id)?.avgTeleop || 0; valB = teamStats.get(b.id)?.avgTeleop || 0; break;
+        case "avgThroughput": valA = teamStats.get(a.id)?.avgThroughput || 0; valB = teamStats.get(b.id)?.avgThroughput || 0; break;
         case "avgAccuracy": valA = teamStats.get(a.id)?.avgAccuracy || 0; valB = teamStats.get(b.id)?.avgAccuracy || 0; break;
         case "avgDefense": valA = teamStats.get(a.id)?.avgDefense || 0; valB = teamStats.get(b.id)?.avgDefense || 0; break;
         case "climbRate": valA = teamStats.get(a.id)?.climbRate || 0; valB = teamStats.get(b.id)?.climbRate || 0; break;
@@ -168,7 +168,7 @@ export default function TeamList() {
             <SelectItem value="teamNumber">Team Number</SelectItem>
             <SelectItem value="teamName">Team Name</SelectItem>
             <SelectItem value="avgAuto">Avg Auto</SelectItem>
-            <SelectItem value="avgTeleop">Avg Teleop</SelectItem>
+            <SelectItem value="avgThroughput">Throughput</SelectItem>
             <SelectItem value="avgAccuracy">Avg Accuracy</SelectItem>
             <SelectItem value="avgDefense">Avg Defense</SelectItem>
             <SelectItem value="climbRate">Climb Rate</SelectItem>
@@ -199,7 +199,7 @@ export default function TeamList() {
                     <SortableHeader field="teamName">Name</SortableHeader>
                     <TableHead>Location</TableHead>
                     <SortableHeader field="avgAuto">Auto</SortableHeader>
-                    <SortableHeader field="avgTeleop">Teleop</SortableHeader>
+                    <SortableHeader field="avgThroughput">Throughput</SortableHeader>
                     <SortableHeader field="avgAccuracy">Accuracy</SortableHeader>
                     <SortableHeader field="avgDefense">Defense</SortableHeader>
                     <SortableHeader field="climbRate">Climb</SortableHeader>
@@ -222,9 +222,9 @@ export default function TeamList() {
                           {[team.city, team.stateProv].filter(Boolean).join(", ") || "-"}
                         </TableCell>
                         <TableCell className="text-center font-bold text-base">{stats?.avgAuto?.toFixed(1) || "0.0"}</TableCell>
-                        <TableCell className="text-center font-bold text-base">{stats?.avgTeleop?.toFixed(1) || "0.0"}</TableCell>
-                        <TableCell className="text-center font-bold text-base">{stats?.avgAccuracy?.toFixed(1) || "0.0"}<span className="text-xs text-muted-foreground">/10</span></TableCell>
-                        <TableCell className="text-center font-bold text-base">{stats?.avgDefense?.toFixed(1) || "0.0"}<span className="text-xs text-muted-foreground">/10</span></TableCell>
+                        <TableCell className="text-center font-bold text-base">{stats?.avgThroughput?.toFixed(1) || "0.0"}</TableCell>
+                        <TableCell className="text-center font-bold text-base">{Math.round(stats?.avgAccuracy || 0)}<span className="text-xs text-muted-foreground">%</span></TableCell>
+                        <TableCell className="text-center font-bold text-base">{Math.round(stats?.avgDefense || 0)}<span className="text-xs text-muted-foreground">%</span></TableCell>
                         <TableCell className="text-center font-bold text-base">{stats?.climbRate?.toFixed(0) || "0"}<span className="text-xs text-muted-foreground">%</span></TableCell>
                       </TableRow>
                     );

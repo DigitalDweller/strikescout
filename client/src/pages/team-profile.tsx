@@ -61,15 +61,15 @@ export default function TeamProfile() {
   const avgAutoBalls = entries?.length
     ? (entries.reduce((s, e) => s + e.autoBallsShot, 0) / entries.length).toFixed(1)
     : "0";
-  const avgTeleopBalls = entries?.length
-    ? (entries.reduce((s, e) => s + e.teleopBallsShot, 0) / entries.length).toFixed(1)
+  const avgThroughput = entries?.length
+    ? (entries.reduce((s, e) => s + e.teleopFpsEstimate, 0) / entries.length).toFixed(1)
     : "0";
   const avgAccuracy = entries?.length
-    ? (entries.reduce((s, e) => s + e.teleopAccuracy, 0) / entries.length).toFixed(1)
-    : "0";
+    ? Math.round(entries.reduce((s, e) => s + e.teleopAccuracy, 0) / entries.length * 10)
+    : 0;
   const avgDefense = entries?.length
-    ? (entries.reduce((s, e) => s + e.defenseRating, 0) / entries.length).toFixed(1)
-    : "0";
+    ? Math.round(entries.reduce((s, e) => s + e.defenseRating, 0) / entries.length * 10)
+    : 0;
   const climbRate = entries?.length
     ? Math.round((entries.filter((e) => e.climbSuccess === "success").length / entries.length) * 100)
     : 0;
@@ -80,34 +80,42 @@ export default function TeamProfile() {
     const teamIds = eventTeams.map(et => et.teamId);
     const statsMap = new Map<number, {
       avgAuto: number;
-      avgTeleop: number;
+      avgThroughput: number;
       avgAccuracy: number;
       avgDefense: number;
       climbRate: number;
+      avgClimbLevel: number;
     }>();
 
     for (const tid of teamIds) {
       const te = allEntries.filter(e => e.teamId === tid);
       const count = te.length;
       if (count === 0) {
-        statsMap.set(tid, { avgAuto: 0, avgTeleop: 0, avgAccuracy: 0, avgDefense: 0, climbRate: 0 });
+        statsMap.set(tid, { avgAuto: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, climbRate: 0, avgClimbLevel: 0 });
       } else {
+        const climbs = te.filter(e => e.climbSuccess === "success");
         statsMap.set(tid, {
           avgAuto: te.reduce((s, e) => s + e.autoBallsShot, 0) / count,
-          avgTeleop: te.reduce((s, e) => s + e.teleopBallsShot, 0) / count,
-          avgAccuracy: te.reduce((s, e) => s + e.teleopAccuracy, 0) / count,
-          avgDefense: te.reduce((s, e) => s + e.defenseRating, 0) / count,
-          climbRate: te.filter(e => e.climbSuccess === "success").length / count * 100,
+          avgThroughput: te.reduce((s, e) => s + e.teleopFpsEstimate, 0) / count,
+          avgAccuracy: te.reduce((s, e) => s + e.teleopAccuracy, 0) / count * 10,
+          avgDefense: te.reduce((s, e) => s + e.defenseRating, 0) / count * 10,
+          climbRate: climbs.length / count * 100,
+          avgClimbLevel: climbs.length > 0 ? climbs.reduce((s, e) => s + (parseInt(e.climbLevel || "0") || 0), 0) / climbs.length : 0,
         });
       }
     }
 
     const total = teamIds.length;
 
-    function getRank(field: keyof typeof statsMap extends never ? never : string) {
+    function getRank(field: string) {
       const sorted = [...teamIds].sort((a, b) => {
         const sa = statsMap.get(a) as any;
         const sb = statsMap.get(b) as any;
+        if (field === "climbRate") {
+          const diff = (sb?.climbRate || 0) - (sa?.climbRate || 0);
+          if (diff !== 0) return diff;
+          return (sb?.avgClimbLevel || 0) - (sa?.avgClimbLevel || 0);
+        }
         return (sb?.[field] || 0) - (sa?.[field] || 0);
       });
       return sorted.indexOf(teamId) + 1;
@@ -116,7 +124,7 @@ export default function TeamProfile() {
     return {
       total,
       autoRank: getRank("avgAuto"),
-      teleopRank: getRank("avgTeleop"),
+      throughputRank: getRank("avgThroughput"),
       accuracyRank: getRank("avgAccuracy"),
       defenseRank: getRank("avgDefense"),
       climbRank: getRank("climbRate"),
@@ -159,23 +167,23 @@ export default function TeamProfile() {
         </Card>
         <Card>
           <CardContent className="p-5 text-center space-y-1">
-            {rankings && <RankBadge rank={rankings.teleopRank} total={rankings.total} />}
-            <p className="text-sm font-medium text-foreground/70">Avg Teleop</p>
-            <p className="text-4xl font-extrabold text-chart-2 leading-none" data-testid="text-avg-teleop">{avgTeleopBalls}</p>
+            {rankings && <RankBadge rank={rankings.throughputRank} total={rankings.total} />}
+            <p className="text-sm font-medium text-foreground/70">Throughput</p>
+            <p className="text-4xl font-extrabold text-chart-2 leading-none" data-testid="text-avg-throughput">{avgThroughput}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5 text-center space-y-1">
             {rankings && <RankBadge rank={rankings.accuracyRank} total={rankings.total} />}
             <p className="text-sm font-medium text-foreground/70">Accuracy</p>
-            <p className="text-4xl font-extrabold text-chart-3 leading-none" data-testid="text-avg-accuracy">{avgAccuracy}<span className="text-lg">/10</span></p>
+            <p className="text-4xl font-extrabold text-chart-3 leading-none" data-testid="text-avg-accuracy">{avgAccuracy}<span className="text-lg">%</span></p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5 text-center space-y-1">
             {rankings && <RankBadge rank={rankings.defenseRank} total={rankings.total} />}
             <p className="text-sm font-medium text-foreground/70">Defense</p>
-            <p className="text-4xl font-extrabold text-chart-4 leading-none" data-testid="text-avg-defense">{avgDefense}<span className="text-lg">/10</span></p>
+            <p className="text-4xl font-extrabold text-chart-4 leading-none" data-testid="text-avg-defense">{avgDefense}<span className="text-lg">%</span></p>
           </CardContent>
         </Card>
         <Card>
@@ -205,7 +213,7 @@ export default function TeamProfile() {
                   <TableRow>
                     <TableHead className="text-sm font-bold">Match</TableHead>
                     <TableHead className="text-center text-sm font-bold">Auto</TableHead>
-                    <TableHead className="text-center text-sm font-bold">Teleop</TableHead>
+                    <TableHead className="text-center text-sm font-bold">Throughput</TableHead>
                     <TableHead className="text-center text-sm font-bold">Accuracy</TableHead>
                     <TableHead className="text-center text-sm font-bold">Climb</TableHead>
                     <TableHead className="text-center text-sm font-bold">Defense</TableHead>
@@ -221,8 +229,8 @@ export default function TeamProfile() {
                           M{entry.matchNumber}
                         </TableCell>
                         <TableCell className="text-center text-base font-semibold">{entry.autoBallsShot}</TableCell>
-                        <TableCell className="text-center text-base font-semibold">{entry.teleopBallsShot}</TableCell>
-                        <TableCell className="text-center text-base font-semibold">{entry.teleopAccuracy}<span className="text-muted-foreground text-xs">/10</span></TableCell>
+                        <TableCell className="text-center text-base font-semibold">{entry.teleopFpsEstimate}</TableCell>
+                        <TableCell className="text-center text-base font-semibold">{entry.teleopAccuracy * 10}<span className="text-muted-foreground text-xs">%</span></TableCell>
                         <TableCell className="text-center">
                           <Badge
                             variant={entry.climbSuccess === "success" ? "default" : "secondary"}
@@ -231,7 +239,7 @@ export default function TeamProfile() {
                             {entry.climbSuccess === "success" ? "Yes" : entry.climbSuccess === "failed" ? "Failed" : "No"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-center text-base font-semibold">{entry.defenseRating}<span className="text-muted-foreground text-xs">/10</span></TableCell>
+                        <TableCell className="text-center text-base font-semibold">{entry.defenseRating * 10}<span className="text-muted-foreground text-xs">%</span></TableCell>
                         <TableCell className="max-w-[250px] truncate text-sm">
                           {entry.notes || "-"}
                         </TableCell>
