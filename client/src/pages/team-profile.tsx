@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,18 +13,26 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, BarChart3 } from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
-import type { Event, Team, ScoutingEntry } from "@shared/schema";
+import { ArrowLeft } from "lucide-react";
+import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
+
+function getRankColor(rank: number, total: number) {
+  if (total === 0) return "text-muted-foreground";
+  const pct = ((rank - 1) / Math.max(total - 1, 1)) * 100;
+  if (pct <= 10) return "text-yellow-500";
+  if (pct <= 25) return "text-green-500";
+  if (pct <= 50) return "text-blue-500";
+  return "text-muted-foreground";
+}
+
+function getRankLabel(rank: number, total: number) {
+  if (total === 0) return "";
+  const pct = ((rank - 1) / Math.max(total - 1, 1)) * 100;
+  if (pct <= 10) return "Top 10%";
+  if (pct <= 25) return "Top 25%";
+  if (pct <= 50) return "Top 50%";
+  return "";
+}
 
 export default function TeamProfile() {
   const { id: eid, teamId: tid } = useParams<{ id: string; teamId: string }>();
@@ -40,6 +49,14 @@ export default function TeamProfile() {
 
   const { data: entries, isLoading } = useQuery<ScoutingEntry[]>({
     queryKey: ["/api/events", eventId, "teams", teamId, "entries"],
+  });
+
+  const { data: allEntries } = useQuery<ScoutingEntry[]>({
+    queryKey: ["/api/events", eventId, "entries"],
+  });
+
+  const { data: eventTeams } = useQuery<(EventTeam & { team: Team })[]>({
+    queryKey: ["/api/events", eventId, "teams"],
   });
 
   const team = teams?.find((t) => t.id === teamId);
@@ -60,15 +77,69 @@ export default function TeamProfile() {
     ? Math.round((entries.filter((e) => e.climbSuccess === "success").length / entries.length) * 100)
     : 0;
 
-  const chartData =
-    entries
-      ?.sort((a, b) => a.matchNumber - b.matchNumber)
-      .map((e) => ({
-        match: `M${e.matchNumber}`,
-        "Auto Balls": e.autoBallsShot,
-        "Teleop Balls": e.teleopBallsShot,
-        Accuracy: e.teleopAccuracy,
-      })) || [];
+  const rankings = useMemo(() => {
+    if (!allEntries || !eventTeams) return null;
+
+    const teamIds = eventTeams.map(et => et.teamId);
+    const statsMap = new Map<number, {
+      avgAuto: number;
+      avgTeleop: number;
+      avgAccuracy: number;
+      avgDefense: number;
+      climbRate: number;
+    }>();
+
+    for (const tid of teamIds) {
+      const te = allEntries.filter(e => e.teamId === tid);
+      const count = te.length;
+      if (count === 0) {
+        statsMap.set(tid, { avgAuto: 0, avgTeleop: 0, avgAccuracy: 0, avgDefense: 0, climbRate: 0 });
+      } else {
+        statsMap.set(tid, {
+          avgAuto: te.reduce((s, e) => s + e.autoBallsShot, 0) / count,
+          avgTeleop: te.reduce((s, e) => s + e.teleopBallsShot, 0) / count,
+          avgAccuracy: te.reduce((s, e) => s + e.teleopAccuracy, 0) / count,
+          avgDefense: te.reduce((s, e) => s + e.defenseRating, 0) / count,
+          climbRate: te.filter(e => e.climbSuccess === "success").length / count * 100,
+        });
+      }
+    }
+
+    const total = teamIds.length;
+
+    function getRank(field: keyof typeof statsMap extends never ? never : string) {
+      const sorted = [...teamIds].sort((a, b) => {
+        const sa = statsMap.get(a) as any;
+        const sb = statsMap.get(b) as any;
+        return (sb?.[field] || 0) - (sa?.[field] || 0);
+      });
+      return sorted.indexOf(teamId) + 1;
+    }
+
+    return {
+      total,
+      autoRank: getRank("avgAuto"),
+      teleopRank: getRank("avgTeleop"),
+      accuracyRank: getRank("avgAccuracy"),
+      defenseRank: getRank("avgDefense"),
+      climbRank: getRank("climbRate"),
+    };
+  }, [allEntries, eventTeams, teamId]);
+
+  const RankBadge = ({ rank, total }: { rank: number; total: number }) => {
+    const color = getRankColor(rank, total);
+    const label = getRankLabel(rank, total);
+    return (
+      <div className="mt-1">
+        <p className={`text-xs font-semibold ${color}`} data-testid={`text-rank-${rank}`}>
+          #{rank}/{total}
+        </p>
+        {label && (
+          <p className={`text-[10px] font-medium ${color}`}>{label}</p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
@@ -76,7 +147,7 @@ export default function TeamProfile() {
         <Link href={`/events/${eventId}/teams`}>
           <Button variant="ghost" size="sm" className="mb-2" data-testid="button-back-event">
             <ArrowLeft className="h-4 w-4 mr-1" />
-            Back to Event
+            Back to Teams
           </Button>
         </Link>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-team-name">
@@ -92,67 +163,38 @@ export default function TeamProfile() {
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-bold text-primary" data-testid="text-avg-auto">{avgAutoBalls}</p>
             <p className="text-xs text-muted-foreground">Avg Auto Balls</p>
+            {rankings && <RankBadge rank={rankings.autoRank} total={rankings.total} />}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-bold text-chart-2" data-testid="text-avg-teleop">{avgTeleopBalls}</p>
             <p className="text-xs text-muted-foreground">Avg Teleop Balls</p>
+            {rankings && <RankBadge rank={rankings.teleopRank} total={rankings.total} />}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-bold text-chart-3" data-testid="text-avg-accuracy">{avgAccuracy}/10</p>
             <p className="text-xs text-muted-foreground">Avg Accuracy</p>
+            {rankings && <RankBadge rank={rankings.accuracyRank} total={rankings.total} />}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-bold text-chart-4" data-testid="text-avg-defense">{avgDefense}/10</p>
             <p className="text-xs text-muted-foreground">Avg Defense</p>
+            {rankings && <RankBadge rank={rankings.defenseRank} total={rankings.total} />}
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <p className="text-2xl font-bold text-chart-5" data-testid="text-climb-rate">{climbRate}%</p>
             <p className="text-xs text-muted-foreground">Climb Rate</p>
+            {rankings && <RankBadge rank={rankings.climbRank} total={rankings.total} />}
           </CardContent>
         </Card>
       </div>
-
-      {chartData.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Performance by Match
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="match" className="text-xs" />
-                  <YAxis className="text-xs" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--popover))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "6px",
-                      color: "hsl(var(--popover-foreground))",
-                    }}
-                  />
-                  <Legend />
-                  <Bar dataKey="Auto Balls" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="Teleop Balls" fill="hsl(var(--chart-2))" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="Accuracy" fill="hsl(var(--chart-3))" radius={[2, 2, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader className="pb-2">
