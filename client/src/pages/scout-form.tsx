@@ -870,7 +870,7 @@ export default function ScoutForm() {
 
   const [teamCount, setTeamCount] = useState(1);
   const [selectedTeams, setSelectedTeams] = useState<number[]>([0]);
-  const [matchNumber, setMatchNumber] = useState<number | null>(null);
+  const [matchNumber, setMatchNumber] = useState<number>(1);
   const [formDataMap, setFormDataMap] = useState<Record<number, FormData>>({
     0: getEmptyForm(),
   });
@@ -886,12 +886,6 @@ export default function ScoutForm() {
     },
     enabled: !!eventId,
   });
-
-  useEffect(() => {
-    if (activeEvent && matchNumber === null) {
-      setMatchNumber(activeEvent.currentMatchNumber);
-    }
-  }, [activeEvent, matchNumber]);
 
   const { data: eventTeams } = useQuery<(EventTeam & { team: Team })[]>({
     queryKey: ["/api/events", eventId, "teams"],
@@ -984,7 +978,7 @@ export default function ScoutForm() {
         await submitMutation.mutateAsync({
           teamId: entry.teamId,
           eventId: eventId,
-          matchNumber: matchNumber || activeEvent?.currentMatchNumber || 1,
+          matchNumber: matchNumber,
           ...entry.form,
         });
         successCount++;
@@ -996,7 +990,7 @@ export default function ScoutForm() {
       setTeamCount(1);
       setSelectedTeams([0]);
       setFormDataMap({ 0: getEmptyForm() });
-      setMatchNumber((matchNumber || 1) + 1);
+      setMatchNumber(matchNumber + 1);
     }
   };
 
@@ -1048,7 +1042,7 @@ export default function ScoutForm() {
                   size="sm"
                   className="h-8 w-8 p-0"
                   onClick={() => setMatchNumber((prev) => Math.max(1, (prev || 1) - 1))}
-                  disabled={(matchNumber || 1) <= 1}
+                  disabled={matchNumber <= 1}
                   data-testid="button-match-minus"
                 >
                   <Minus className="h-4 w-4" />
@@ -1056,7 +1050,7 @@ export default function ScoutForm() {
                 <input
                   type="number"
                   min={1}
-                  value={matchNumber || ""}
+                  value={matchNumber}
                   onChange={(e) => {
                     const v = parseInt(e.target.value, 10);
                     if (!isNaN(v) && v >= 1) setMatchNumber(v);

@@ -33,7 +33,6 @@ import {
   Plus,
   Calendar,
   MapPin,
-  Radio,
   Loader2,
   Settings,
   AlertTriangle,
@@ -76,7 +75,6 @@ function DeleteConfirmDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/active-event"] });
       toast({ title: "Event deleted" });
       onDeleted();
     },
@@ -171,7 +169,6 @@ function EventSettingsDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/active-event"] });
       toast({ title: "Event updated" });
       onOpenChange(false);
     },
@@ -287,18 +284,6 @@ export default function AdminEvents() {
     },
     onError: (error: Error) => {
       toast({ title: "Failed to create event", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const setActiveMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("POST", `/api/events/${id}/set-active`);
-      return await res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/active-event"] });
-      toast({ title: "Active event updated" });
     },
   });
 
@@ -429,31 +414,18 @@ export default function AdminEvents() {
             {events?.map((event) => (
               <Card
                 key={event.id}
-                className={`cursor-pointer hover-elevate transition-colors ${event.isActive ? "border-primary/50" : ""}`}
+                className="cursor-pointer hover-elevate transition-colors"
                 data-testid={`card-event-${event.id}`}
               >
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div
                       className="flex-1 min-w-0"
-                      onClick={() => {
-                        if (!event.isActive) {
-                          setActiveMutation.mutate(event.id);
-                        }
-                        setLocation(`/events/${event.id}`);
-                      }}
+                      onClick={() => setLocation(`/events/${event.id}`)}
                     >
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-lg" data-testid={`text-event-name-${event.id}`}>
-                          {event.name}
-                        </span>
-                        {event.isActive && (
-                          <Badge variant="default" className="text-xs">
-                            <Radio className="h-3 w-3 mr-1" />
-                            Active
-                          </Badge>
-                        )}
-                      </div>
+                      <span className="font-semibold text-lg" data-testid={`text-event-name-${event.id}`}>
+                        {event.name}
+                      </span>
                       <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
                         {event.location && (
                           <span className="flex items-center gap-1">
@@ -469,33 +441,17 @@ export default function AdminEvents() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {!event.isActive && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveMutation.mutate(event.id);
-                          }}
-                          disabled={setActiveMutation.isPending}
-                          data-testid={`button-set-active-${event.id}`}
-                        >
-                          Set Active
-                        </Button>
-                      )}
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSettingsEvent(event);
-                        }}
-                        data-testid={`button-settings-${event.id}`}
-                      >
-                        <Settings className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSettingsEvent(event);
+                      }}
+                      data-testid={`button-settings-${event.id}`}
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

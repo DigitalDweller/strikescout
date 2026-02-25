@@ -17,285 +17,96 @@ import {
 import {
   MapPin,
   Calendar,
-  Radio,
   Plus,
   Trash2,
-  ArrowRight,
   Users,
   Loader2,
-  MessageSquare,
-  Map as MapIcon,
+  Trophy,
   Target,
   Shield,
-  Gamepad2,
   ChevronUp,
-  StickyNote,
+  Zap,
+  ArrowRight,
 } from "lucide-react";
 import type { Event, Team, EventTeam, ScoutingEntry } from "@shared/schema";
-import fieldImagePath from "@assets/6846b9eeb548474b11b6b16d828c2e6092a99131_1771896624665.png";
-import heatmapFieldPath from "@assets/hehehehe_1771897335677.png";
 
-function ReadOnlyAutoDrawing({ data }: { data: string }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fieldImgRef = useRef<HTMLImageElement | null>(null);
+type TeamStats = {
+  teamId: number;
+  team?: Team;
+  avgAuto: number;
+  avgTeleop: number;
+  avgAccuracy: number;
+  avgDefense: number;
+  climbRate: number;
+  totalBalls: number;
+};
 
-  const redraw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#f0f0f0";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    if (fieldImgRef.current?.complete) {
-      const img = fieldImgRef.current;
-      const scale = Math.min(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
-      const dw = img.naturalWidth * scale;
-      const dh = img.naturalHeight * scale;
-      ctx.drawImage(img, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
-    }
-    let strokes: { x: number; y: number }[][] = [];
-    try { strokes = JSON.parse(data); } catch {}
-    if (!Array.isArray(strokes)) return;
-    ctx.strokeStyle = "#ffcc00";
-    ctx.lineWidth = 3;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    for (const stroke of strokes) {
-      if (!Array.isArray(stroke) || stroke.length < 2) continue;
-      ctx.beginPath();
-      ctx.moveTo(stroke[0].x, stroke[0].y);
-      for (let i = 1; i < stroke.length; i++) ctx.lineTo(stroke[i].x, stroke[i].y);
-      ctx.stroke();
-    }
-  }, [data]);
-
-  useEffect(() => {
-    const img = new Image();
-    img.src = fieldImagePath;
-    img.onload = () => { fieldImgRef.current = img; redraw(); };
-    fieldImgRef.current = img;
-  }, []);
-
-  useEffect(() => { redraw(); }, [redraw]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      width={400}
-      height={250}
-      className="w-full rounded-md border border-border"
-      style={{ aspectRatio: "400/250" }}
-    />
-  );
+function getOrdinal(n: number) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-function ReadOnlyHeatmap({ data }: { data: string }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fieldImgRef = useRef<HTMLImageElement | null>(null);
-
-  const redraw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const W = canvas.width;
-    const H = canvas.height;
-    ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = "#f0f0f0";
-    ctx.fillRect(0, 0, W, H);
-    if (fieldImgRef.current?.complete) {
-      const img = fieldImgRef.current;
-      const scale = Math.min(W / img.naturalWidth, H / img.naturalHeight);
-      const dw = img.naturalWidth * scale;
-      const dh = img.naturalHeight * scale;
-      ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
-    }
-    let points: { x: number; y: number }[] = [];
-    try { points = JSON.parse(data); } catch {}
-    if (!Array.isArray(points) || points.length === 0) return;
-    const radius = 35;
-    const grid = 4;
-    const intensity: Record<string, number> = {};
-    let maxI = 0;
-    for (const p of points) {
-      const gx = Math.floor((p.x * W) / grid);
-      const gy = Math.floor((p.y * H) / grid);
-      for (let dx = -Math.ceil(radius / grid); dx <= Math.ceil(radius / grid); dx++) {
-        for (let dy = -Math.ceil(radius / grid); dy <= Math.ceil(radius / grid); dy++) {
-          const cx = (gx + dx) * grid + grid / 2;
-          const cy = (gy + dy) * grid + grid / 2;
-          const dist = Math.sqrt((cx - p.x * W) ** 2 + (cy - p.y * H) ** 2);
-          if (dist < radius) {
-            const key = `${gx + dx},${gy + dy}`;
-            const weight = 1 - dist / radius;
-            intensity[key] = (intensity[key] || 0) + weight;
-            if (intensity[key] > maxI) maxI = intensity[key];
-          }
-        }
-      }
-    }
-    for (const [key, val] of Object.entries(intensity)) {
-      const [gx, gy] = key.split(",").map(Number);
-      const norm = val / maxI;
-      const r = 255;
-      const g = Math.floor((1 - norm) * 255);
-      ctx.fillStyle = `rgba(${r}, ${g}, 0, ${Math.min(norm * 0.85 + 0.15, 0.95)})`;
-      ctx.fillRect(gx * grid, gy * grid, grid, grid);
-    }
-    for (const p of points) {
-      ctx.beginPath();
-      ctx.arc(p.x * W, p.y * H, 3, 0, Math.PI * 2);
-      ctx.fillStyle = "#ffffffcc";
-      ctx.fill();
-    }
-  }, [data]);
-
-  useEffect(() => {
-    const img = new Image();
-    img.src = heatmapFieldPath;
-    img.onload = () => { fieldImgRef.current = img; redraw(); };
-    fieldImgRef.current = img;
-  }, []);
-
-  useEffect(() => { redraw(); }, [redraw]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      width={400}
-      height={250}
-      className="w-full rounded-md border border-border"
-      style={{ aspectRatio: "400/250" }}
-    />
-  );
+function getMedalColor(rank: number) {
+  if (rank === 1) return "text-yellow-500";
+  if (rank === 2) return "text-gray-400";
+  if (rank === 3) return "text-amber-600";
+  return "text-muted-foreground";
 }
 
-function NoteBlock({ icon, label, text }: { icon: React.ReactNode; label: string; text: string }) {
-  return (
-    <div className="bg-muted/50 rounded-lg p-3">
-      <div className="flex items-center gap-1.5 mb-1">
-        {icon}
-        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">{label}</span>
-      </div>
-      <p className="text-sm leading-relaxed">{text}</p>
-    </div>
-  );
-}
-
-function ScoutingEntryCard({
-  entry,
-  team,
+function LeaderboardCard({
+  title,
+  icon,
+  teams,
+  getValue,
+  formatValue,
   eventId,
 }: {
-  entry: ScoutingEntry;
-  team?: Team;
+  title: string;
+  icon: React.ReactNode;
+  teams: TeamStats[];
+  getValue: (t: TeamStats) => number;
+  formatValue: (v: number) => string;
   eventId: number;
 }) {
-  const hasAutoDrawing = !!entry.autoDrawing;
-  const hasHeatmap = !!entry.teleopShootPosition;
-  const hasAnyNotes = !!(entry.autoNotes || entry.defenseNotes || entry.driverSkillNotes || entry.notes);
-  const hasAnyMaps = hasAutoDrawing || hasHeatmap;
+  const sorted = [...teams].sort((a, b) => getValue(b) - getValue(a)).slice(0, 5);
 
   return (
-    <Card data-testid={`card-entry-${entry.id}`}>
+    <Card>
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Badge variant="secondary" className="text-base font-bold px-3 py-1">
-              M{entry.matchNumber}
-            </Badge>
-            {team && (
-              <Link href={`/events/${eventId}/teams/${entry.teamId}`}>
-                <span className="font-bold text-lg text-primary hover:underline cursor-pointer" data-testid={`link-team-${entry.teamId}`}>
-                  #{team.teamNumber}
-                </span>
-                <span className="ml-2 font-medium text-base">{team.teamName}</span>
-              </Link>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap justify-end">
-            <Badge variant={entry.climbSuccess === "success" ? "default" : "secondary"}
-              className={`font-semibold ${entry.climbSuccess === "success" ? "bg-green-600 text-white" : entry.climbSuccess === "failed" ? "bg-red-500/15 text-red-500" : ""}`}
-            >
-              <ChevronUp className="h-3 w-3 mr-1" />
-              {entry.climbSuccess === "success" ? `Climb L${entry.climbLevel || "?"}` : entry.climbSuccess === "failed" ? "Climb Failed" : "No Climb"}
-            </Badge>
-            {entry.defenseRating > 0 && (
-              <Badge variant="secondary" className="font-semibold">
-                <Shield className="h-3 w-3 mr-1" />
-                Def {entry.defenseRating}/10
-              </Badge>
-            )}
-          </div>
-        </div>
+        <CardTitle className="text-base font-bold flex items-center gap-2">
+          {icon}
+          {title}
+        </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 pt-0">
-        {hasAnyMaps && (
-          <div className={`grid gap-3 ${hasAutoDrawing && hasHeatmap ? "sm:grid-cols-2" : "grid-cols-1"}`}>
-            {hasAutoDrawing && (
-              <div>
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1.5 flex items-center gap-1">
-                  <MapIcon className="h-3 w-3" /> Auto Path
-                </p>
-                <ReadOnlyAutoDrawing data={entry.autoDrawing!} />
-              </div>
-            )}
-            {hasHeatmap && (
-              <div>
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1.5 flex items-center gap-1">
-                  <Target className="h-3 w-3" /> Shooting Positions
-                </p>
-                <ReadOnlyHeatmap data={entry.teleopShootPosition!} />
-              </div>
-            )}
+      <CardContent className="pt-0">
+        {sorted.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-2">No data yet</p>
+        ) : (
+          <div className="space-y-2">
+            {sorted.map((ts, i) => {
+              const rank = i + 1;
+              return (
+                <Link key={ts.teamId} href={`/events/${eventId}/teams/${ts.teamId}`}>
+                  <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" data-testid={`leaderboard-${title.toLowerCase().replace(/\s+/g, "-")}-${rank}`}>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-lg font-extrabold w-8 ${getMedalColor(rank)}`}>
+                        {getOrdinal(rank)}
+                      </span>
+                      <div>
+                        <span className="font-bold text-primary">#{ts.team?.teamNumber}</span>
+                        <span className="ml-1.5 text-sm font-medium">{ts.team?.teamName}</span>
+                      </div>
+                    </div>
+                    <span className="text-xl font-extrabold tabular-nums">
+                      {formatValue(getValue(ts))}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
-
-        {hasAnyNotes && (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {entry.autoNotes && (
-              <NoteBlock
-                icon={<MapIcon className="h-3 w-3 text-muted-foreground" />}
-                label="Auto Notes"
-                text={entry.autoNotes}
-              />
-            )}
-            {entry.defenseNotes && (
-              <NoteBlock
-                icon={<Shield className="h-3 w-3 text-muted-foreground" />}
-                label="Defense Notes"
-                text={entry.defenseNotes}
-              />
-            )}
-            {entry.driverSkillNotes && (
-              <NoteBlock
-                icon={<Gamepad2 className="h-3 w-3 text-muted-foreground" />}
-                label="Driver Skill"
-                text={entry.driverSkillNotes}
-              />
-            )}
-            {entry.notes && (
-              <NoteBlock
-                icon={<StickyNote className="h-3 w-3 text-muted-foreground" />}
-                label="General Notes"
-                text={entry.notes}
-              />
-            )}
-          </div>
-        )}
-
-        {!hasAnyMaps && !hasAnyNotes && (
-          <p className="text-sm text-muted-foreground italic">No drawings or notes recorded for this entry.</p>
-        )}
-
-        <div className="flex items-center gap-4 text-sm text-muted-foreground pt-1 border-t">
-          <span>Auto: <strong className="text-foreground">{entry.autoBallsShot}</strong> balls</span>
-          <span>Teleop: <strong className="text-foreground">{entry.teleopBallsShot}</strong> balls</span>
-          <span>Accuracy: <strong className="text-foreground">{entry.teleopAccuracy}/10</strong></span>
-          {entry.teleopFpsEstimate > 0 && <span>FPS: <strong className="text-foreground">{entry.teleopFpsEstimate}</strong></span>}
-          {entry.teleopMoveWhileShoot && <Badge variant="outline" className="text-xs">Moves while shooting</Badge>}
-        </div>
       </CardContent>
     </Card>
   );
@@ -306,7 +117,6 @@ export default function AdminEventDetail() {
   const eventId = parseInt(id!);
   const { toast } = useToast();
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
-  const [teamFilter, setTeamFilter] = useState<string>("all");
 
   const { data: event, isLoading: eventLoading } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
@@ -353,19 +163,39 @@ export default function AdminEventDetail() {
   const availableTeams = allTeams?.filter((t) => !eventTeamIds.has(t.id)) || [];
 
   const teamMap = useMemo(() => {
-    const m = new Map<number, Team>();
+    const m = new globalThis.Map<number, Team>();
     allTeams?.forEach(t => m.set(t.id, t));
     return m;
   }, [allTeams]);
 
-  const filteredEntries = useMemo(() => {
-    if (!entries) return [];
-    let list = [...entries].sort((a, b) => b.matchNumber - a.matchNumber || b.id - a.id);
-    if (teamFilter !== "all") {
-      list = list.filter(e => e.teamId === parseInt(teamFilter));
-    }
-    return list;
-  }, [entries, teamFilter]);
+  const teamStatsList = useMemo((): TeamStats[] => {
+    if (!eventTeams || !entries) return [];
+    return eventTeams.map(et => {
+      const te = entries.filter(e => e.teamId === et.teamId);
+      const count = te.length;
+      if (count === 0) {
+        return {
+          teamId: et.teamId,
+          team: et.team,
+          avgAuto: 0, avgTeleop: 0, avgAccuracy: 0, avgDefense: 0, climbRate: 0, totalBalls: 0,
+        };
+      }
+      return {
+        teamId: et.teamId,
+        team: et.team,
+        avgAuto: te.reduce((s, e) => s + e.autoBallsShot, 0) / count,
+        avgTeleop: te.reduce((s, e) => s + e.teleopBallsShot, 0) / count,
+        avgAccuracy: te.reduce((s, e) => s + e.teleopAccuracy, 0) / count,
+        avgDefense: te.reduce((s, e) => s + e.defenseRating, 0) / count,
+        climbRate: te.filter(e => e.climbSuccess === "success").length / count * 100,
+        totalBalls: te.reduce((s, e) => s + e.autoBallsShot + e.teleopBallsShot, 0) / count,
+      };
+    });
+  }, [eventTeams, entries]);
+
+  const teamsWithData = teamStatsList.filter(t => t.avgAuto > 0 || t.avgTeleop > 0 || t.avgAccuracy > 0 || t.avgDefense > 0 || t.climbRate > 0);
+  const totalEntries = entries?.length || 0;
+  const matchesScouted = entries ? new Set(entries.map(e => e.matchNumber)).size : 0;
 
   if (eventLoading) {
     return (
@@ -387,34 +217,29 @@ export default function AdminEventDetail() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
       <div>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2" data-testid="text-event-name">
-              {event.name}
-              {event.isActive && (
-                <Badge variant="default" className="text-sm">
-                  <Radio className="h-3 w-3 mr-1" />
-                  Active
-                </Badge>
-              )}
-            </h1>
-            <div className="flex items-center gap-3 mt-1 text-base text-muted-foreground flex-wrap">
-              {event.location && (
-                <span className="flex items-center gap-1">
-                  <MapPin className="h-4 w-4" />
-                  {event.location}
-                </span>
-              )}
-              {event.startDate && (
-                <span className="flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  {event.startDate}
-                </span>
-              )}
-            </div>
-          </div>
-          <Badge variant="secondary" className="text-base font-bold px-3 py-1">
-            Match {event.currentMatchNumber}
+        <h1 className="text-3xl font-bold tracking-tight" data-testid="text-event-name">
+          {event.name}
+        </h1>
+        <div className="flex items-center gap-3 mt-1 text-base text-muted-foreground flex-wrap">
+          {event.location && (
+            <span className="flex items-center gap-1">
+              <MapPin className="h-4 w-4" />
+              {event.location}
+            </span>
+          )}
+          {event.startDate && (
+            <span className="flex items-center gap-1">
+              <Calendar className="h-4 w-4" />
+              {event.startDate}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-4 mt-3">
+          <Badge variant="secondary" className="text-sm font-semibold px-3 py-1">
+            {eventTeams?.length || 0} teams
+          </Badge>
+          <Badge variant="secondary" className="text-sm font-semibold px-3 py-1">
+            {matchesScouted} matches scouted
           </Badge>
         </div>
       </div>
@@ -492,48 +317,71 @@ export default function AdminEventDetail() {
       </Card>
 
       <div>
-        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" />
-            Scouting Feed
-          </h2>
-          <Select value={teamFilter} onValueChange={setTeamFilter}>
-            <SelectTrigger className="w-[200px]" data-testid="select-filter-team">
-              <SelectValue placeholder="All Teams" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Teams</SelectItem>
-              {eventTeams?.map(et => (
-                <SelectItem key={et.teamId} value={et.teamId.toString()}>
-                  #{et.team.teamNumber} {et.team.teamName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <h2 className="text-xl font-bold flex items-center gap-2 mb-4">
+          <Trophy className="h-5 w-5" />
+          Leaderboards
+        </h2>
 
-        {!entries ? (
-          <Skeleton className="h-48 w-full" />
-        ) : filteredEntries.length === 0 ? (
+        {teamsWithData.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
-              <MessageSquare className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+              <Trophy className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
               <p className="font-medium text-lg">No scouting data yet</p>
               <p className="text-muted-foreground mt-1">
-                {teamFilter !== "all" ? "No entries for this team — try a different filter" : "Head to the Scout tab to start recording match data"}
+                Head to the Scout tab to start recording match data. Leaderboards will populate automatically.
               </p>
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
-            {filteredEntries.map(entry => (
-              <ScoutingEntryCard
-                key={entry.id}
-                entry={entry}
-                team={teamMap.get(entry.teamId)}
-                eventId={eventId}
-              />
-            ))}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <LeaderboardCard
+              title="Total Scoring"
+              icon={<Zap className="h-4 w-4 text-chart-1" />}
+              teams={teamsWithData}
+              getValue={t => t.totalBalls}
+              formatValue={v => v.toFixed(1)}
+              eventId={eventId}
+            />
+            <LeaderboardCard
+              title="Auto Performance"
+              icon={<Zap className="h-4 w-4 text-primary" />}
+              teams={teamsWithData}
+              getValue={t => t.avgAuto}
+              formatValue={v => v.toFixed(1)}
+              eventId={eventId}
+            />
+            <LeaderboardCard
+              title="Teleop Performance"
+              icon={<Target className="h-4 w-4 text-chart-2" />}
+              teams={teamsWithData}
+              getValue={t => t.avgTeleop}
+              formatValue={v => v.toFixed(1)}
+              eventId={eventId}
+            />
+            <LeaderboardCard
+              title="Accuracy"
+              icon={<Target className="h-4 w-4 text-chart-3" />}
+              teams={teamsWithData}
+              getValue={t => t.avgAccuracy}
+              formatValue={v => `${v.toFixed(1)}/10`}
+              eventId={eventId}
+            />
+            <LeaderboardCard
+              title="Defense"
+              icon={<Shield className="h-4 w-4 text-chart-4" />}
+              teams={teamsWithData}
+              getValue={t => t.avgDefense}
+              formatValue={v => `${v.toFixed(1)}/10`}
+              eventId={eventId}
+            />
+            <LeaderboardCard
+              title="Climb Rate"
+              icon={<ChevronUp className="h-4 w-4 text-chart-5" />}
+              teams={teamsWithData}
+              getValue={t => t.climbRate}
+              formatValue={v => `${Math.round(v)}%`}
+              eventId={eventId}
+            />
           </div>
         )}
       </div>

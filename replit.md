@@ -14,8 +14,8 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 - No authentication — open access for the entire scouting team
 - Event selection as the home page (list of events with + button to add, no sidebar)
 - Event settings dialog (rename, change location, delete with 5-step confirmation)
-- Active event system (clicking an event sets it active and navigates to it)
 - Event-scoped sidebar navigation showing event name, location, back button, and event tabs (Overview, Scout, Teams, Schedule)
+- **Overview page** with competition leaderboards (top 5 teams per category: Total Scoring, Auto, Teleop, Accuracy, Defense, Climb Rate)
 - Detailed scouting form with:
   - Auto: balls shot counter, field drawing canvas, climb tracking, notes
   - Teleop: shooting heatmap, FPS estimate, accuracy slider, move-while-shoot toggle
@@ -23,14 +23,15 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
   - Defense: 0-10 rating slider + notes
   - Driver skill notes + general notes
 - Multi-robot scouting (scout multiple robots per match side-by-side)
-- Local match number control (auto-increments after submission)
-- Team List page with search and sort by any stat column
+- Local match number control (starts at 1, auto-increments after submission)
+- Team List page with search and sort by any stat column (no entry count)
 - Schedule page with CSV import for competition match schedule
-- Team profile pages with performance charts (recharts)
+- Team profile pages with ranking badges (ordinal, color-coded by percentile) and match history
 - Dark mode toggle (moon/sun icon in sidebar)
+- High-readability design: large bold fonts, strong contrast, touch-friendly
 
 ## Data Model
-- **events** - id, name, location, startDate, isActive, currentMatchNumber
+- **events** - id, name, location, startDate, isActive (legacy, unused in UI), currentMatchNumber (legacy, unused in UI)
 - **teams** - id, teamNumber, teamName, city, stateProv, country
 - **event_teams** - junction table linking teams to events
 - **scouting_entries** - id, scouterId (always 0), eventId, teamId, matchNumber, autoBallsShot, autoNotes, autoDrawing, autoClimbSuccess, autoClimbPosition, autoClimbLevel, teleopBallsShot, teleopShootPosition, teleopMoveWhileShoot, teleopFpsEstimate, teleopAccuracy, climbSuccess, climbPosition, climbLevel, defenseRating, defenseNotes, driverSkillNotes, notes, createdAt
@@ -54,7 +55,7 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 - `client/src/pages/scout-form.tsx` - Multi-robot scouting form
 - `client/src/pages/team-list.tsx` - Searchable/sortable team list
 - `client/src/pages/schedule.tsx` - Match schedule with CSV import
-- `client/src/pages/admin-event-detail.tsx` - Event detail with team roster
+- `client/src/pages/admin-event-detail.tsx` - Event overview with leaderboards and team roster
 - `client/src/pages/team-profile.tsx` - Individual team stats
 
 ## Running
