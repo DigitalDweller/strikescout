@@ -24,6 +24,9 @@ export const teams = pgTable("teams", {
   id: serial("id").primaryKey(),
   teamNumber: integer("team_number").notNull().unique(),
   teamName: text("team_name").notNull(),
+  city: text("city"),
+  stateProv: text("state_prov"),
+  country: text("country"),
 });
 
 export const eventTeams = pgTable("event_teams", {
@@ -65,6 +68,19 @@ export const scoutingEntries = pgTable("scouting_entries", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const scheduleMatches = pgTable("schedule_matches", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull(),
+  matchNumber: integer("match_number").notNull(),
+  red1: integer("red1"),
+  red2: integer("red2"),
+  red3: integer("red3"),
+  blue1: integer("blue1"),
+  blue2: integer("blue2"),
+  blue3: integer("blue3"),
+  time: text("time"),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   scoutingEntries: many(scoutingEntries),
 }));
@@ -72,6 +88,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 export const eventsRelations = relations(events, ({ many }) => ({
   eventTeams: many(eventTeams),
   scoutingEntries: many(scoutingEntries),
+  scheduleMatches: many(scheduleMatches),
 }));
 
 export const teamsRelations = relations(teams, ({ many }) => ({
@@ -90,11 +107,16 @@ export const scoutingEntriesRelations = relations(scoutingEntries, ({ one }) => 
   team: one(teams, { fields: [scoutingEntries.teamId], references: [teams.id] }),
 }));
 
+export const scheduleMatchesRelations = relations(scheduleMatches, ({ one }) => ({
+  event: one(events, { fields: [scheduleMatches.eventId], references: [events.id] }),
+}));
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertEventSchema = createInsertSchema(events).omit({ id: true });
 export const insertTeamSchema = createInsertSchema(teams).omit({ id: true });
 export const insertEventTeamSchema = createInsertSchema(eventTeams).omit({ id: true });
 export const insertScoutingEntrySchema = createInsertSchema(scoutingEntries).omit({ id: true, createdAt: true });
+export const insertScheduleMatchSchema = createInsertSchema(scheduleMatches).omit({ id: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -106,3 +128,5 @@ export type InsertEventTeam = z.infer<typeof insertEventTeamSchema>;
 export type EventTeam = typeof eventTeams.$inferSelect;
 export type InsertScoutingEntry = z.infer<typeof insertScoutingEntrySchema>;
 export type ScoutingEntry = typeof scoutingEntries.$inferSelect;
+export type InsertScheduleMatch = z.infer<typeof insertScheduleMatchSchema>;
+export type ScheduleMatch = typeof scheduleMatches.$inferSelect;

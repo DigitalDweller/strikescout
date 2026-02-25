@@ -14,15 +14,12 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   LayoutDashboard,
-  Calendar,
-  Users,
-  Gamepad2,
-  Sparkles,
   ClipboardList,
-  BarChart3,
+  List,
+  CalendarDays,
+  Calendar,
   LogOut,
   Bot,
   Moon,
@@ -30,16 +27,12 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 
-const adminItems = [
+const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Events", url: "/events", icon: Calendar },
-  { title: "Scouters", url: "/scouters", icon: Users },
-  { title: "Match Control", url: "/match-control", icon: Gamepad2 },
-];
-
-const scouterItems = [
   { title: "Scout", url: "/scout", icon: ClipboardList },
-  { title: "My Stats", url: "/scout/history", icon: BarChart3 },
+  { title: "Team List", url: "/teams", icon: List },
+  { title: "Schedule", url: "/schedule", icon: CalendarDays },
+  { title: "Events", url: "/events", icon: Calendar },
 ];
 
 export function AppSidebar() {
@@ -48,8 +41,6 @@ export function AppSidebar() {
   const { theme, toggleTheme } = useTheme();
 
   if (!user) return null;
-
-  const navItems = user.role === "admin" ? adminItems : scouterItems;
 
   return (
     <Sidebar>
@@ -84,19 +75,6 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
-              {user.role === "admin" && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild data-active={location === "/alliance-creator" || undefined}>
-                    <Link href="/alliance-creator" data-testid="nav-alliance-creator">
-                      <Sparkles className="h-4 w-4" />
-                      <span className="flex items-center gap-2">
-                        Alliance Creator
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Soon</Badge>
-                      </span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -110,7 +88,6 @@ export function AppSidebar() {
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate" data-testid="text-user-display-name">{user.displayName}</p>
-            <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
           </div>
           <Button
             size="icon"

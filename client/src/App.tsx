@@ -14,12 +14,9 @@ import Dashboard from "@/pages/dashboard";
 import AdminEvents from "@/pages/admin-events";
 import AdminEventDetail from "@/pages/admin-event-detail";
 import TeamProfile from "@/pages/team-profile";
-import AdminScouters from "@/pages/admin-scouters";
-import ScouterProfile from "@/pages/admin-scouter-detail";
-import AdminMatchControl from "@/pages/admin-match-control";
-import AllianceCreator from "@/pages/admin-alliance-creator";
+import TeamList from "@/pages/team-list";
+import Schedule from "@/pages/schedule";
 import ScoutForm from "@/pages/scout-form";
-import ScoutHistory from "@/pages/scout-history";
 
 function AuthenticatedLayout() {
   return (
@@ -33,15 +30,12 @@ function AuthenticatedLayout() {
           <main className="flex-1 overflow-auto">
             <Switch>
               <Route path="/" component={Dashboard} />
+              <Route path="/scout" component={ScoutForm} />
+              <Route path="/teams" component={TeamList} />
+              <Route path="/schedule" component={Schedule} />
               <Route path="/events" component={AdminEvents} />
               <Route path="/events/:id" component={AdminEventDetail} />
               <Route path="/events/:eventId/teams/:teamId" component={TeamProfile} />
-              <Route path="/scouters" component={AdminScouters} />
-              <Route path="/scouters/:id" component={ScouterProfile} />
-              <Route path="/match-control" component={AdminMatchControl} />
-              <Route path="/alliance-creator" component={AllianceCreator} />
-              <Route path="/scout" component={ScoutForm} />
-              <Route path="/scout/history" component={ScoutHistory} />
               <Route component={NotFound} />
             </Switch>
           </main>

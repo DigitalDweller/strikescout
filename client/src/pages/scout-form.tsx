@@ -1011,7 +1011,7 @@ export default function ScoutForm() {
             <Calendar className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
             <p className="font-medium">No Active Event</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Wait for your admin to set an active event.
+              Go to Events to create or activate an event.
             </p>
           </CardContent>
         </Card>

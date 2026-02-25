@@ -13,7 +13,7 @@ async function seedDatabase() {
     username: "admin123",
     password: await hashPassword("admin123"),
     displayName: "Team Admin",
-    role: "admin",
+    role: "scouter",
   });
 
   await storage.createUser({
@@ -30,12 +30,6 @@ async function seedDatabase() {
     role: "scouter",
   });
 
-  await storage.createTeam({ teamNumber: 254, teamName: "The Cheesy Poofs" });
-  await storage.createTeam({ teamNumber: 1114, teamName: "Simbotics" });
-  await storage.createTeam({ teamNumber: 2056, teamName: "OP Robotics" });
-  await storage.createTeam({ teamNumber: 118, teamName: "Robonauts" });
-  await storage.createTeam({ teamNumber: 1678, teamName: "Citrus Circuits" });
-
   const event = await storage.createEvent({
     name: "2026 Houston Regional",
     location: "Houston, TX",
@@ -43,11 +37,6 @@ async function seedDatabase() {
     isActive: true,
     currentMatchNumber: 1,
   });
-
-  const allTeams = await storage.getTeams();
-  for (const team of allTeams) {
-    await storage.addTeamToEvent({ eventId: event.id, teamId: team.id });
-  }
 
   console.log("Database seeded with initial data");
 }
@@ -65,7 +54,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/events", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== "admin") return res.sendStatus(403);
+    if (!req.isAuthenticated()) return res.sendStatus(401);
     const parsed = insertEventSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const event = await storage.createEvent(parsed.data);
@@ -80,40 +69,22 @@ export async function registerRoutes(
   });
 
   app.patch("/api/events/:id", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== "admin") return res.sendStatus(403);
+    if (!req.isAuthenticated()) return res.sendStatus(401);
     const event = await storage.updateEvent(parseInt(req.params.id), req.body);
     res.json(event);
   });
 
   app.delete("/api/events/:id", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== "admin") return res.sendStatus(403);
+    if (!req.isAuthenticated()) return res.sendStatus(401);
     await storage.deleteEvent(parseInt(req.params.id));
     res.sendStatus(204);
   });
 
   app.post("/api/events/:id/set-active", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== "admin") return res.sendStatus(403);
+    if (!req.isAuthenticated()) return res.sendStatus(401);
     await storage.setActiveEvent(parseInt(req.params.id));
     const event = await storage.getEvent(parseInt(req.params.id));
     res.json(event);
-  });
-
-  app.post("/api/events/:id/advance-match", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== "admin") return res.sendStatus(403);
-    const event = await storage.getEvent(parseInt(req.params.id));
-    if (!event) return res.sendStatus(404);
-    const updated = await storage.updateEvent(event.id, {
-      currentMatchNumber: event.currentMatchNumber + 1,
-    });
-    res.json(updated);
-  });
-
-  app.post("/api/events/:id/reset-match", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== "admin") return res.sendStatus(403);
-    const updated = await storage.updateEvent(parseInt(req.params.id), {
-      currentMatchNumber: 1,
-    });
-    res.json(updated);
   });
 
   app.get("/api/active-event", async (req, res) => {
@@ -129,7 +100,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/teams", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== "admin") return res.sendStatus(403);
+    if (!req.isAuthenticated()) return res.sendStatus(401);
     const parsed = insertTeamSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const existing = await storage.getTeamByNumber(parsed.data.teamNumber);
@@ -138,8 +109,33 @@ export async function registerRoutes(
     res.status(201).json(team);
   });
 
+  app.post("/api/teams/import", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const { teams: teamList, eventId } = req.body;
+    if (!Array.isArray(teamList)) return res.status(400).send("teams must be an array");
+
+    const results = [];
+    for (const t of teamList) {
+      const team = await storage.upsertTeam({
+        teamNumber: t.teamNumber,
+        teamName: t.teamName,
+        city: t.city || null,
+        stateProv: t.stateProv || null,
+        country: t.country || null,
+      });
+      if (eventId) {
+        const existing = await storage.getEventTeams(eventId);
+        if (!existing.find(et => et.teamId === team.id)) {
+          await storage.addTeamToEvent({ eventId, teamId: team.id });
+        }
+      }
+      results.push(team);
+    }
+    res.status(201).json(results);
+  });
+
   app.delete("/api/teams/:id", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== "admin") return res.sendStatus(403);
+    if (!req.isAuthenticated()) return res.sendStatus(401);
     await storage.deleteTeam(parseInt(req.params.id));
     res.sendStatus(204);
   });
@@ -151,7 +147,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/events/:eventId/teams", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== "admin") return res.sendStatus(403);
+    if (!req.isAuthenticated()) return res.sendStatus(401);
     const eventTeam = await storage.addTeamToEvent({
       eventId: parseInt(req.params.eventId),
       teamId: req.body.teamId,
@@ -160,36 +156,11 @@ export async function registerRoutes(
   });
 
   app.delete("/api/events/:eventId/teams/:teamId", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== "admin") return res.sendStatus(403);
+    if (!req.isAuthenticated()) return res.sendStatus(401);
     await storage.removeTeamFromEvent(
       parseInt(req.params.eventId),
       parseInt(req.params.teamId)
     );
-    res.sendStatus(204);
-  });
-
-  app.get("/api/scouters", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== "admin") return res.sendStatus(403);
-    const scouters = await storage.getUsersByRole("scouter");
-    res.json(scouters);
-  });
-
-  app.post("/api/scouters", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== "admin") return res.sendStatus(403);
-    const existing = await storage.getUserByUsername(req.body.username);
-    if (existing) return res.status(400).send("Username already exists");
-    const scouter = await storage.createUser({
-      username: req.body.username,
-      password: await hashPassword(req.body.password),
-      displayName: req.body.displayName,
-      role: "scouter",
-    });
-    res.status(201).json(scouter);
-  });
-
-  app.delete("/api/scouters/:id", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== "admin") return res.sendStatus(403);
-    await storage.deleteUser(parseInt(req.params.id));
     res.sendStatus(204);
   });
 
@@ -232,6 +203,38 @@ export async function registerRoutes(
       parseInt(req.params.matchNumber)
     );
     res.json(entries);
+  });
+
+  app.get("/api/events/:eventId/schedule", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const schedule = await storage.getScheduleByEvent(parseInt(req.params.eventId));
+    res.json(schedule);
+  });
+
+  app.post("/api/events/:eventId/schedule", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const eventId = parseInt(req.params.eventId);
+    const { matches } = req.body;
+    if (!Array.isArray(matches)) return res.status(400).send("matches must be an array");
+
+    await storage.deleteScheduleByEvent(eventId);
+
+    const results = [];
+    for (const m of matches) {
+      const match = await storage.createScheduleMatch({
+        eventId,
+        matchNumber: m.matchNumber,
+        red1: m.red1 || null,
+        red2: m.red2 || null,
+        red3: m.red3 || null,
+        blue1: m.blue1 || null,
+        blue2: m.blue2 || null,
+        blue3: m.blue3 || null,
+        time: m.time || null,
+      });
+      results.push(match);
+    }
+    res.status(201).json(results);
   });
 
   await seedDatabase();

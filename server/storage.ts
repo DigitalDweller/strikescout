@@ -1,8 +1,9 @@
 import {
-  users, events, teams, eventTeams, scoutingEntries,
+  users, events, teams, eventTeams, scoutingEntries, scheduleMatches,
   type User, type InsertUser, type Event, type InsertEvent,
   type Team, type InsertTeam, type EventTeam, type InsertEventTeam,
   type ScoutingEntry, type InsertScoutingEntry,
+  type ScheduleMatch, type InsertScheduleMatch,
 } from "@shared/schema";
 import { db } from "./db";
 import { pool } from "./db";
@@ -16,7 +17,7 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  getUsersByRole(role: string): Promise<User[]>;
+  getAllUsers(): Promise<User[]>;
   deleteUser(id: number): Promise<void>;
 
   getEvents(): Promise<Event[]>;
@@ -31,6 +32,7 @@ export interface IStorage {
   getTeam(id: number): Promise<Team | undefined>;
   getTeamByNumber(teamNumber: number): Promise<Team | undefined>;
   createTeam(team: InsertTeam): Promise<Team>;
+  upsertTeam(team: InsertTeam): Promise<Team>;
   deleteTeam(id: number): Promise<void>;
 
   getEventTeams(eventId: number): Promise<(EventTeam & { team: Team })[]>;
@@ -42,6 +44,10 @@ export interface IStorage {
   getEntriesByEventAndTeam(eventId: number, teamId: number): Promise<ScoutingEntry[]>;
   getEntriesByScouter(scouterId: number): Promise<ScoutingEntry[]>;
   getEntriesByMatch(eventId: number, matchNumber: number): Promise<ScoutingEntry[]>;
+
+  getScheduleByEvent(eventId: number): Promise<ScheduleMatch[]>;
+  createScheduleMatch(match: InsertScheduleMatch): Promise<ScheduleMatch>;
+  deleteScheduleByEvent(eventId: number): Promise<void>;
 
   sessionStore: session.Store;
 }
@@ -68,8 +74,8 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async getUsersByRole(role: string): Promise<User[]> {
-    return db.select().from(users).where(eq(users.role, role));
+  async getAllUsers(): Promise<User[]> {
+    return db.select().from(users);
   }
 
   async deleteUser(id: number): Promise<void> {
@@ -97,6 +103,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteEvent(id: number): Promise<void> {
+    await db.delete(scheduleMatches).where(eq(scheduleMatches.eventId, id));
     await db.delete(scoutingEntries).where(eq(scoutingEntries.eventId, id));
     await db.delete(eventTeams).where(eq(eventTeams.eventId, id));
     await db.delete(events).where(eq(events.id, id));
@@ -129,6 +136,15 @@ export class DatabaseStorage implements IStorage {
   async createTeam(team: InsertTeam): Promise<Team> {
     const [created] = await db.insert(teams).values(team).returning();
     return created;
+  }
+
+  async upsertTeam(team: InsertTeam): Promise<Team> {
+    const existing = await this.getTeamByNumber(team.teamNumber);
+    if (existing) {
+      const [updated] = await db.update(teams).set(team).where(eq(teams.id, existing.id)).returning();
+      return updated;
+    }
+    return this.createTeam(team);
   }
 
   async deleteTeam(id: number): Promise<void> {
@@ -184,6 +200,19 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(scoutingEntries).where(
       and(eq(scoutingEntries.eventId, eventId), eq(scoutingEntries.matchNumber, matchNumber))
     );
+  }
+
+  async getScheduleByEvent(eventId: number): Promise<ScheduleMatch[]> {
+    return db.select().from(scheduleMatches).where(eq(scheduleMatches.eventId, eventId));
+  }
+
+  async createScheduleMatch(match: InsertScheduleMatch): Promise<ScheduleMatch> {
+    const [created] = await db.insert(scheduleMatches).values(match).returning();
+    return created;
+  }
+
+  async deleteScheduleByEvent(eventId: number): Promise<void> {
+    await db.delete(scheduleMatches).where(eq(scheduleMatches.eventId, eventId));
   }
 }
 
