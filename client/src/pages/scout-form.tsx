@@ -24,8 +24,8 @@ import {
   Bot,
   ArrowUp,
   Crosshair,
-  ChevronsUpDown,
   Check,
+  Search,
 } from "lucide-react";
 import type { Event, Team, EventTeam } from "@shared/schema";
 import fieldImagePath from "@assets/6846b9eeb548474b11b6b16d828c2e6092a99131_1771896624665.png";
@@ -107,7 +107,7 @@ function TeamSearchCombobox({
           }}
           data-testid={`${testId}-input`}
         />
-        <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
       </div>
 
       {open && (
