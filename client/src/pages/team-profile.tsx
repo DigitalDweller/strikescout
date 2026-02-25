@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MessageSquare } from "lucide-react";
 import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
 import heatmapFieldPath from "@assets/hehehehe_1771897335677.png";
 
@@ -269,6 +269,43 @@ export default function TeamProfile() {
           <p className="text-base text-muted-foreground mt-1">{event.name}</p>
         )}
       </div>
+
+      {entries && entries.length > 0 && (() => {
+        const noteGroups = [
+          { label: "Auto Notes", notes: entries.map(e => ({ match: e.matchNumber, text: e.autoNotes })).filter(n => n.text) },
+          { label: "Driver Skill", notes: entries.map(e => ({ match: e.matchNumber, text: e.driverSkillNotes })).filter(n => n.text) },
+          { label: "Defense Notes", notes: entries.map(e => ({ match: e.matchNumber, text: e.defenseNotes })).filter(n => n.text) },
+          { label: "General Notes", notes: entries.map(e => ({ match: e.matchNumber, text: e.notes })).filter(n => n.text) },
+        ].filter(g => g.notes.length > 0);
+        if (noteGroups.length === 0) return null;
+        return (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Scout Notes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {noteGroups.map(group => (
+                  <div key={group.label} className="space-y-2">
+                    <p className="text-sm font-bold text-foreground/70">{group.label}</p>
+                    <div className="space-y-1.5">
+                      {group.notes.sort((a, b) => a.match - b.match).map((n, i) => (
+                        <div key={i} className="flex gap-2 text-sm">
+                          <span className="font-semibold text-muted-foreground shrink-0">M{n.match}</span>
+                          <span>{n.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-4">
         <Card className="sm:col-span-1">
