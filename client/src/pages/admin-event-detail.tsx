@@ -24,7 +24,7 @@ import {
   Users,
   Loader2,
   MessageSquare,
-  Map,
+  Map as MapIcon,
   Target,
   Shield,
   Gamepad2,
@@ -236,7 +236,7 @@ function ScoutingEntryCard({
             {hasAutoDrawing && (
               <div>
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1.5 flex items-center gap-1">
-                  <Map className="h-3 w-3" /> Auto Path
+                  <MapIcon className="h-3 w-3" /> Auto Path
                 </p>
                 <ReadOnlyAutoDrawing data={entry.autoDrawing!} />
               </div>
@@ -256,7 +256,7 @@ function ScoutingEntryCard({
           <div className="grid gap-2 sm:grid-cols-2">
             {entry.autoNotes && (
               <NoteBlock
-                icon={<Map className="h-3 w-3 text-muted-foreground" />}
+                icon={<MapIcon className="h-3 w-3 text-muted-foreground" />}
                 label="Auto Notes"
                 text={entry.autoNotes}
               />
