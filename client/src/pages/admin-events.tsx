@@ -294,7 +294,7 @@ export default function AdminEvents() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen overflow-y-auto snap-y snap-mandatory bg-background" style={{ scrollBehavior: "smooth" }}>
       <div className="fixed top-4 right-4 z-50">
         <Button
           size="icon"
@@ -307,7 +307,7 @@ export default function AdminEvents() {
         </Button>
       </div>
 
-      <div className="relative h-screen flex flex-col items-center justify-center overflow-hidden">
+      <div className="relative h-screen flex flex-col items-center justify-center overflow-hidden snap-start snap-always">
         <img
           src={heroBg}
           alt=""
@@ -334,7 +334,7 @@ export default function AdminEvents() {
         </button>
       </div>
 
-      <div id="events-section" className="p-4 sm:p-6 space-y-6 max-w-3xl mx-auto py-12">
+      <div id="events-section" className="min-h-screen snap-start snap-always p-4 sm:p-6 space-y-6 max-w-3xl mx-auto py-12">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-xl font-bold" data-testid="text-events-heading">Your Events</h2>
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
