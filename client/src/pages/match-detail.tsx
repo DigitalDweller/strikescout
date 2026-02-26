@@ -14,10 +14,6 @@ export default function MatchDetail() {
 
   const { data: event } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
-    queryFn: async () => {
-      const res = await fetch(`/api/events/${eventId}`);
-      return res.json();
-    },
   });
 
   const { data: schedule, isLoading } = useQuery<ScheduleMatch[]>({

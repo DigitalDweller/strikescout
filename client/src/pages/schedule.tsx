@@ -29,10 +29,6 @@ export default function Schedule() {
 
   const { data: event } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
-    queryFn: async () => {
-      const res = await fetch(`/api/events/${eventId}`);
-      return res.json();
-    },
     enabled: !!eventId,
   });
 

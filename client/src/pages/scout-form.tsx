@@ -980,10 +980,6 @@ export default function ScoutForm() {
 
   const { data: activeEvent, isLoading: eventLoading } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
-    queryFn: async () => {
-      const res = await fetch(`/api/events/${eventId}`);
-      return res.json();
-    },
     enabled: !!eventId,
   });
 
@@ -998,8 +994,7 @@ export default function ScoutForm() {
       return await res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/scouters"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "entries"] });
     },
     onError: (error: Error) => {
       toast({

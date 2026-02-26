@@ -108,11 +108,6 @@ export function AppSidebar({ eventId }: { eventId: number }) {
 
   const { data: event } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
-    queryFn: async () => {
-      const res = await fetch(`/api/events/${eventId}`);
-      if (!res.ok) throw new Error("Failed to load event");
-      return res.json();
-    },
   });
 
   const navItems = [

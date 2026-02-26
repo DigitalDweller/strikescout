@@ -20,10 +20,6 @@ export default function EventSettings() {
 
   const { data: event, isLoading } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
-    queryFn: async () => {
-      const res = await fetch(`/api/events/${eventId}`);
-      return res.json();
-    },
   });
 
   const [tbaEventKey, setTbaEventKey] = useState("");
