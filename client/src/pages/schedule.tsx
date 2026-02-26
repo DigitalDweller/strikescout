@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Upload, CalendarDays, Search, Video, Trophy } from "lucide-react";
+import { Upload, CalendarDays, Search, Video } from "lucide-react";
 import type { Event, ScheduleMatch, Team } from "@shared/schema";
 
 export default function Schedule() {
@@ -221,11 +221,15 @@ export default function Schedule() {
                     <TableHead className="text-center text-sm font-bold text-blue-500 dark:text-blue-400">Blue 1</TableHead>
                     <TableHead className="text-center text-sm font-bold text-blue-500 dark:text-blue-400">Blue 2</TableHead>
                     <TableHead className="text-center text-sm font-bold text-blue-500 dark:text-blue-400">Blue 3</TableHead>
-                    <TableHead className="w-16 text-center text-sm font-bold">Result</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedSchedule.map(match => (
+                  {sortedSchedule.map(match => {
+                    const redWon = match.winningAlliance === "red";
+                    const blueWon = match.winningAlliance === "blue";
+                    const redBg = redWon ? "bg-red-500/20 dark:bg-red-500/25" : "bg-red-500/5";
+                    const blueBg = blueWon ? "bg-blue-500/20 dark:bg-blue-500/25" : "bg-blue-500/5";
+                    return (
                     <TableRow
                       key={match.id}
                       data-testid={`row-match-${match.matchNumber}`}
@@ -250,43 +254,27 @@ export default function Schedule() {
                           return match.time;
                         })() : "-"}
                       </TableCell>
-                      <TableCell className="text-center bg-red-500/5">
+                      <TableCell className={`text-center ${redBg} ${redWon ? "border-y-2 border-l-2 border-red-500/40" : ""}`} data-testid={`cell-red1-${match.matchNumber}`}>
                         <TeamBadge teamNum={match.red1} alliance="red" />
                       </TableCell>
-                      <TableCell className="text-center bg-red-500/5">
+                      <TableCell className={`text-center ${redBg} ${redWon ? "border-y-2 border-red-500/40" : ""}`}>
                         <TeamBadge teamNum={match.red2} alliance="red" />
                       </TableCell>
-                      <TableCell className="text-center bg-red-500/5">
+                      <TableCell className={`text-center ${redBg} ${redWon ? "border-y-2 border-r-2 border-red-500/40" : ""}`}>
                         <TeamBadge teamNum={match.red3} alliance="red" />
                       </TableCell>
-                      <TableCell className="text-center bg-blue-500/5">
+                      <TableCell className={`text-center ${blueBg} ${blueWon ? "border-y-2 border-l-2 border-blue-500/40" : ""}`} data-testid={`cell-blue1-${match.matchNumber}`}>
                         <TeamBadge teamNum={match.blue1} alliance="blue" />
                       </TableCell>
-                      <TableCell className="text-center bg-blue-500/5">
+                      <TableCell className={`text-center ${blueBg} ${blueWon ? "border-y-2 border-blue-500/40" : ""}`}>
                         <TeamBadge teamNum={match.blue2} alliance="blue" />
                       </TableCell>
-                      <TableCell className="text-center bg-blue-500/5">
+                      <TableCell className={`text-center ${blueBg} ${blueWon ? "border-y-2 border-r-2 border-blue-500/40" : ""}`}>
                         <TeamBadge teamNum={match.blue3} alliance="blue" />
                       </TableCell>
-                      <TableCell className="text-center" data-testid={`text-result-${match.matchNumber}`}>
-                        {match.winningAlliance === "red" ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-bold text-red-500 dark:text-red-400">
-                            <Trophy className="h-3 w-3 text-yellow-500" />
-                            Red
-                          </span>
-                        ) : match.winningAlliance === "blue" ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-500 dark:text-blue-400">
-                            <Trophy className="h-3 w-3 text-yellow-500" />
-                            Blue
-                          </span>
-                        ) : match.redScore != null && match.blueScore != null ? (
-                          <span className="text-xs font-bold text-muted-foreground">Tie</span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
