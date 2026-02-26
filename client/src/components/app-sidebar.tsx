@@ -34,26 +34,29 @@ import { useTheme } from "@/hooks/use-theme";
 import type { Event } from "@shared/schema";
 
 function TbaSyncStatus({ eventId }: { eventId: number }) {
-  const { data } = useQuery<{ enabled: boolean; syncing: boolean; lastSyncTime: number | null }>({
+  const { data } = useQuery<{ connected: boolean; autoSync: boolean; syncing: boolean; lastSyncTime: number | null }>({
     queryKey: ["/api/events", eventId, "tba", "sync-status"],
     queryFn: async () => {
       const res = await fetch(`/api/events/${eventId}/tba/sync-status`);
-      if (!res.ok) return { enabled: false, syncing: false, lastSyncTime: null };
+      if (!res.ok) return { connected: false, autoSync: false, syncing: false, lastSyncTime: null };
       return res.json();
     },
     refetchInterval: 15000,
   });
 
-  if (!data?.enabled) return null;
+  if (!data?.connected) return null;
 
   const now = Date.now();
   const lastSync = data.lastSyncTime;
   const ageMs = lastSync ? now - lastSync : null;
 
   let dotClass = "bg-muted-foreground/50";
-  let statusText = "Not synced yet";
+  let statusText = "Connected";
 
-  if (data.syncing) {
+  if (!data.autoSync) {
+    dotClass = "bg-muted-foreground/40";
+    statusText = "Auto-sync off";
+  } else if (data.syncing) {
     dotClass = "bg-yellow-400 animate-pulse";
     statusText = "Syncing...";
   } else if (ageMs !== null) {
@@ -69,6 +72,8 @@ function TbaSyncStatus({ eventId }: { eventId: number }) {
       const mins = Math.floor(ageMs / 60_000);
       statusText = `${mins}m ago`;
     }
+  } else if (data.autoSync) {
+    statusText = "Waiting for sync";
   }
 
   const timeLabel = lastSync

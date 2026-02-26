@@ -423,7 +423,8 @@ export async function registerRoutes(
     if (!event) return res.sendStatus(404);
     const status = syncStatus.get(id);
     res.json({
-      enabled: !!(event.tbaAutoSync && event.tbaEventKey),
+      connected: !!event.tbaEventKey,
+      autoSync: event.tbaAutoSync,
       syncing: status?.syncing || false,
       lastSyncTime: status?.lastSyncTime || null,
     });
