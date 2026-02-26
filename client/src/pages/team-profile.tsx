@@ -457,12 +457,17 @@ export default function TeamProfile() {
             <CardTitle className="text-base font-bold text-primary text-center">Auto</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="text-center space-y-1">
-              {rankings && <RankBadge rank={rankings.autoRank} total={rankings.total} />}
-              <p className="text-sm font-medium text-foreground/70">Balls Shot</p>
-              <div className={`inline-block rounded-lg px-3 py-1 ${rankings ? getRankBgColor(rankings.autoRank, rankings.total) : "bg-muted/30"}`}>
+            <div className="text-center space-y-2">
+              <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide">Balls Shot</p>
+              <div className={`inline-block rounded-lg px-3 py-1.5 ${rankings ? getRankBgColor(rankings.autoRank, rankings.total) : "bg-muted/30"}`}>
                 <p className={`text-4xl font-extrabold leading-none ${rankings ? getRankValueColor(rankings.autoRank, rankings.total) : "text-primary"}`} data-testid="text-avg-auto">{avgAutoBalls}</p>
               </div>
+              {rankings && (
+                <>
+                  <div className="w-8 mx-auto border-t border-border" />
+                  <p className={`text-xs font-bold ${getRankColor(rankings.autoRank, rankings.total)}`}>{getOrdinal(rankings.autoRank)} <span className="text-muted-foreground font-normal">of {rankings.total}</span></p>
+                </>
+              )}
             </div>
             {entries && entries.length > 1 && (
               <PerMatchChart
@@ -480,26 +485,41 @@ export default function TeamProfile() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-3 gap-3">
-              <div className="text-center space-y-1">
-                {rankings && <RankBadge rank={rankings.throughputRank} total={rankings.total} />}
-                <p className="text-sm font-medium text-foreground/70">Throughput</p>
-                <div className={`inline-block rounded-lg px-2 py-1 ${rankings ? getRankBgColor(rankings.throughputRank, rankings.total) : "bg-muted/30"}`}>
+              <div className="text-center space-y-2">
+                <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide">Throughput</p>
+                <div className={`inline-block rounded-lg px-2 py-1.5 ${rankings ? getRankBgColor(rankings.throughputRank, rankings.total) : "bg-muted/30"}`}>
                   <p className={`text-3xl font-extrabold leading-none ${rankings ? getRankValueColor(rankings.throughputRank, rankings.total) : "text-chart-2"}`} data-testid="text-avg-throughput">{avgThroughput}</p>
                 </div>
+                {rankings && (
+                  <>
+                    <div className="w-8 mx-auto border-t border-border" />
+                    <p className={`text-xs font-bold ${getRankColor(rankings.throughputRank, rankings.total)}`}>{getOrdinal(rankings.throughputRank)} <span className="text-muted-foreground font-normal">of {rankings.total}</span></p>
+                  </>
+                )}
               </div>
-              <div className="text-center space-y-1">
-                {rankings && <RankBadge rank={rankings.accuracyRank} total={rankings.total} />}
-                <p className="text-sm font-medium text-foreground/70">Accuracy</p>
-                <div className={`inline-block rounded-lg px-2 py-1 ${rankings ? getRankBgColor(rankings.accuracyRank, rankings.total) : "bg-muted/30"}`}>
+              <div className="text-center space-y-2">
+                <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide">Accuracy</p>
+                <div className={`inline-block rounded-lg px-2 py-1.5 ${rankings ? getRankBgColor(rankings.accuracyRank, rankings.total) : "bg-muted/30"}`}>
                   <p className={`text-3xl font-extrabold leading-none ${rankings ? getRankValueColor(rankings.accuracyRank, rankings.total) : "text-chart-3"}`} data-testid="text-avg-accuracy">{avgAccuracy}<span className="text-lg">%</span></p>
                 </div>
+                {rankings && (
+                  <>
+                    <div className="w-8 mx-auto border-t border-border" />
+                    <p className={`text-xs font-bold ${getRankColor(rankings.accuracyRank, rankings.total)}`}>{getOrdinal(rankings.accuracyRank)} <span className="text-muted-foreground font-normal">of {rankings.total}</span></p>
+                  </>
+                )}
               </div>
-              <div className="text-center space-y-1">
-                {rankings && <RankBadge rank={rankings.defenseRank} total={rankings.total} />}
-                <p className="text-sm font-medium text-foreground/70">Defense</p>
-                <div className={`inline-block rounded-lg px-2 py-1 ${rankings ? getRankBgColor(rankings.defenseRank, rankings.total) : "bg-muted/30"}`}>
+              <div className="text-center space-y-2">
+                <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide">Defense</p>
+                <div className={`inline-block rounded-lg px-2 py-1.5 ${rankings ? getRankBgColor(rankings.defenseRank, rankings.total) : "bg-muted/30"}`}>
                   <p className={`text-3xl font-extrabold leading-none ${rankings ? getRankValueColor(rankings.defenseRank, rankings.total) : "text-chart-4"}`} data-testid="text-avg-defense">{avgDefense}<span className="text-lg">%</span></p>
                 </div>
+                {rankings && (
+                  <>
+                    <div className="w-8 mx-auto border-t border-border" />
+                    <p className={`text-xs font-bold ${getRankColor(rankings.defenseRank, rankings.total)}`}>{getOrdinal(rankings.defenseRank)} <span className="text-muted-foreground font-normal">of {rankings.total}</span></p>
+                  </>
+                )}
               </div>
             </div>
             {entries && entries.length > 1 && (
@@ -525,12 +545,17 @@ export default function TeamProfile() {
             <CardTitle className="text-base font-bold text-chart-5 text-center">Endgame</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="text-center space-y-1">
-              {rankings && <RankBadge rank={rankings.climbRank} total={rankings.total} />}
-              <p className="text-sm font-medium text-foreground/70">Climb Rate</p>
-              <div className={`inline-block rounded-lg px-3 py-1 ${rankings ? getRankBgColor(rankings.climbRank, rankings.total) : "bg-muted/30"}`}>
+            <div className="text-center space-y-2">
+              <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide">Climb Rate</p>
+              <div className={`inline-block rounded-lg px-3 py-1.5 ${rankings ? getRankBgColor(rankings.climbRank, rankings.total) : "bg-muted/30"}`}>
                 <p className={`text-4xl font-extrabold leading-none ${rankings ? getRankValueColor(rankings.climbRank, rankings.total) : "text-chart-5"}`} data-testid="text-climb-rate">{climbRate}<span className="text-lg">%</span></p>
               </div>
+              {rankings && (
+                <>
+                  <div className="w-8 mx-auto border-t border-border" />
+                  <p className={`text-xs font-bold ${getRankColor(rankings.climbRank, rankings.total)}`}>{getOrdinal(rankings.climbRank)} <span className="text-muted-foreground font-normal">of {rankings.total}</span></p>
+                </>
+              )}
             </div>
             {entries && entries.length > 1 && (
               <ClimbChart entries={entries} />
