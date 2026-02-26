@@ -1,5 +1,7 @@
+import { useState, useRef, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import flashbangImg from "@assets/black-guy-showing-hand-1657857_1772066434323.webp";
 import {
   Sidebar,
   SidebarContent,
@@ -34,6 +36,20 @@ import type { Event } from "@shared/schema";
 export function AppSidebar({ eventId }: { eventId: number }) {
   const [location] = useLocation();
   const { theme, toggleTheme } = useTheme();
+  const [showFlashbang, setShowFlashbang] = useState(false);
+  const clickTimestamps = useRef<number[]>([]);
+
+  const handleThemeClick = useCallback(() => {
+    toggleTheme();
+    const now = Date.now();
+    clickTimestamps.current.push(now);
+    clickTimestamps.current = clickTimestamps.current.filter(t => now - t < 10000);
+    if (clickTimestamps.current.length > 10) {
+      clickTimestamps.current = [];
+      setShowFlashbang(true);
+      setTimeout(() => setShowFlashbang(false), 2000);
+    }
+  }, [toggleTheme]);
 
   const { data: event } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
@@ -125,13 +141,25 @@ export function AppSidebar({ eventId }: { eventId: number }) {
           <Button
             size="icon"
             variant="ghost"
-            onClick={toggleTheme}
+            onClick={handleThemeClick}
             data-testid="button-toggle-theme"
           >
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
         </div>
       </SidebarFooter>
+      {showFlashbang && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-white animate-flashbang-overlay"
+          style={{ pointerEvents: "none" }}
+        >
+          <img
+            src={flashbangImg}
+            alt=""
+            className="max-w-full max-h-full object-contain animate-flashbang-img"
+          />
+        </div>
+      )}
     </Sidebar>
   );
 }
