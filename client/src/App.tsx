@@ -42,8 +42,9 @@ function EventLayout() {
       <div className="flex h-screen w-full">
         <AppSidebar eventId={eventId} />
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center gap-2 p-2 border-b shrink-0">
+          <header className="flex items-center gap-2 px-3 py-1.5 border-b shrink-0">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <p className="text-xs text-muted-foreground">StrikeScout is still under development. Please report any bugs or suggestions to Chris</p>
           </header>
           <main ref={mainRef} className="flex-1 overflow-auto">
             <ScrollToTop containerRef={mainRef} />
