@@ -156,7 +156,7 @@ function MatchBar({ value, maxVal, color, suffix }: {
       <div className="flex-1 h-4 bg-muted/40 rounded-sm overflow-hidden">
         <div className={`h-full rounded-sm ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-[10px] font-bold text-muted-foreground w-6 text-right shrink-0">{value}{suffix || ""}</span>
+      <span className="text-[10px] font-bold text-muted-foreground w-8 text-right shrink-0">{value}{suffix || ""}</span>
     </div>
   );
 }
@@ -176,11 +176,11 @@ function PerMatchChart({ entries, title, bars }: {
 
   return (
     <div className="space-y-1.5" data-testid={`chart-${title.toLowerCase().replace(/\s/g, "-")}`}>
-      <div className={bars.length > 1 ? "space-y-2" : "space-y-1"}>
+      <div className="space-y-1">
         {sorted.map((entry) => (
-          <div key={entry.id} className="flex items-start gap-2">
-            <span className="text-xs font-bold w-7 shrink-0 text-muted-foreground mt-0.5">M{entry.matchNumber}</span>
-            <div className="flex-1 flex flex-col gap-0.5">
+          <div key={entry.id} className="flex items-center gap-2">
+            <span className="text-xs font-bold w-7 shrink-0 text-muted-foreground">M{entry.matchNumber}</span>
+            <div className="flex-1 flex gap-1">
               {bars.map((b, i) => (
                 <MatchBar
                   key={i}
