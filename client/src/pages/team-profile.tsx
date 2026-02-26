@@ -152,11 +152,11 @@ function MatchBar({ value, maxVal, color, suffix }: {
 }) {
   const pct = maxVal > 0 ? Math.max((value / maxVal) * 100, 2) : 2;
   return (
-    <div className="flex items-center gap-1 flex-1 min-w-0">
+    <div className="flex items-center gap-0.5 min-w-0">
       <div className="flex-1 h-4 bg-muted/40 rounded-sm overflow-hidden">
         <div className={`h-full rounded-sm ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-[10px] font-bold text-muted-foreground w-8 text-right shrink-0">{value}{suffix || ""}</span>
+      <span className="text-[10px] font-bold text-muted-foreground shrink-0">{value}{suffix || ""}</span>
     </div>
   );
 }
@@ -174,13 +174,15 @@ function PerMatchChart({ entries, title, bars }: {
     return Math.max(...sorted.map(e => b.field(e)), 1);
   });
 
+  const gridClass = bars.length === 3 ? "grid grid-cols-3 gap-3" : bars.length === 2 ? "grid grid-cols-2 gap-3" : "flex";
+
   return (
     <div className="space-y-1.5" data-testid={`chart-${title.toLowerCase().replace(/\s/g, "-")}`}>
       <div className="space-y-1">
         {sorted.map((entry) => (
           <div key={entry.id} className="flex items-center gap-2">
             <span className="text-xs font-bold w-7 shrink-0 text-muted-foreground">M{entry.matchNumber}</span>
-            <div className="flex-1 flex gap-1">
+            <div className={`flex-1 ${gridClass}`}>
               {bars.map((b, i) => (
                 <MatchBar
                   key={i}
