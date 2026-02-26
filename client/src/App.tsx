@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Switch, Route, useParams, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -32,6 +32,39 @@ function ScrollToTop({ containerRef }: { containerRef: React.RefObject<HTMLEleme
   return null;
 }
 
+function RotatingBanner() {
+  const [showAlt, setShowAlt] = useState(false);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setShowAlt(true);
+      setTimeout(() => setShowAlt(false), 5000);
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="relative h-5 flex-1 overflow-hidden">
+      <p
+        className={`absolute inset-x-0 text-xs text-muted-foreground transition-all duration-500 ease-in-out ${
+          showAlt ? "-translate-y-full opacity-0" : "translate-y-0 opacity-100"
+        }`}
+        style={{ lineHeight: "1.25rem" }}
+      >
+        StrikeScout is still under development. Please report any bugs or suggestions to Chris
+      </p>
+      <p
+        className={`absolute inset-x-0 text-xs text-muted-foreground transition-all duration-500 ease-in-out ${
+          showAlt ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"
+        }`}
+        style={{ lineHeight: "1.25rem" }}
+      >
+        Yooo what should I add here?
+      </p>
+    </div>
+  );
+}
+
 function EventLayout() {
   const params = useParams<{ id: string }>();
   const eventId = parseInt(params.id || "0");
@@ -42,9 +75,9 @@ function EventLayout() {
       <div className="flex h-screen w-full">
         <AppSidebar eventId={eventId} />
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center gap-2 px-3 py-1.5 border-b shrink-0">
+          <header className="flex items-center gap-2 px-3 py-1.5 border-b shrink-0 overflow-hidden">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
-            <p className="text-xs text-muted-foreground">StrikeScout is still under development. Please report any bugs or suggestions to Chris</p>
+            <RotatingBanner />
           </header>
           <main ref={mainRef} className="flex-1 overflow-auto">
             <ScrollToTop containerRef={mainRef} />
