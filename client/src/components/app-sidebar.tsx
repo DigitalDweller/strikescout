@@ -24,7 +24,7 @@ import {
   ClipboardList,
   Users,
   CalendarDays,
-  LayoutDashboard,
+  Trophy,
   Moon,
   Sun,
   History,
@@ -141,7 +141,7 @@ export function AppSidebar({ eventId }: { eventId: number }) {
   });
 
   const navItems = [
-    { title: "Leaderboard", url: `/events/${eventId}`, icon: LayoutDashboard },
+    { title: "Leaderboard", url: `/events/${eventId}`, icon: Trophy },
     { title: "Teams", url: `/events/${eventId}/teams`, icon: Users },
     { title: "Schedule", url: `/events/${eventId}/schedule`, icon: CalendarDays },
     {

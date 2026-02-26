@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import placeholderAvatar from "@assets/image_1772067645868.png";
@@ -42,9 +42,13 @@ export default function TeamList() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id || "0");
   const [, navigate] = useLocation();
-  const [search, setSearch] = useState("");
-  const [sortField, setSortField] = useState<SortField>("teamNumber");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [search, _setSearch] = useState(() => sessionStorage.getItem(`teams-search-${eventId}`) || "");
+  const [sortField, _setSortField] = useState<SortField>(() => (sessionStorage.getItem(`teams-sort-${eventId}`) as SortField) || "teamNumber");
+  const [sortDir, _setSortDir] = useState<SortDir>(() => (sessionStorage.getItem(`teams-dir-${eventId}`) as SortDir) || "asc");
+
+  const setSearch = useCallback((v: string) => { sessionStorage.setItem(`teams-search-${eventId}`, v); _setSearch(v); }, [eventId]);
+  const setSortField = useCallback((v: SortField) => { sessionStorage.setItem(`teams-sort-${eventId}`, v); _setSortField(v); }, [eventId]);
+  const setSortDir = useCallback((v: SortDir) => { sessionStorage.setItem(`teams-dir-${eventId}`, v); _setSortDir(v); }, [eventId]);
 
   const { data: event } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
@@ -140,7 +144,8 @@ export default function TeamList() {
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
-      setSortDir(prev => prev === "asc" ? "desc" : "asc");
+      const next = sortDir === "asc" ? "desc" : "asc";
+      setSortDir(next);
     } else {
       setSortField(field);
       setSortDir("desc");
