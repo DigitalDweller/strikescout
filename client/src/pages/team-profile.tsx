@@ -144,25 +144,6 @@ function getRankColor(rank: number, total: number) {
   return "text-muted-foreground";
 }
 
-function RecentMatches({ entries, field }: {
-  entries: ScoutingEntry[];
-  field: (e: ScoutingEntry) => string;
-}) {
-  const sorted = [...entries].sort((a, b) => b.matchNumber - a.matchNumber);
-  const recent = sorted.slice(0, 2);
-  if (recent.length === 0) return null;
-  return (
-    <div className="flex items-center justify-center gap-3 mt-2">
-      {recent.map((e) => (
-        <span key={e.id} className="text-xs text-muted-foreground">
-          <span className="font-semibold">M{e.matchNumber}:</span>{" "}
-          <span className="font-bold text-foreground">{field(e)}</span>
-        </span>
-      ))}
-    </div>
-  );
-}
-
 function MatchBar({ value, maxVal, color, label, suffix }: {
   value: number;
   maxVal: number;
@@ -187,7 +168,7 @@ function PerMatchChart({ entries, title, bars }: {
   title: string;
   bars: { field: (e: ScoutingEntry) => number; color: string; label: string; max?: number; suffix?: string }[];
 }) {
-  const sorted = [...entries].sort((a, b) => a.matchNumber - b.matchNumber);
+  const sorted = [...entries].sort((a, b) => b.matchNumber - a.matchNumber);
   if (sorted.length === 0) return null;
 
   const maxVals = bars.map(b => {
@@ -197,7 +178,6 @@ function PerMatchChart({ entries, title, bars }: {
 
   return (
     <div className="space-y-1.5" data-testid={`chart-${title.toLowerCase().replace(/\s/g, "-")}`}>
-      <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{title} by Match</p>
       <div className="space-y-1">
         {sorted.map((entry) => (
           <div key={entry.id} className="flex items-center gap-2">
@@ -232,12 +212,11 @@ function PerMatchChart({ entries, title, bars }: {
 }
 
 function ClimbChart({ entries }: { entries: ScoutingEntry[] }) {
-  const sorted = [...entries].sort((a, b) => a.matchNumber - b.matchNumber);
+  const sorted = [...entries].sort((a, b) => b.matchNumber - a.matchNumber);
   if (sorted.length === 0) return null;
 
   return (
     <div className="space-y-1.5" data-testid="chart-climb">
-      <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Climb by Match</p>
       <div className="space-y-1">
         {sorted.map((entry) => {
           const isSuccess = entry.climbSuccess === "success";
@@ -273,6 +252,25 @@ function ClimbChart({ entries }: { entries: ScoutingEntry[] }) {
           <span className="text-[10px] text-muted-foreground">None</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Last2Matches({ entries, field }: {
+  entries: ScoutingEntry[];
+  field: (e: ScoutingEntry) => string;
+}) {
+  const recent = [...entries].sort((a, b) => b.matchNumber - a.matchNumber).slice(0, 2);
+  if (recent.length === 0) return null;
+  return (
+    <div className="flex items-center justify-center gap-1.5 mt-1" data-testid="last-2-matches">
+      {recent.map((e, i) => (
+        <span key={e.id} className="text-xs text-muted-foreground">
+          {i > 0 && <span className="mr-1.5">|</span>}
+          <span className="font-semibold">M{e.matchNumber}:</span>{" "}
+          <span className="font-bold text-foreground/80">{field(e)}</span>
+        </span>
+      ))}
     </div>
   );
 }
@@ -488,7 +486,7 @@ export default function TeamProfile() {
               <p className="text-4xl font-extrabold text-primary leading-none" data-testid="text-avg-auto">{avgAutoBalls}</p>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
               {entries && entries.length > 0 && (
-                <RecentMatches entries={entries} field={(e) => `${e.autoBallsShot}`} />
+                <Last2Matches entries={entries} field={(e) => `${e.autoBallsShot}`} />
               )}
             </div>
             {entries && entries.length > 1 && (
@@ -513,7 +511,7 @@ export default function TeamProfile() {
                 <p className="text-3xl font-extrabold text-chart-2 leading-none" data-testid="text-avg-throughput">{avgThroughput}</p>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
                 {entries && entries.length > 0 && (
-                  <RecentMatches entries={entries} field={(e) => `${e.teleopFpsEstimate}`} />
+                  <Last2Matches entries={entries} field={(e) => `${e.teleopFpsEstimate}`} />
                 )}
               </div>
               <div className="text-center space-y-1">
@@ -522,7 +520,7 @@ export default function TeamProfile() {
                 <p className="text-3xl font-extrabold text-chart-3 leading-none" data-testid="text-avg-accuracy">{avgAccuracy}<span className="text-lg">%</span></p>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
                 {entries && entries.length > 0 && (
-                  <RecentMatches entries={entries} field={(e) => `${e.teleopAccuracy * 10}%`} />
+                  <Last2Matches entries={entries} field={(e) => `${e.teleopAccuracy * 10}%`} />
                 )}
               </div>
               <div className="text-center space-y-1">
@@ -531,7 +529,7 @@ export default function TeamProfile() {
                 <p className="text-3xl font-extrabold text-chart-4 leading-none" data-testid="text-avg-defense">{avgDefense}<span className="text-lg">%</span></p>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
                 {entries && entries.length > 0 && (
-                  <RecentMatches entries={entries} field={(e) => `${e.defenseRating * 10}%`} />
+                  <Last2Matches entries={entries} field={(e) => `${e.defenseRating * 10}%`} />
                 )}
               </div>
             </div>
@@ -564,7 +562,7 @@ export default function TeamProfile() {
               <p className="text-4xl font-extrabold text-chart-5 leading-none" data-testid="text-climb-rate">{climbRate}<span className="text-lg">%</span></p>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
               {entries && entries.length > 0 && (
-                <RecentMatches
+                <Last2Matches
                   entries={entries}
                   field={(e) => e.climbSuccess === "success" ? `L${e.climbLevel || "?"}` : e.climbSuccess === "failed" ? "Failed" : "None"}
                 />
