@@ -151,12 +151,14 @@ function MatchBar({ value, maxVal, color, suffix }: {
   suffix?: string;
 }) {
   const pct = maxVal > 0 ? Math.max((value / maxVal) * 100, 2) : 2;
-  const textColor = pct > 45 ? "text-white" : "text-foreground";
+  const needsDarkText = color.includes("yellow") || color.includes("amber") || color.includes("lime") || color.includes("cyan") || color.includes("orange");
+  const textColor = pct > 35 ? (needsDarkText ? "text-gray-900" : "text-white") : "text-foreground";
   return (
     <div className="flex items-center flex-1 min-w-0">
       <div className="flex-1 h-4 bg-muted/40 rounded-sm overflow-hidden relative">
-        <div className={`h-full rounded-sm ${color}`} style={{ width: `${pct}%` }} />
-        <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textColor}`}>{value}{suffix || ""}</span>
+        <div className={`h-full rounded-sm ${color} flex items-center justify-center`} style={{ width: `${pct}%` }}>
+          <span className={`text-[10px] font-bold ${textColor} whitespace-nowrap`}>{value}{suffix || ""}</span>
+        </div>
       </div>
     </div>
   );
@@ -217,10 +219,11 @@ function ClimbChart({ entries }: { entries: ScoutingEntry[] }) {
             <div key={entry.id} className="flex items-center gap-2">
               <span className="text-xs font-bold w-7 shrink-0 text-muted-foreground">M{entry.matchNumber}</span>
               <div className="flex-1 h-5 bg-muted/40 rounded-sm overflow-hidden relative">
-                <div className={`h-full rounded-sm ${bgColor}`} style={{ width }} />
-                <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${isSuccess ? "text-white" : isFailed ? "text-white" : "text-muted-foreground"}`}>
-                  {label}
-                </span>
+                <div className={`h-full rounded-sm ${bgColor} flex items-center justify-center`} style={{ width }}>
+                  <span className={`text-[10px] font-bold whitespace-nowrap ${isSuccess ? "text-white" : isFailed ? "text-white" : "text-muted-foreground"}`}>
+                    {label}
+                  </span>
+                </div>
               </div>
             </div>
           );
