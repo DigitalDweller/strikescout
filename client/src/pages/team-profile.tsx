@@ -144,6 +144,24 @@ function getRankColor(rank: number, total: number) {
   return "text-muted-foreground";
 }
 
+function getRankValueColor(rank: number, total: number) {
+  if (total === 0) return "text-foreground/60";
+  const pct = ((rank - 1) / Math.max(total - 1, 1)) * 100;
+  if (pct <= 10) return "text-yellow-500 dark:text-yellow-400";
+  if (pct <= 25) return "text-green-600 dark:text-green-400";
+  if (pct <= 50) return "text-blue-600 dark:text-blue-400";
+  return "text-foreground/60";
+}
+
+function getRankBgColor(rank: number, total: number) {
+  if (total === 0) return "bg-muted/30";
+  const pct = ((rank - 1) / Math.max(total - 1, 1)) * 100;
+  if (pct <= 10) return "bg-yellow-500/10 dark:bg-yellow-400/10";
+  if (pct <= 25) return "bg-green-500/10 dark:bg-green-400/10";
+  if (pct <= 50) return "bg-blue-500/10 dark:bg-blue-400/10";
+  return "bg-muted/30";
+}
+
 function MatchBar({ value, maxVal, color, suffix }: {
   value: number;
   maxVal: number;
@@ -442,8 +460,9 @@ export default function TeamProfile() {
             <div className="text-center space-y-1">
               {rankings && <RankBadge rank={rankings.autoRank} total={rankings.total} />}
               <p className="text-sm font-medium text-foreground/70">Balls Shot</p>
-              <p className="text-4xl font-extrabold text-primary leading-none" data-testid="text-avg-auto">{avgAutoBalls}</p>
-
+              <div className={`inline-block rounded-lg px-3 py-1 ${rankings ? getRankBgColor(rankings.autoRank, rankings.total) : "bg-muted/30"}`}>
+                <p className={`text-4xl font-extrabold leading-none ${rankings ? getRankValueColor(rankings.autoRank, rankings.total) : "text-primary"}`} data-testid="text-avg-auto">{avgAutoBalls}</p>
+              </div>
             </div>
             {entries && entries.length > 1 && (
               <PerMatchChart
@@ -464,20 +483,23 @@ export default function TeamProfile() {
               <div className="text-center space-y-1">
                 {rankings && <RankBadge rank={rankings.throughputRank} total={rankings.total} />}
                 <p className="text-sm font-medium text-foreground/70">Throughput</p>
-                <p className="text-3xl font-extrabold text-chart-2 leading-none" data-testid="text-avg-throughput">{avgThroughput}</p>
-  
+                <div className={`inline-block rounded-lg px-2 py-1 ${rankings ? getRankBgColor(rankings.throughputRank, rankings.total) : "bg-muted/30"}`}>
+                  <p className={`text-3xl font-extrabold leading-none ${rankings ? getRankValueColor(rankings.throughputRank, rankings.total) : "text-chart-2"}`} data-testid="text-avg-throughput">{avgThroughput}</p>
+                </div>
               </div>
               <div className="text-center space-y-1">
                 {rankings && <RankBadge rank={rankings.accuracyRank} total={rankings.total} />}
                 <p className="text-sm font-medium text-foreground/70">Accuracy</p>
-                <p className="text-3xl font-extrabold text-chart-3 leading-none" data-testid="text-avg-accuracy">{avgAccuracy}<span className="text-lg">%</span></p>
-  
+                <div className={`inline-block rounded-lg px-2 py-1 ${rankings ? getRankBgColor(rankings.accuracyRank, rankings.total) : "bg-muted/30"}`}>
+                  <p className={`text-3xl font-extrabold leading-none ${rankings ? getRankValueColor(rankings.accuracyRank, rankings.total) : "text-chart-3"}`} data-testid="text-avg-accuracy">{avgAccuracy}<span className="text-lg">%</span></p>
+                </div>
               </div>
               <div className="text-center space-y-1">
                 {rankings && <RankBadge rank={rankings.defenseRank} total={rankings.total} />}
                 <p className="text-sm font-medium text-foreground/70">Defense</p>
-                <p className="text-3xl font-extrabold text-chart-4 leading-none" data-testid="text-avg-defense">{avgDefense}<span className="text-lg">%</span></p>
-  
+                <div className={`inline-block rounded-lg px-2 py-1 ${rankings ? getRankBgColor(rankings.defenseRank, rankings.total) : "bg-muted/30"}`}>
+                  <p className={`text-3xl font-extrabold leading-none ${rankings ? getRankValueColor(rankings.defenseRank, rankings.total) : "text-chart-4"}`} data-testid="text-avg-defense">{avgDefense}<span className="text-lg">%</span></p>
+                </div>
               </div>
             </div>
             {entries && entries.length > 1 && (
@@ -506,8 +528,9 @@ export default function TeamProfile() {
             <div className="text-center space-y-1">
               {rankings && <RankBadge rank={rankings.climbRank} total={rankings.total} />}
               <p className="text-sm font-medium text-foreground/70">Climb Rate</p>
-              <p className="text-4xl font-extrabold text-chart-5 leading-none" data-testid="text-climb-rate">{climbRate}<span className="text-lg">%</span></p>
-
+              <div className={`inline-block rounded-lg px-3 py-1 ${rankings ? getRankBgColor(rankings.climbRank, rankings.total) : "bg-muted/30"}`}>
+                <p className={`text-4xl font-extrabold leading-none ${rankings ? getRankValueColor(rankings.climbRank, rankings.total) : "text-chart-5"}`} data-testid="text-climb-rate">{climbRate}<span className="text-lg">%</span></p>
+              </div>
             </div>
             {entries && entries.length > 1 && (
               <ClimbChart entries={entries} />
