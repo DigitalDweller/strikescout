@@ -43,7 +43,6 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import type { Event } from "@shared/schema";
-import heroBg from "@assets/strike-zone-new-logo_1_(1)_1772072007017.png";
 
 const createEventSchema = z.object({
   name: z.string().min(1, "Event name is required"),
@@ -400,30 +399,25 @@ export default function AdminEvents() {
         </Button>
       </div>
 
-      <div className="relative h-screen flex flex-col items-center justify-center overflow-hidden">
-        <img
-          src={heroBg}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-background" />
+      <div className="relative h-screen flex flex-col items-center justify-center overflow-hidden bg-zinc-200 dark:bg-zinc-900">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background" />
 
         <div className="relative z-10 text-center space-y-4 px-4">
-          <h1 className="text-5xl sm:text-6xl font-bold tracking-tight text-white drop-shadow-lg" data-testid="text-page-title">
+          <h1 className="text-5xl sm:text-6xl font-bold tracking-tight text-foreground" data-testid="text-page-title">
             StrikeScout
           </h1>
-          <p className="text-white/90 text-lg max-w-md mx-auto drop-shadow-md">
+          <p className="text-muted-foreground text-lg max-w-md mx-auto">
             FRC scouting for the 2026 Rebuilt season
           </p>
         </div>
 
         <button
           onClick={scrollToEvents}
-          className="absolute bottom-8 z-10 flex flex-col items-center gap-1 text-white/80 hover:text-white transition-colors animate-bounce cursor-pointer bg-transparent border-none"
+          className="absolute bottom-8 z-10 flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors animate-bounce cursor-pointer bg-transparent border-none"
           data-testid="button-scroll-down"
         >
-          <span className="text-sm font-medium drop-shadow-md">Your Events</span>
-          <ChevronDown className="h-6 w-6 drop-shadow-md" />
+          <span className="text-sm font-medium">Your Events</span>
+          <ChevronDown className="h-6 w-6" />
         </button>
       </div>
 
