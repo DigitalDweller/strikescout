@@ -162,6 +162,29 @@ export async function fetchMatchSchedule(eventKey: string): Promise<TBAScheduleM
     .sort((a, b) => a.matchNumber - b.matchNumber);
 }
 
+export interface TBARankingData {
+  teamNumber: number;
+  rank: number;
+  rankingPoints: number;
+  wins: number;
+  losses: number;
+  ties: number;
+}
+
+export async function fetchEventRankings(eventKey: string): Promise<TBARankingData[]> {
+  const data: any = await tbaFetch(`/event/${eventKey}/rankings`);
+  if (!data?.rankings) return [];
+
+  return data.rankings.map((r: any) => ({
+    teamNumber: parseInt(r.team_key.replace("frc", "")),
+    rank: r.rank,
+    rankingPoints: r.sort_orders?.[0] ?? 0,
+    wins: r.record?.wins ?? 0,
+    losses: r.record?.losses ?? 0,
+    ties: r.record?.ties ?? 0,
+  }));
+}
+
 export async function validateEventKey(eventKey: string): Promise<{ valid: boolean; name?: string }> {
   try {
     const event: any = await tbaFetch(`/event/${eventKey}/simple`);

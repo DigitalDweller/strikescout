@@ -19,6 +19,7 @@ import FormHistory from "@/pages/form-history";
 import DataManagement from "@/pages/data-management";
 import MatchDetail from "@/pages/match-detail";
 import EventSettings from "@/pages/event-settings";
+import Picklist from "@/pages/picklist";
 
 function ScrollToTop({ containerRef }: { containerRef: React.RefObject<HTMLElement | null> }) {
   const [location] = useLocation();
@@ -90,6 +91,7 @@ function EventLayout() {
               <Route path="/events/:id/schedule" component={Schedule} />
               <Route path="/events/:id/schedule/:matchNumber" component={MatchDetail} />
               <Route path="/events/:id/settings" component={EventSettings} />
+              <Route path="/events/:id/picklist" component={Picklist} />
               <Route path="/events/:id/teams/:teamId" component={TeamProfile} />
               <Route path="/events/:id/teams/:teamId/notes" component={TeamNotes} />
               <Route component={NotFound} />

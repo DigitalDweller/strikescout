@@ -3,7 +3,7 @@ import { type Server } from "http";
 import { storage } from "./storage";
 import { insertEventSchema, insertTeamSchema, insertScoutingEntrySchema } from "@shared/schema";
 import { z } from "zod";
-import { fetchMatchVideos, fetchMatchResults, getVideoUrl, validateEventKey, fetchTeamAvatars, fetchEventOPRs, fetchMatchSchedule } from "./tba";
+import { fetchMatchVideos, fetchMatchResults, getVideoUrl, validateEventKey, fetchTeamAvatars, fetchEventOPRs, fetchMatchSchedule, fetchEventRankings } from "./tba";
 
 async function seedDatabase() {
   const events = await storage.getEvents();
@@ -395,9 +395,23 @@ export async function registerRoutes(
       console.error(`[TBA Auto-Sync] OPR sync error for event ${eventId}:`, oprErr);
     }
 
+    let rankingsSynced = 0;
+    try {
+      const rankingsData = await fetchEventRankings(event.tbaEventKey);
+      for (const r of rankingsData) {
+        const et = eventTeamsList.find(e => e.team.teamNumber === r.teamNumber);
+        if (et) {
+          await storage.updateEventTeamRanking(eventId, et.teamId, r.rankingPoints, r.rank, r.wins, r.losses, r.ties);
+          rankingsSynced++;
+        }
+      }
+    } catch (rankErr) {
+      console.error(`[TBA Auto-Sync] Rankings sync error for event ${eventId}:`, rankErr);
+    }
+
     const prev = syncStatus.get(eventId)!;
     syncStatus.set(eventId, { ...prev, lastSyncTime: Date.now(), syncing: false });
-    console.log(`[TBA Auto-Sync] Event ${eventId}: ${scheduleSynced} schedule, ${resultsSynced} results, ${videosSynced} videos, ${oprsSynced} OPRs synced`);
+    console.log(`[TBA Auto-Sync] Event ${eventId}: ${scheduleSynced} schedule, ${resultsSynced} results, ${videosSynced} videos, ${oprsSynced} OPRs, ${rankingsSynced} rankings synced`);
     return true;
   }
 
@@ -534,6 +548,29 @@ export async function registerRoutes(
       manualSyncsRemaining: rateInfo.remaining,
       manualSyncResetsAt: rateInfo.resetsAt,
     });
+  });
+
+  app.get("/api/events/:id/picklist", async (req, res) => {
+    const eventId = parseInt(req.params.id);
+    const picklist = await storage.getPicklist(eventId);
+    res.json(picklist);
+  });
+
+  app.put("/api/events/:id/picklist", async (req, res) => {
+    const eventId = parseInt(req.params.id);
+    const { teamIds } = req.body;
+    if (!Array.isArray(teamIds)) return res.status(400).json({ message: "teamIds must be an array" });
+    await storage.setPicklist(eventId, teamIds);
+    const picklist = await storage.getPicklist(eventId);
+    res.json(picklist);
+  });
+
+  app.delete("/api/events/:id/picklist/:teamId", async (req, res) => {
+    const eventId = parseInt(req.params.id);
+    const teamId = parseInt(req.params.teamId);
+    await storage.removeFromPicklist(eventId, teamId);
+    const picklist = await storage.getPicklist(eventId);
+    res.json(picklist);
   });
 
   await seedDatabase();

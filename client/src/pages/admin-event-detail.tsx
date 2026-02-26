@@ -14,6 +14,7 @@ import {
   Zap,
   Crown,
   BarChart3,
+  Star,
 } from "lucide-react";
 import type { Event, Team, EventTeam, ScoutingEntry } from "@shared/schema";
 import placeholderAvatar from "@assets/images_1772071870956.png";
@@ -24,6 +25,7 @@ type TeamStats = {
   opr: number;
   dpr: number;
   ccwm: number;
+  rankingPoints: number;
   avgAuto: number;
   avgThroughput: number;
   avgAccuracy: number;
@@ -174,6 +176,7 @@ export default function AdminEventDetail() {
           opr: (et as any).opr || 0,
           dpr: (et as any).dpr || 0,
           ccwm: (et as any).ccwm || 0,
+          rankingPoints: (et as any).rankingPoints || 0,
           avgAuto: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, climbRate: 0, avgClimbLevel: 0,
         };
       }
@@ -184,6 +187,7 @@ export default function AdminEventDetail() {
         opr: (et as any).opr || 0,
         dpr: (et as any).dpr || 0,
         ccwm: (et as any).ccwm || 0,
+        rankingPoints: (et as any).rankingPoints || 0,
         avgAuto: te.reduce((s, e) => s + e.autoBallsShot, 0) / count,
         avgThroughput: te.reduce((s, e) => s + e.teleopFpsEstimate, 0) / count,
         avgAccuracy: te.reduce((s, e) => s + e.teleopAccuracy, 0) / count * 10,
@@ -196,6 +200,8 @@ export default function AdminEventDetail() {
 
   const teamsWithData = teamStatsList.filter(t => t.avgAuto > 0 || t.avgThroughput > 0 || t.avgAccuracy > 0 || t.avgDefense > 0 || t.climbRate > 0);
   const teamsWithOpr = teamStatsList.filter(t => t.opr > 0);
+  const hasRankingData = eventTeams?.some(et => (et as any).rankingPoints != null) ?? false;
+  const teamsWithRP = hasRankingData ? teamStatsList : [];
   const matchesScouted = entries ? new Set(entries.map(e => e.matchNumber)).size : 0;
 
   if (eventLoading) {
@@ -215,7 +221,7 @@ export default function AdminEventDetail() {
     );
   }
 
-  const hasAnyData = teamsWithData.length > 0 || teamsWithOpr.length > 0;
+  const hasAnyData = teamsWithData.length > 0 || teamsWithOpr.length > 0 || teamsWithRP.length > 0;
 
   return (
     <div className="p-4 sm:p-6 space-y-5 max-w-6xl mx-auto">
@@ -274,6 +280,17 @@ export default function AdminEventDetail() {
                 formatValue={v => parseFloat(v.toFixed(1)).toString()}
                 eventId={eventId}
                 accentColor="border-yellow-500/40"
+              />
+            )}
+            {teamsWithRP.length > 0 && (
+              <LeaderboardCard
+                title="Ranking Points"
+                icon={<Star className="h-3.5 w-3.5 text-amber-500" />}
+                teams={teamsWithRP}
+                getValue={t => t.rankingPoints}
+                formatValue={v => parseFloat(v.toFixed(2)).toString()}
+                eventId={eventId}
+                accentColor="border-amber-500/40"
               />
             )}
             <LeaderboardCard

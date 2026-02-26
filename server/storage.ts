@@ -1,12 +1,13 @@
 import {
-  events, teams, eventTeams, scoutingEntries, scheduleMatches,
+  events, teams, eventTeams, scoutingEntries, scheduleMatches, picklistEntries,
   type Event, type InsertEvent,
   type Team, type InsertTeam, type EventTeam, type InsertEventTeam,
   type ScoutingEntry, type InsertScoutingEntry,
   type ScheduleMatch, type InsertScheduleMatch,
+  type PicklistEntry,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 
 export interface IStorage {
   getEvents(): Promise<Event[]>;
@@ -42,7 +43,12 @@ export interface IStorage {
   updateScheduleMatchVideo(eventId: number, matchNumber: number, videoUrl: string): Promise<void>;
 
   updateEventTeamOPR(eventId: number, teamId: number, opr: number, dpr: number, ccwm: number): Promise<void>;
+  updateEventTeamRanking(eventId: number, teamId: number, rankingPoints: number, rank: number, wins: number, losses: number, ties: number): Promise<void>;
   updateMatchResults(eventId: number, matchNumber: number, redScore: number | null, blueScore: number | null, winningAlliance: string | null): Promise<void>;
+
+  getPicklist(eventId: number): Promise<(PicklistEntry & { team: Team })[]>;
+  setPicklist(eventId: number, teamIds: number[]): Promise<void>;
+  removeFromPicklist(eventId: number, teamId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -66,6 +72,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteEvent(id: number): Promise<void> {
+    await db.delete(picklistEntries).where(eq(picklistEntries.eventId, id));
     await db.delete(scheduleMatches).where(eq(scheduleMatches.eventId, id));
     await db.delete(scoutingEntries).where(eq(scoutingEntries.eventId, id));
     await db.delete(eventTeams).where(eq(eventTeams.eventId, id));
@@ -199,10 +206,53 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(eventTeams.eventId, eventId), eq(eventTeams.teamId, teamId)));
   }
 
+  async updateEventTeamRanking(eventId: number, teamId: number, rankingPoints: number, rank: number, wins: number, losses: number, ties: number): Promise<void> {
+    await db.update(eventTeams)
+      .set({ rankingPoints, rank, wins, losses, ties })
+      .where(and(eq(eventTeams.eventId, eventId), eq(eventTeams.teamId, teamId)));
+  }
+
   async updateMatchResults(eventId: number, matchNumber: number, redScore: number | null, blueScore: number | null, winningAlliance: string | null): Promise<void> {
     await db.update(scheduleMatches)
       .set({ redScore, blueScore, winningAlliance })
       .where(and(eq(scheduleMatches.eventId, eventId), eq(scheduleMatches.matchNumber, matchNumber)));
+  }
+
+  async getPicklist(eventId: number): Promise<(PicklistEntry & { team: Team })[]> {
+    const results = await db
+      .select()
+      .from(picklistEntries)
+      .innerJoin(teams, eq(picklistEntries.teamId, teams.id))
+      .where(eq(picklistEntries.eventId, eventId))
+      .orderBy(asc(picklistEntries.rank));
+
+    return results.map(r => ({
+      ...r.picklist_entries,
+      team: r.teams,
+    }));
+  }
+
+  async setPicklist(eventId: number, teamIds: number[]): Promise<void> {
+    await db.delete(picklistEntries).where(eq(picklistEntries.eventId, eventId));
+    if (teamIds.length > 0) {
+      const values = teamIds.map((teamId, i) => ({
+        eventId,
+        teamId,
+        rank: i + 1,
+        tier: "pick" as const,
+      }));
+      await db.insert(picklistEntries).values(values);
+    }
+  }
+
+  async removeFromPicklist(eventId: number, teamId: number): Promise<void> {
+    await db.delete(picklistEntries).where(
+      and(eq(picklistEntries.eventId, eventId), eq(picklistEntries.teamId, teamId))
+    );
+    const remaining = await this.getPicklist(eventId);
+    if (remaining.length > 0) {
+      await this.setPicklist(eventId, remaining.map(r => r.teamId));
+    }
   }
 }
 

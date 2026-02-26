@@ -39,6 +39,19 @@ export const eventTeams = pgTable("event_teams", {
   opr: real("opr"),
   dpr: real("dpr"),
   ccwm: real("ccwm"),
+  rankingPoints: real("ranking_points"),
+  rank: integer("rank"),
+  wins: integer("wins"),
+  losses: integer("losses"),
+  ties: integer("ties"),
+});
+
+export const picklistEntries = pgTable("picklist_entries", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull(),
+  teamId: integer("team_id").notNull(),
+  rank: integer("rank").notNull(),
+  tier: text("tier").notNull().default("pick"),
 });
 
 export const scoutingEntries = pgTable("scouting_entries", {
@@ -121,12 +134,18 @@ export const scheduleMatchesRelations = relations(scheduleMatches, ({ one }) => 
   event: one(events, { fields: [scheduleMatches.eventId], references: [events.id] }),
 }));
 
+export const picklistEntriesRelations = relations(picklistEntries, ({ one }) => ({
+  event: one(events, { fields: [picklistEntries.eventId], references: [events.id] }),
+  team: one(teams, { fields: [picklistEntries.teamId], references: [teams.id] }),
+}));
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertEventSchema = createInsertSchema(events).omit({ id: true });
 export const insertTeamSchema = createInsertSchema(teams).omit({ id: true });
 export const insertEventTeamSchema = createInsertSchema(eventTeams).omit({ id: true });
 export const insertScoutingEntrySchema = createInsertSchema(scoutingEntries).omit({ id: true, createdAt: true });
 export const insertScheduleMatchSchema = createInsertSchema(scheduleMatches).omit({ id: true });
+export const insertPicklistEntrySchema = createInsertSchema(picklistEntries).omit({ id: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -140,3 +159,5 @@ export type InsertScoutingEntry = z.infer<typeof insertScoutingEntrySchema>;
 export type ScoutingEntry = typeof scoutingEntries.$inferSelect;
 export type InsertScheduleMatch = z.infer<typeof insertScheduleMatchSchema>;
 export type ScheduleMatch = typeof scheduleMatches.$inferSelect;
+export type InsertPicklistEntry = z.infer<typeof insertPicklistEntrySchema>;
+export type PicklistEntry = typeof picklistEntries.$inferSelect;

@@ -31,6 +31,7 @@ import {
   Database,
   Settings,
   RefreshCw,
+  ListOrdered,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import type { Event } from "@shared/schema";
@@ -140,10 +141,13 @@ export function AppSidebar({ eventId }: { eventId: number }) {
     queryKey: ["/api/events", eventId],
   });
 
-  const navItems = [
+  const overviewItems = [
     { title: "Leaderboards", url: `/events/${eventId}`, icon: Trophy },
     { title: "Teams", url: `/events/${eventId}/teams`, icon: Users },
     { title: "Schedule", url: `/events/${eventId}/schedule`, icon: CalendarDays },
+  ];
+
+  const scoutingItems = [
     {
       title: "Scouting Form",
       url: `/events/${eventId}/scout`,
@@ -152,6 +156,10 @@ export function AppSidebar({ eventId }: { eventId: number }) {
         { title: "Form History", url: `/events/${eventId}/scout/history`, icon: History },
       ],
     },
+    { title: "Picklist", url: `/events/${eventId}/picklist`, icon: ListOrdered },
+  ];
+
+  const manageItems = [
     { title: "Data Management", url: `/events/${eventId}/data`, icon: Database },
     { title: "Settings", url: `/events/${eventId}/settings`, icon: Settings },
   ];
@@ -179,42 +187,48 @@ export function AppSidebar({ eventId }: { eventId: number }) {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Event</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => {
-                const isActive = location === item.url;
-                const hasChildren = "children" in item && item.children;
-                const isChildActive = hasChildren && item.children!.some(c => location === c.url);
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild data-active={isActive || isChildActive || undefined}>
-                      <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                    {hasChildren && (
-                      <SidebarMenuSub>
-                        {item.children!.map(child => (
-                          <SidebarMenuSubItem key={child.title}>
-                            <SidebarMenuSubButton asChild data-active={location === child.url || undefined}>
-                              <Link href={child.url} data-testid={`nav-${child.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                                <child.icon className="h-3.5 w-3.5" />
-                                <span>{child.title}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
-                      </SidebarMenuSub>
-                    )}
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {[
+          { label: "Overview", items: overviewItems },
+          { label: "Scouting", items: scoutingItems },
+          { label: "Manage", items: manageItems },
+        ].map(section => (
+          <SidebarGroup key={section.label}>
+            <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {section.items.map((item) => {
+                  const isActive = location === item.url;
+                  const hasChildren = "children" in item && (item as any).children;
+                  const isChildActive = hasChildren && (item as any).children!.some((c: any) => location === c.url);
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild data-active={isActive || isChildActive || undefined}>
+                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                      {hasChildren && (
+                        <SidebarMenuSub>
+                          {(item as any).children!.map((child: any) => (
+                            <SidebarMenuSubItem key={child.title}>
+                              <SidebarMenuSubButton asChild data-active={location === child.url || undefined}>
+                                <Link href={child.url} data-testid={`nav-${child.title.toLowerCase().replace(/\s+/g, "-")}`}>
+                                  <child.icon className="h-3.5 w-3.5" />
+                                  <span>{child.title}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      )}
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
       <SidebarFooter>
         <div className="flex items-center justify-between px-3 pb-3">
