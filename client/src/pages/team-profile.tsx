@@ -152,7 +152,7 @@ function MatchBar({ value, maxVal, color, suffix }: {
 }) {
   const pct = maxVal > 0 ? Math.max((value / maxVal) * 100, 2) : 2;
   return (
-    <div className="flex items-center gap-0.5 min-w-0">
+    <div className="flex items-center gap-0.5 min-w-0 flex-1">
       <div className="flex-1 h-4 bg-muted/40 rounded-sm overflow-hidden">
         <div className={`h-full rounded-sm ${color}`} style={{ width: `${pct}%` }} />
       </div>
