@@ -43,7 +43,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import type { Event } from "@shared/schema";
-import heroBg from "@assets/image_1772067780700.png";
+import heroBg from "@assets/unnamed_1772071845157.jpg";
 
 const createEventSchema = z.object({
   name: z.string().min(1, "Event name is required"),
