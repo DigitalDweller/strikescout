@@ -224,7 +224,7 @@ export default function AdminEventDetail() {
   const hasAnyData = teamsWithData.length > 0 || teamsWithOpr.length > 0 || teamsWithRP.length > 0;
 
   return (
-    <div className="p-4 sm:p-6 space-y-5 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 space-y-4 max-w-6xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold tracking-tight" data-testid="text-event-name">
           {event.name}
@@ -270,7 +270,7 @@ export default function AdminEventDetail() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {teamsWithOpr.length > 0 && (
               <LeaderboardCard
                 title="OPR"

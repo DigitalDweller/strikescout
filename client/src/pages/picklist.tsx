@@ -13,13 +13,16 @@ import placeholderAvatar from "@assets/images_1772071870956.png";
 type PicklistWithTeam = PicklistEntry & { team: Team };
 type EventTeamWithTeam = EventTeam & { team: Team };
 
+type DragSource = { type: "available"; teamId: number } | { type: "picklist"; idx: number };
+
 export default function Picklist() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id!);
   const [search, setSearch] = useState("");
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragSource, setDragSource] = useState<DragSource | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
-  const dragRef = useRef<number | null>(null);
+  const [dragOverPanel, setDragOverPanel] = useState<"picklist" | null>(null);
+  const dragSourceRef = useRef<DragSource | null>(null);
 
   const { data: eventTeams, isLoading: teamsLoading } = useQuery<EventTeamWithTeam[]>({
     queryKey: ["/api/events", eventId, "teams"],
@@ -65,42 +68,78 @@ export default function Picklist() {
     await updatePicklist([...currentIds, teamId]);
   }, [picklist, updatePicklist]);
 
+  const addTeamAtPosition = useCallback(async (teamId: number, position: number) => {
+    const currentIds = picklist?.map(p => p.teamId) || [];
+    const newIds = [...currentIds];
+    newIds.splice(position, 0, teamId);
+    await updatePicklist(newIds);
+  }, [picklist, updatePicklist]);
+
   const removeTeam = useCallback(async (teamId: number) => {
     const currentIds = picklist?.map(p => p.teamId) || [];
     await updatePicklist(currentIds.filter(id => id !== teamId));
   }, [picklist, updatePicklist]);
 
-  const handleDragStart = (idx: number) => {
-    setDragIdx(idx);
-    dragRef.current = idx;
+  const handleDragStart = (source: DragSource, e: React.DragEvent) => {
+    setDragSource(source);
+    dragSourceRef.current = source;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", JSON.stringify(source));
+    if (e.currentTarget instanceof HTMLElement) {
+      e.dataTransfer.setDragImage(e.currentTarget, 0, 0);
+    }
   };
 
-  const handleDragOver = (e: React.DragEvent, idx: number) => {
+  const handlePicklistDragOver = (e: React.DragEvent, idx: number) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
     setDragOverIdx(idx);
+    setDragOverPanel("picklist");
   };
 
-  const handleDrop = async (idx: number) => {
-    const from = dragRef.current;
-    if (from === null || from === idx || !picklist) return;
-    const ids = picklist.map(p => p.teamId);
-    const [moved] = ids.splice(from, 1);
-    ids.splice(idx, 0, moved);
-    setDragIdx(null);
-    setDragOverIdx(null);
-    dragRef.current = null;
-    await updatePicklist(ids);
+  const handlePicklistPanelDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverPanel("picklist");
   };
 
-  const handleDragEnd = () => {
-    setDragIdx(null);
+  const handlePicklistDrop = async (idx: number) => {
+    const src = dragSourceRef.current;
+    if (!src || !picklist) return;
+
+    if (src.type === "picklist") {
+      if (src.idx === idx) return;
+      const ids = picklist.map(p => p.teamId);
+      const [moved] = ids.splice(src.idx, 1);
+      ids.splice(idx, 0, moved);
+      resetDrag();
+      await updatePicklist(ids);
+    } else if (src.type === "available") {
+      resetDrag();
+      await addTeamAtPosition(src.teamId, idx);
+    }
+  };
+
+  const handlePicklistPanelDrop = async () => {
+    const src = dragSourceRef.current;
+    if (!src) return;
+    if (src.type === "available") {
+      resetDrag();
+      await addTeam(src.teamId);
+    } else {
+      resetDrag();
+    }
+  };
+
+  const resetDrag = () => {
+    setDragSource(null);
     setDragOverIdx(null);
-    dragRef.current = null;
+    setDragOverPanel(null);
+    dragSourceRef.current = null;
   };
 
   const getTeamEventData = useCallback((teamId: number) => {
-    const et = eventTeams?.find(e => e.teamId === teamId);
-    return et;
+    return eventTeams?.find(e => e.teamId === teamId);
   }, [eventTeams]);
 
   const isLoading = teamsLoading || picklistLoading;
@@ -125,7 +164,7 @@ export default function Picklist() {
           Picklist
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Drag to rank teams for alliance selection. {picklist?.length || 0} of {eventTeams?.length || 0} teams ranked.
+          Drag teams to rank for alliance selection. {picklist?.length || 0} of {eventTeams?.length || 0} teams ranked.
         </p>
       </div>
 
@@ -144,7 +183,7 @@ export default function Picklist() {
               />
             </div>
           </CardHeader>
-          <CardContent className="flex-1 overflow-auto max-h-[60vh] space-y-0.5 pt-0">
+          <CardContent className="flex-1 overflow-auto max-h-[60vh] space-y-0.5 pt-0 custom-scrollbar">
             {availableTeams.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">
                 {picklistTeamIds.size === (eventTeams?.length || 0)
@@ -155,12 +194,17 @@ export default function Picklist() {
               availableTeams.map(et => {
                 const rp = (et as any).rankingPoints;
                 const rank = (et as any).rank;
+                const isDragging = dragSource?.type === "available" && dragSource.teamId === et.teamId;
                 return (
                   <div
                     key={et.teamId}
-                    className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors group"
+                    draggable
+                    onDragStart={e => handleDragStart({ type: "available", teamId: et.teamId }, e)}
+                    onDragEnd={resetDrag}
+                    className={`flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors group cursor-grab active:cursor-grabbing ${isDragging ? "opacity-30" : ""}`}
                     data-testid={`available-team-${et.teamId}`}
                   >
+                    <GripVertical className="h-4 w-4 text-muted-foreground/40 shrink-0" />
                     <img
                       src={et.team.avatar || placeholderAvatar}
                       alt={`Team ${et.team.teamNumber}`}
@@ -190,17 +234,23 @@ export default function Picklist() {
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-3 flex flex-col" data-testid="panel-picklist">
+        <Card
+          className={`md:col-span-3 flex flex-col transition-colors ${dragOverPanel === "picklist" && dragSource?.type === "available" ? "ring-2 ring-primary/30" : ""}`}
+          data-testid="panel-picklist"
+          onDragOver={handlePicklistPanelDragOver}
+          onDragLeave={e => { if (e.currentTarget && !e.currentTarget.contains(e.relatedTarget as Node)) { setDragOverPanel(null); setDragOverIdx(null); } }}
+          onDrop={e => { e.preventDefault(); handlePicklistPanelDrop(); }}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-bold">Your Picklist</CardTitle>
           </CardHeader>
-          <CardContent className="flex-1 overflow-auto max-h-[60vh] space-y-0.5 pt-0">
+          <CardContent className="flex-1 overflow-auto max-h-[60vh] space-y-0.5 pt-0 custom-scrollbar">
             {!picklist || picklist.length === 0 ? (
-              <div className="text-center py-12">
+              <div className={`text-center py-12 rounded-lg border-2 border-dashed transition-colors ${dragOverPanel === "picklist" && dragSource?.type === "available" ? "border-primary/50 bg-primary/5" : "border-transparent"}`}>
                 <ListOrdered className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
                 <p className="font-medium text-lg">No teams ranked yet</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Click + on teams from the left panel to start building your picklist
+                  Drag teams here or click + to start building your picklist
                 </p>
               </div>
             ) : (
@@ -208,16 +258,16 @@ export default function Picklist() {
                 const et = getTeamEventData(entry.teamId);
                 const rp = (et as any)?.rankingPoints;
                 const tbaRank = (et as any)?.rank;
-                const isDragging = dragIdx === idx;
-                const isDragOver = dragOverIdx === idx;
+                const isDragging = dragSource?.type === "picklist" && dragSource.idx === idx;
+                const isDragOver = dragOverIdx === idx && dragOverPanel === "picklist";
                 return (
                   <div
                     key={entry.teamId}
                     draggable
-                    onDragStart={() => handleDragStart(idx)}
-                    onDragOver={e => handleDragOver(e, idx)}
-                    onDrop={() => handleDrop(idx)}
-                    onDragEnd={handleDragEnd}
+                    onDragStart={e => handleDragStart({ type: "picklist", idx }, e)}
+                    onDragOver={e => handlePicklistDragOver(e, idx)}
+                    onDrop={e => { e.preventDefault(); e.stopPropagation(); handlePicklistDrop(idx); }}
+                    onDragEnd={resetDrag}
                     className={`flex items-center gap-2 p-2 rounded-md transition-all cursor-grab active:cursor-grabbing ${
                       isDragging ? "opacity-30" : ""
                     } ${isDragOver ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50 border border-transparent"}`}
