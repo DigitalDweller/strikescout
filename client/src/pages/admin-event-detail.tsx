@@ -56,15 +56,15 @@ function MiniPodium({
   ];
 
   return (
-    <div className="flex items-end justify-center gap-1.5 px-1">
+    <div className="flex items-end justify-center gap-3 px-2">
       {podiumSlots.map(({ rankIdx, height }) => {
         const ts = top3[rankIdx];
         if (!ts) return <div key={rankIdx} className="flex-1" />;
         const m = medalColors[rankIdx];
         const isFirst = rankIdx === 0;
         return (
-          <Link key={ts.teamId} href={`/events/${eventId}/teams/${ts.teamId}`}>
-            <div className="flex flex-col items-center cursor-pointer group flex-1 min-w-0" data-testid={`podium-${rankIdx + 1}`}>
+          <Link key={ts.teamId} href={`/events/${eventId}/teams/${ts.teamId}`} className="flex-1">
+            <div className="flex flex-col items-center cursor-pointer group min-w-0 w-full" data-testid={`podium-${rankIdx + 1}`}>
               <div className={`relative ${isFirst ? `ring-2 ${m.ring} ring-offset-2 ring-offset-background` : `ring-1 ${m.ring} ring-offset-1 ring-offset-background`} rounded-full mb-0.5`}>
                 <img
                   src={ts.team?.avatar || placeholderAvatar}
