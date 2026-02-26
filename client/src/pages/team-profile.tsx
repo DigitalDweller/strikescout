@@ -144,21 +144,19 @@ function getRankColor(rank: number, total: number) {
   return "text-muted-foreground";
 }
 
-function MatchBar({ value, maxVal, color, label, suffix }: {
+function MatchBar({ value, maxVal, color, suffix }: {
   value: number;
   maxVal: number;
   color: string;
-  label: string;
   suffix?: string;
 }) {
   const pct = maxVal > 0 ? Math.max((value / maxVal) * 100, 2) : 2;
   return (
-    <div className="flex items-center gap-1.5 flex-1 min-w-0">
-      <span className="text-[10px] text-muted-foreground w-8 text-right shrink-0 hidden sm:block">{label}</span>
+    <div className="flex items-center flex-1 min-w-0">
       <div className="flex-1 h-4 bg-muted/40 rounded-sm overflow-hidden relative">
         <div className={`h-full rounded-sm ${color}`} style={{ width: `${pct}%` }} />
+        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-foreground mix-blend-normal">{value}{suffix || ""}</span>
       </div>
-      <span className="text-xs font-bold w-10 shrink-0">{value}{suffix || ""}</span>
     </div>
   );
 }
@@ -230,10 +228,10 @@ function ClimbChart({ entries }: { entries: ScoutingEntry[] }) {
               <span className="text-xs font-bold w-7 shrink-0 text-muted-foreground">M{entry.matchNumber}</span>
               <div className="flex-1 h-5 bg-muted/40 rounded-sm overflow-hidden relative">
                 <div className={`h-full rounded-sm ${bgColor}`} style={{ width }} />
+                <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${isSuccess ? "text-white" : isFailed ? "text-white" : "text-muted-foreground"}`}>
+                  {label}
+                </span>
               </div>
-              <span className={`text-xs font-bold w-12 shrink-0 ${isSuccess ? "text-green-600 dark:text-green-400" : isFailed ? "text-red-500" : "text-muted-foreground"}`}>
-                {label}
-              </span>
             </div>
           );
         })}
@@ -256,24 +254,6 @@ function ClimbChart({ entries }: { entries: ScoutingEntry[] }) {
   );
 }
 
-function Last2Matches({ entries, field }: {
-  entries: ScoutingEntry[];
-  field: (e: ScoutingEntry) => string;
-}) {
-  const recent = [...entries].sort((a, b) => b.matchNumber - a.matchNumber).slice(0, 2);
-  if (recent.length === 0) return null;
-  return (
-    <div className="flex items-center justify-center gap-1.5 mt-1" data-testid="last-2-matches">
-      {recent.map((e, i) => (
-        <span key={e.id} className="text-xs text-muted-foreground">
-          {i > 0 && <span className="mr-1.5">|</span>}
-          <span className="font-semibold">M{e.matchNumber}:</span>{" "}
-          <span className="font-bold text-foreground/80">{field(e)}</span>
-        </span>
-      ))}
-    </div>
-  );
-}
 
 export default function TeamProfile() {
   const { id: eid, teamId: tid } = useParams<{ id: string; teamId: string }>();
@@ -485,9 +465,6 @@ export default function TeamProfile() {
               <p className="text-sm font-medium text-foreground/70">Balls Shot</p>
               <p className="text-4xl font-extrabold text-primary leading-none" data-testid="text-avg-auto">{avgAutoBalls}</p>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
-              {entries && entries.length > 0 && (
-                <Last2Matches entries={entries} field={(e) => `${e.autoBallsShot}`} />
-              )}
             </div>
             {entries && entries.length > 1 && (
               <PerMatchChart
@@ -510,27 +487,18 @@ export default function TeamProfile() {
                 <p className="text-sm font-medium text-foreground/70">Throughput</p>
                 <p className="text-3xl font-extrabold text-chart-2 leading-none" data-testid="text-avg-throughput">{avgThroughput}</p>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
-                {entries && entries.length > 0 && (
-                  <Last2Matches entries={entries} field={(e) => `${e.teleopFpsEstimate}`} />
-                )}
               </div>
               <div className="text-center space-y-1">
                 {rankings && <RankBadge rank={rankings.accuracyRank} total={rankings.total} />}
                 <p className="text-sm font-medium text-foreground/70">Accuracy</p>
                 <p className="text-3xl font-extrabold text-chart-3 leading-none" data-testid="text-avg-accuracy">{avgAccuracy}<span className="text-lg">%</span></p>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
-                {entries && entries.length > 0 && (
-                  <Last2Matches entries={entries} field={(e) => `${e.teleopAccuracy * 10}%`} />
-                )}
               </div>
               <div className="text-center space-y-1">
                 {rankings && <RankBadge rank={rankings.defenseRank} total={rankings.total} />}
                 <p className="text-sm font-medium text-foreground/70">Defense</p>
                 <p className="text-3xl font-extrabold text-chart-4 leading-none" data-testid="text-avg-defense">{avgDefense}<span className="text-lg">%</span></p>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
-                {entries && entries.length > 0 && (
-                  <Last2Matches entries={entries} field={(e) => `${e.defenseRating * 10}%`} />
-                )}
               </div>
             </div>
             {entries && entries.length > 1 && (
@@ -561,12 +529,6 @@ export default function TeamProfile() {
               <p className="text-sm font-medium text-foreground/70">Climb Rate</p>
               <p className="text-4xl font-extrabold text-chart-5 leading-none" data-testid="text-climb-rate">{climbRate}<span className="text-lg">%</span></p>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
-              {entries && entries.length > 0 && (
-                <Last2Matches
-                  entries={entries}
-                  field={(e) => e.climbSuccess === "success" ? `L${e.climbLevel || "?"}` : e.climbSuccess === "failed" ? "Failed" : "None"}
-                />
-              )}
             </div>
             {entries && entries.length > 1 && (
               <ClimbChart entries={entries} />
