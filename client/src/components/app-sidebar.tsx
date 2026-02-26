@@ -81,17 +81,9 @@ function TbaSyncStatus({ eventId }: { eventId: number }) {
     : null;
 
   return (
-    <div className="mx-3 mb-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5" data-testid="widget-tba-sync">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">TBA Sync</span>
-        <div className="flex items-center gap-1.5">
-          <div className={`h-2 w-2 rounded-full shrink-0 ${dotClass}`} />
-          <span className="text-[11px] font-medium text-muted-foreground">{statusText}</span>
-        </div>
-      </div>
-      {timeLabel && !data.syncing && (
-        <p className="text-[10px] text-muted-foreground/70 mt-0.5 text-right">Last: {timeLabel}</p>
-      )}
+    <div className="flex items-center gap-1.5 min-w-0" data-testid="widget-tba-sync">
+      <div className={`h-2 w-2 rounded-full shrink-0 ${dotClass}`} />
+      <span className="text-[11px] font-medium text-muted-foreground truncate">{statusText}</span>
     </div>
   );
 }
@@ -200,12 +192,13 @@ export function AppSidebar({ eventId }: { eventId: number }) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <TbaSyncStatus eventId={eventId} />
-        <div className="flex items-center justify-end px-3 pb-3">
+        <div className="flex items-center justify-between px-3 pb-3">
+          <TbaSyncStatus eventId={eventId} />
           <Button
             size="icon"
             variant="ghost"
             onClick={handleThemeClick}
+            className="shrink-0"
             data-testid="button-toggle-theme"
           >
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
