@@ -1,4 +1,5 @@
-import { Switch, Route, useParams } from "wouter";
+import { useEffect, useRef } from "react";
+import { Switch, Route, useParams, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -19,9 +20,22 @@ import DataManagement from "@/pages/data-management";
 import MatchDetail from "@/pages/match-detail";
 import EventSettings from "@/pages/event-settings";
 
+function ScrollToTop({ containerRef }: { containerRef: React.RefObject<HTMLElement | null> }) {
+  const [location] = useLocation();
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = 0;
+    } else {
+      window.scrollTo(0, 0);
+    }
+  }, [location]);
+  return null;
+}
+
 function EventLayout() {
   const params = useParams<{ id: string }>();
   const eventId = parseInt(params.id || "0");
+  const mainRef = useRef<HTMLElement>(null);
 
   return (
     <SidebarProvider>
@@ -31,7 +45,8 @@ function EventLayout() {
           <header className="flex items-center gap-2 p-2 border-b shrink-0">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
           </header>
-          <main className="flex-1 overflow-auto">
+          <main ref={mainRef} className="flex-1 overflow-auto">
+            <ScrollToTop containerRef={mainRef} />
             <Switch>
               <Route path="/events/:id" component={AdminEventDetail} />
               <Route path="/events/:id/scout" component={ScoutForm} />
