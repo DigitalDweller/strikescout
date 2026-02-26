@@ -319,24 +319,57 @@ export async function registerRoutes(
 
   const autoSyncIntervals = new Map<number, NodeJS.Timeout>();
 
+  async function runSync(eventId: number): Promise<boolean> {
+    const event = await storage.getEvent(eventId);
+    if (!event || !event.tbaAutoSync || !event.tbaEventKey) {
+      return false;
+    }
+
+    const results = await fetchMatchResults(event.tbaEventKey);
+    let videosSynced = 0;
+    let resultsSynced = 0;
+    for (const r of results) {
+      if (r.redScore != null && r.blueScore != null) {
+        await storage.updateMatchResults(eventId, r.matchNumber, r.redScore, r.blueScore, r.winningAlliance);
+        resultsSynced++;
+      }
+      const videoUrl = getVideoUrl(r.videos);
+      if (videoUrl) {
+        await storage.updateScheduleMatchVideo(eventId, r.matchNumber, videoUrl);
+        videosSynced++;
+      }
+    }
+
+    const eventTeamsList = await storage.getEventTeams(eventId);
+    let oprsSynced = 0;
+    try {
+      const oprData = await fetchEventOPRs(event.tbaEventKey);
+      for (const opr of oprData) {
+        const et = eventTeamsList.find(e => e.team.teamNumber === opr.teamNumber);
+        if (et) {
+          await storage.updateEventTeamOPR(eventId, et.teamId, opr.opr, opr.dpr, opr.ccwm);
+          oprsSynced++;
+        }
+      }
+    } catch (oprErr) {
+      console.error(`[TBA Auto-Sync] OPR sync error for event ${eventId}:`, oprErr);
+    }
+
+    console.log(`[TBA Auto-Sync] Event ${eventId}: ${resultsSynced} results, ${videosSynced} videos, ${oprsSynced} OPRs synced`);
+    return true;
+  }
+
   function startAutoSync(eventId: number) {
     if (autoSyncIntervals.has(eventId)) return;
+
+    runSync(eventId).catch(err => {
+      console.error(`[TBA Auto-Sync] Initial sync error for event ${eventId}:`, err);
+    });
+
     const interval = setInterval(async () => {
       try {
-        const event = await storage.getEvent(eventId);
-        if (!event || !event.tbaAutoSync || !event.tbaEventKey) {
-          stopAutoSync(eventId);
-          return;
-        }
-        const tbaMatches = await fetchMatchVideos(event.tbaEventKey);
-        const qualMatches = tbaMatches.filter(m => m.compLevel === "qm");
-        for (const m of qualMatches) {
-          const url = getVideoUrl(m.videos);
-          if (url) {
-            await storage.updateScheduleMatchVideo(eventId, m.matchNumber, url);
-          }
-        }
-        console.log(`[TBA Auto-Sync] Event ${eventId}: synced videos for ${qualMatches.length} matches`);
+        const ok = await runSync(eventId);
+        if (!ok) stopAutoSync(eventId);
       } catch (err) {
         console.error(`[TBA Auto-Sync] Error for event ${eventId}:`, err);
       }

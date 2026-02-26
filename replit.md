@@ -28,7 +28,7 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 - Schedule page with CSV import for competition match schedule (clickable rows → match detail)
 - Match detail page with alliance cards, scouting data, and embedded YouTube videos
 - Team profile pages with ranking badges (ordinal, color-coded by percentile) and match history
-- The Blue Alliance integration: TBA event key config, manual + auto-sync (every 5 min) for match videos
+- The Blue Alliance integration: TBA event key config, manual + auto-sync (every 5 min) for match results, scores, videos, and OPRs
 - Event Settings page for TBA configuration
 - Data Management page for CSV export (scouting data, team summary, schedule)
 - Dark mode toggle (moon/sun icon in sidebar)
