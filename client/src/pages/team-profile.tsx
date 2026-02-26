@@ -156,7 +156,7 @@ function MatchBar({ value, maxVal, color, suffix }: {
       <div className="flex-1 h-4 bg-muted/40 rounded-sm overflow-hidden">
         <div className={`h-full rounded-sm ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-[10px] font-bold text-muted-foreground shrink-0">{value}{suffix || ""}</span>
+      <span className="text-[10px] font-bold text-muted-foreground w-7 text-right shrink-0">{value}{suffix || ""}</span>
     </div>
   );
 }
