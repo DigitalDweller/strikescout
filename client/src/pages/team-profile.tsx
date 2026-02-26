@@ -16,6 +16,7 @@ import {
 import { ArrowLeft, MessageSquare } from "lucide-react";
 import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
 import heatmapFieldPath from "@assets/hehehehe_1771897335677.png";
+import placeholderAvatar from "@assets/L4b1guuv_400x400_1772066832910.jpg";
 
 function AggregateHeatmap({ entries }: { entries: ScoutingEntry[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -367,12 +368,8 @@ export default function TeamProfile() {
           </Button>
         </Link>
         <div className="flex items-center gap-4">
-          {team?.avatar ? (
-            <img src={team.avatar} alt={`Team ${team.teamNumber}`} className="w-12 h-12 rounded-lg border border-border object-contain bg-white" data-testid="img-team-avatar" />
-          ) : team ? (
-            <div className="w-12 h-12 rounded-lg border border-border bg-muted flex items-center justify-center">
-              <span className="text-lg font-bold text-muted-foreground">{team.teamNumber}</span>
-            </div>
+          {team ? (
+            <img src={team.avatar || placeholderAvatar} alt={`Team ${team.teamNumber}`} className="w-12 h-12 rounded-lg border border-border object-cover bg-white" data-testid="img-team-avatar" />
           ) : null}
           <div>
             <h1 className="text-3xl font-bold tracking-tight" data-testid="text-team-name">

@@ -14,8 +14,8 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 - No authentication — open access for the entire scouting team
 - Event selection as the home page (list of events with + button to add, no sidebar)
 - Event settings dialog (rename, change location, delete with 5-step confirmation)
-- Event-scoped sidebar navigation showing event name, location, back button, and event tabs (Overview, Scout, Teams, Schedule)
-- **Overview page** with competition leaderboards (top 5 teams per category: Total Scoring, Auto, Teleop, Accuracy, Defense, Climb Rate)
+- Event-scoped sidebar navigation showing event name, location, back button, and event tabs (Leaderboard, Scout, Teams, Schedule)
+- **Leaderboard page** with podium-style top 3 teams per category (Auto, Throughput, Accuracy, Defense, Climb Rate) with team avatars, plus 4th-8th place runners-up; placeholder avatar for teams without TBA avatars
 - Detailed scouting form with:
   - Auto: balls shot counter, field drawing canvas, climb tracking, notes
   - Teleop: shooting heatmap, FPS estimate, accuracy slider, move-while-shoot toggle

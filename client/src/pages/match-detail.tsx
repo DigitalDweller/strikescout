@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Target, Crosshair, Shield, ArrowUp, Bot, Video, Swords } from "lucide-react";
 import type { Event, ScoutingEntry, Team, ScheduleMatch, EventTeam } from "@shared/schema";
+import placeholderAvatar from "@assets/L4b1guuv_400x400_1772066832910.jpg";
 
 function fmt(val: number, multiplier = 1, suffix = "") {
   const v = val * multiplier;
@@ -266,13 +267,7 @@ function TeamDetailCard({
         <div className="flex items-center justify-between">
           <Link href={team ? `/events/${eventId}/teams/${team.id}` : "#"}>
             <span className={`font-bold ${nameColor} hover:underline cursor-pointer flex items-center gap-2`} data-testid={`link-team-${teamNum}`}>
-              {team?.avatar ? (
-                <img src={team.avatar} alt="" className="w-6 h-6 rounded border border-border object-contain bg-white shrink-0" />
-              ) : (
-                <div className="w-6 h-6 rounded border border-border bg-muted flex items-center justify-center shrink-0">
-                  <span className="text-[8px] font-bold text-muted-foreground">{teamNum}</span>
-                </div>
-              )}
+              <img src={team?.avatar || placeholderAvatar} alt="" className="w-6 h-6 rounded-full border border-border object-cover bg-white shrink-0" />
               {teamNum} {team ? `- ${team.teamName}` : ""}
             </span>
           </Link>

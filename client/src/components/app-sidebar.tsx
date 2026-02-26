@@ -61,7 +61,7 @@ export function AppSidebar({ eventId }: { eventId: number }) {
   });
 
   const navItems = [
-    { title: "Overview", url: `/events/${eventId}`, icon: LayoutDashboard },
+    { title: "Leaderboard", url: `/events/${eventId}`, icon: LayoutDashboard },
     { title: "Teams", url: `/events/${eventId}/teams`, icon: Users },
     { title: "Schedule", url: `/events/${eventId}/schedule`, icon: CalendarDays },
     {

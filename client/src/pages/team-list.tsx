@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
+import placeholderAvatar from "@assets/L4b1guuv_400x400_1772066832910.jpg";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
@@ -247,13 +248,7 @@ export default function TeamList() {
                       <TableRow key={team.id} data-testid={`row-team-${team.id}`} className="h-12 cursor-pointer hover:bg-accent/50" onClick={() => navigate(`/events/${eventId}/teams/${team.id}`)}>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            {team.avatar ? (
-                              <img src={team.avatar} alt="" className="w-7 h-7 rounded border border-border object-contain bg-white shrink-0" />
-                            ) : (
-                              <div className="w-7 h-7 rounded border border-border bg-muted flex items-center justify-center shrink-0">
-                                <span className="text-[9px] font-bold text-muted-foreground">{team.teamNumber}</span>
-                              </div>
-                            )}
+                            <img src={team.avatar || placeholderAvatar} alt="" className="w-7 h-7 rounded-full border border-border object-cover bg-white shrink-0" />
                             <span className="font-bold text-base text-primary">
                               {team.teamNumber}
                             </span>

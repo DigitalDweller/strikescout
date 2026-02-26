@@ -12,8 +12,10 @@ import {
   Shield,
   ChevronUp,
   Zap,
+  Crown,
 } from "lucide-react";
 import type { Event, Team, EventTeam, ScoutingEntry } from "@shared/schema";
+import placeholderAvatar from "@assets/L4b1guuv_400x400_1772066832910.jpg";
 
 type TeamStats = {
   teamId: number;
@@ -32,14 +34,74 @@ function getOrdinal(n: number) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-function getMedalColor(rank: number) {
-  if (rank === 1) return "text-yellow-500";
-  if (rank === 2) return "text-gray-400";
-  if (rank === 3) return "text-amber-600";
-  return "text-muted-foreground";
+function TeamAvatar({ team, size = "md" }: { team?: Team; size?: "sm" | "md" | "lg" }) {
+  const sizeClasses = {
+    sm: "w-8 h-8",
+    md: "w-12 h-12",
+    lg: "w-20 h-20",
+  };
+  const src = team?.avatar || placeholderAvatar;
+  return (
+    <img
+      src={src}
+      alt={team ? `Team ${team.teamNumber}` : "Team"}
+      className={`${sizeClasses[size]} rounded-full border-2 border-border object-cover bg-white`}
+      data-testid={`img-avatar-${team?.teamNumber || "unknown"}`}
+    />
+  );
 }
 
-function LeaderboardCard({
+function PodiumBlock({
+  rank,
+  ts,
+  formatValue,
+  getValue,
+  eventId,
+}: {
+  rank: number;
+  ts: TeamStats;
+  formatValue: (v: number) => string;
+  getValue: (t: TeamStats) => number;
+  eventId: number;
+}) {
+  const podiumHeight = rank === 1 ? "h-28" : rank === 2 ? "h-20" : "h-14";
+  const podiumColor = rank === 1
+    ? "bg-yellow-400/20 dark:bg-yellow-500/15 border-yellow-400/50"
+    : rank === 2
+    ? "bg-gray-300/20 dark:bg-gray-400/15 border-gray-400/50"
+    : "bg-amber-600/15 dark:bg-amber-700/15 border-amber-600/40";
+  const crownColor = rank === 1 ? "text-yellow-500" : rank === 2 ? "text-gray-400" : "text-amber-600";
+  const avatarSize = rank === 1 ? "lg" : "md";
+  const order = rank === 1 ? "order-2" : rank === 2 ? "order-1" : "order-3";
+  const avatarBorderExtra = rank === 1
+    ? "ring-2 ring-yellow-400 ring-offset-2 ring-offset-background"
+    : rank === 2
+    ? "ring-2 ring-gray-400 ring-offset-1 ring-offset-background"
+    : "ring-2 ring-amber-600 ring-offset-1 ring-offset-background";
+
+  return (
+    <div className={`flex-1 flex flex-col items-center ${order}`}>
+      <Link href={`/events/${eventId}/teams/${ts.teamId}`}>
+        <div className="flex flex-col items-center cursor-pointer group" data-testid={`podium-${rank}`}>
+          <div className={`relative mb-1 ${avatarBorderExtra} rounded-full`}>
+            <TeamAvatar team={ts.team} size={avatarSize} />
+            {rank === 1 && (
+              <Crown className={`absolute -top-2 -right-2 h-5 w-5 ${crownColor} fill-current`} />
+            )}
+          </div>
+          <p className="font-extrabold text-sm group-hover:text-primary transition-colors">{ts.team?.teamNumber}</p>
+          <p className="text-xs text-muted-foreground truncate max-w-[100px] text-center">{ts.team?.teamName}</p>
+          <p className="text-lg font-black mt-0.5 tabular-nums">{formatValue(getValue(ts))}</p>
+        </div>
+      </Link>
+      <div className={`w-full ${podiumHeight} ${podiumColor} border-t-2 rounded-t-lg flex items-start justify-center pt-2 mt-1`}>
+        <span className={`text-2xl font-black ${crownColor}`}>{getOrdinal(rank)}</span>
+      </div>
+    </div>
+  );
+}
+
+function LeaderboardSection({
   title,
   icon,
   teams,
@@ -47,6 +109,7 @@ function LeaderboardCard({
   formatValue,
   eventId,
   sortFn,
+  accentColor,
 }: {
   title: string;
   icon: React.ReactNode;
@@ -55,37 +118,47 @@ function LeaderboardCard({
   formatValue: (v: number) => string;
   eventId: number;
   sortFn?: (a: TeamStats, b: TeamStats) => number;
+  accentColor: string;
 }) {
-  const sorted = [...teams].sort(sortFn ? (a, b) => sortFn(b, a) : (a, b) => getValue(b) - getValue(a)).slice(0, 5);
+  const sorted = [...teams].sort(sortFn ? (a, b) => sortFn(b, a) : (a, b) => getValue(b) - getValue(a));
+  const top3 = sorted.slice(0, 3);
+  const rest = sorted.slice(3, 8);
+
+  if (top3.length === 0) return null;
 
   return (
-    <Card>
+    <Card className={`border-t-4 ${accentColor}`} data-testid={`leaderboard-section-${title.toLowerCase().replace(/\s+/g, "-")}`}>
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-bold flex items-center gap-2">
           {icon}
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0">
-        {sorted.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-2">No data yet</p>
-        ) : (
-          <div className="space-y-2">
-            {sorted.map((ts, i) => {
-              const rank = i + 1;
+      <CardContent className="space-y-4">
+        <div className="flex items-end gap-2 px-2">
+          {top3.map((ts, i) => (
+            <PodiumBlock key={ts.teamId} rank={i + 1} ts={ts} formatValue={formatValue} getValue={getValue} eventId={eventId} />
+          ))}
+        </div>
+
+        {rest.length > 0 && (
+          <div className="space-y-1 pt-2 border-t border-border">
+            {rest.map((ts, i) => {
+              const rank = i + 4;
               return (
                 <Link key={ts.teamId} href={`/events/${eventId}/teams/${ts.teamId}`}>
-                  <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" data-testid={`leaderboard-${title.toLowerCase().replace(/\s+/g, "-")}-${rank}`}>
+                  <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" data-testid={`leaderboard-row-${rank}`}>
                     <div className="flex items-center gap-3">
-                      <span className={`text-lg font-extrabold w-8 ${getMedalColor(rank)}`}>
+                      <span className="text-sm font-extrabold w-7 text-muted-foreground">
                         {getOrdinal(rank)}
                       </span>
+                      <TeamAvatar team={ts.team} size="sm" />
                       <div>
                         <span className="font-bold text-primary">{ts.team?.teamNumber}</span>
                         <span className="ml-1.5 text-sm font-medium">{ts.team?.teamName}</span>
                       </div>
                     </div>
-                    <span className="text-xl font-extrabold tabular-nums">
+                    <span className="text-lg font-extrabold tabular-nums">
                       {formatValue(getValue(ts))}
                     </span>
                   </div>
@@ -194,7 +267,7 @@ export default function AdminEventDetail() {
       <div>
         <h2 className="text-xl font-bold flex items-center gap-2 mb-4">
           <Trophy className="h-5 w-5" />
-          Leaderboards
+          Leaderboard
         </h2>
 
         {teamsWithData.length === 0 ? (
@@ -209,45 +282,50 @@ export default function AdminEventDetail() {
           </Card>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
-            <LeaderboardCard
+            <LeaderboardSection
               title="Auto Balls Shot"
               icon={<Zap className="h-4 w-4 text-primary" />}
               teams={teamsWithData}
               getValue={t => t.avgAuto}
               formatValue={v => parseFloat(v.toFixed(1)).toString()}
               eventId={eventId}
+              accentColor="border-primary/30"
             />
-            <LeaderboardCard
+            <LeaderboardSection
               title="Throughput"
               icon={<Target className="h-4 w-4 text-chart-2" />}
               teams={teamsWithData}
               getValue={t => t.avgThroughput}
               formatValue={v => parseFloat(v.toFixed(1)).toString()}
               eventId={eventId}
+              accentColor="border-chart-2/30"
             />
-            <LeaderboardCard
+            <LeaderboardSection
               title="Accuracy"
               icon={<Target className="h-4 w-4 text-chart-3" />}
               teams={teamsWithData}
               getValue={t => t.avgAccuracy}
               formatValue={v => `${Math.round(v)}%`}
               eventId={eventId}
+              accentColor="border-chart-3/30"
             />
-            <LeaderboardCard
+            <LeaderboardSection
               title="Defense"
               icon={<Shield className="h-4 w-4 text-chart-4" />}
               teams={teamsWithData}
               getValue={t => t.avgDefense}
               formatValue={v => `${Math.round(v)}%`}
               eventId={eventId}
+              accentColor="border-chart-4/30"
             />
-            <LeaderboardCard
+            <LeaderboardSection
               title="Climb Rate"
               icon={<ChevronUp className="h-4 w-4 text-chart-5" />}
               teams={teamsWithData}
               getValue={t => t.climbRate}
               formatValue={v => `${Math.round(v)}%`}
               eventId={eventId}
+              accentColor="border-chart-5/30"
               sortFn={(a, b) => {
                 const diff = a.climbRate - b.climbRate;
                 if (diff !== 0) return diff;
