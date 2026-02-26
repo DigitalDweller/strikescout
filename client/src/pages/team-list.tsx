@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
-import placeholderAvatar from "@assets/L4b1guuv_400x400_1772066832910.jpg";
+import placeholderAvatar from "@assets/image_1772067604092.png";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 

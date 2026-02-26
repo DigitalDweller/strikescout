@@ -18,7 +18,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import type { Event, Team, EventTeam, ScoutingEntry } from "@shared/schema";
-import placeholderAvatar from "@assets/L4b1guuv_400x400_1772066832910.jpg";
+import placeholderAvatar from "@assets/image_1772067604092.png";
 
 type TeamStats = {
   teamId: number;
