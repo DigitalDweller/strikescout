@@ -39,9 +39,11 @@ import {
   Crosshair,
   Moon,
   Sun,
+  ChevronDown,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import type { Event } from "@shared/schema";
+import heroBg from "@assets/image_1772067780700.png";
 
 const createEventSchema = z.object({
   name: z.string().min(1, "Event name is required"),
@@ -287,34 +289,59 @@ export default function AdminEvents() {
     },
   });
 
+  const scrollToEvents = () => {
+    document.getElementById("events-section")?.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="absolute top-4 right-4">
+      <div className="fixed top-4 right-4 z-50">
         <Button
           size="icon"
           variant="ghost"
           onClick={toggleTheme}
+          className="bg-background/50 backdrop-blur-sm"
           data-testid="button-toggle-theme"
         >
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
       </div>
 
-      <div className="p-4 sm:p-6 space-y-8 max-w-3xl mx-auto pt-8 sm:pt-16">
-        <div className="text-center space-y-3">
+      <div className="relative h-screen flex flex-col items-center justify-center overflow-hidden">
+        <img
+          src={heroBg}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-background" />
+
+        <div className="relative z-10 text-center space-y-4 px-4">
           <div className="flex items-center justify-center gap-3 mb-2">
-            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <Crosshair className="h-8 w-8" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg">
+              <Crosshair className="h-9 w-9" />
             </div>
           </div>
-          <h1 className="text-4xl font-bold tracking-tight" data-testid="text-page-title">StrikeScout</h1>
-          <p className="text-muted-foreground text-base max-w-md mx-auto">
-            FRC scouting for the 2026 Rebuilt season. Select an event below to start scouting, or create a new one.
+          <h1 className="text-5xl sm:text-6xl font-bold tracking-tight text-white drop-shadow-lg" data-testid="text-page-title">
+            StrikeScout
+          </h1>
+          <p className="text-white/90 text-lg max-w-md mx-auto drop-shadow-md">
+            FRC scouting for the 2026 Rebuilt season
           </p>
         </div>
 
+        <button
+          onClick={scrollToEvents}
+          className="absolute bottom-8 z-10 flex flex-col items-center gap-1 text-white/80 hover:text-white transition-colors animate-bounce cursor-pointer bg-transparent border-none"
+          data-testid="button-scroll-down"
+        >
+          <span className="text-sm font-medium drop-shadow-md">Your Events</span>
+          <ChevronDown className="h-6 w-6 drop-shadow-md" />
+        </button>
+      </div>
+
+      <div id="events-section" className="p-4 sm:p-6 space-y-6 max-w-3xl mx-auto py-12">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold" data-testid="text-events-heading">Your Events</h2>
+          <h2 className="text-xl font-bold" data-testid="text-events-heading">Your Events</h2>
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-create-event">
