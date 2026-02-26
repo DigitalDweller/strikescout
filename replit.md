@@ -63,7 +63,7 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 - `client/src/pages/admin-event-detail.tsx` - Event overview with leaderboards and team roster
 - `client/src/pages/team-profile.tsx` - Individual team stats (Auto/Teleop/Endgame sections + heatmap)
 - `client/src/pages/team-notes.tsx` - Full scout notes view for a team
-- `client/src/pages/match-detail.tsx` - Match detail view (Red/Blue alliance cards with scouting data)
+- `client/src/pages/match-detail.tsx` - Minimal match detail view (teams, scores, winner from TBA, video)
 - `client/src/pages/event-settings.tsx` - Event settings (TBA integration config)
 - `server/tba.ts` - The Blue Alliance API service
 

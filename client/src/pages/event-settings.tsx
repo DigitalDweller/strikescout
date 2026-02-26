@@ -116,6 +116,20 @@ export default function EventSettings() {
     },
   });
 
+  const resultsSyncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/events/${eventId}/tba/sync-results`);
+      return res.json();
+    },
+    onSuccess: (data: { synced: number; total: number }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "schedule"] });
+      toast({ title: `Synced results for ${data.synced} matches` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Results sync failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   const handleValidate = () => {
     if (!tbaEventKey.trim()) return;
     setValidationStatus("validating");
@@ -262,6 +276,19 @@ export default function EventSettings() {
                     <RefreshCw className="h-4 w-4 mr-2" />
                   )}
                   Sync OPRs
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => resultsSyncMutation.mutate()}
+                  disabled={resultsSyncMutation.isPending}
+                  data-testid="button-sync-results"
+                >
+                  {resultsSyncMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Sync Results
                 </Button>
               </div>
             </div>

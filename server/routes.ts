@@ -3,7 +3,7 @@ import { type Server } from "http";
 import { storage } from "./storage";
 import { insertEventSchema, insertTeamSchema, insertScoutingEntrySchema } from "@shared/schema";
 import { z } from "zod";
-import { fetchMatchVideos, getVideoUrl, validateEventKey, fetchTeamAvatars, fetchEventOPRs } from "./tba";
+import { fetchMatchVideos, fetchMatchResults, getVideoUrl, validateEventKey, fetchTeamAvatars, fetchEventOPRs } from "./tba";
 
 async function seedDatabase() {
   const events = await storage.getEvents();
@@ -287,6 +287,31 @@ export async function registerRoutes(
       }
 
       res.json({ synced, total: eventTeamsList.length });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/events/:eventId/tba/sync-results", async (req, res) => {
+    const eventId = parseInt(req.params.eventId);
+    const event = await storage.getEvent(eventId);
+    if (!event) return res.sendStatus(404);
+    if (!event.tbaEventKey) return res.status(400).json({ message: "No TBA event key configured" });
+
+    try {
+      const results = await fetchMatchResults(event.tbaEventKey);
+      let synced = 0;
+
+      for (const r of results) {
+        await storage.updateMatchResults(eventId, r.matchNumber, r.redScore, r.blueScore, r.winningAlliance);
+        const videoUrl = getVideoUrl(r.videos);
+        if (videoUrl) {
+          await storage.updateScheduleMatchVideo(eventId, r.matchNumber, videoUrl);
+        }
+        synced++;
+      }
+
+      res.json({ synced, total: results.length });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

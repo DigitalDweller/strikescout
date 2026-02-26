@@ -42,6 +42,7 @@ export interface IStorage {
   updateScheduleMatchVideo(eventId: number, matchNumber: number, videoUrl: string): Promise<void>;
 
   updateEventTeamOPR(eventId: number, teamId: number, opr: number, dpr: number, ccwm: number): Promise<void>;
+  updateMatchResults(eventId: number, matchNumber: number, redScore: number | null, blueScore: number | null, winningAlliance: string | null): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -196,6 +197,12 @@ export class DatabaseStorage implements IStorage {
     await db.update(eventTeams)
       .set({ opr, dpr, ccwm })
       .where(and(eq(eventTeams.eventId, eventId), eq(eventTeams.teamId, teamId)));
+  }
+
+  async updateMatchResults(eventId: number, matchNumber: number, redScore: number | null, blueScore: number | null, winningAlliance: string | null): Promise<void> {
+    await db.update(scheduleMatches)
+      .set({ redScore, blueScore, winningAlliance })
+      .where(and(eq(scheduleMatches.eventId, eventId), eq(scheduleMatches.matchNumber, matchNumber)));
   }
 }
 

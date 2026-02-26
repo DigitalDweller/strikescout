@@ -23,6 +23,30 @@ export interface TBAMatchVideo {
   videos: { type: string; key: string }[];
 }
 
+export interface TBAMatchResult {
+  matchNumber: number;
+  compLevel: string;
+  redScore: number | null;
+  blueScore: number | null;
+  winningAlliance: string | null;
+  videos: { type: string; key: string }[];
+}
+
+export async function fetchMatchResults(eventKey: string): Promise<TBAMatchResult[]> {
+  const matches: any[] = await tbaFetch(`/event/${eventKey}/matches`);
+
+  return matches
+    .filter(m => m.comp_level === "qm")
+    .map(m => ({
+      matchNumber: m.match_number,
+      compLevel: m.comp_level,
+      redScore: m.alliances?.red?.score ?? null,
+      blueScore: m.alliances?.blue?.score ?? null,
+      winningAlliance: m.winning_alliance || null,
+      videos: m.videos || [],
+    }));
+}
+
 export async function fetchMatchVideos(eventKey: string): Promise<TBAMatchVideo[]> {
   const matches: any[] = await tbaFetch(`/event/${eventKey}/matches`);
 

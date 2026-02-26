@@ -86,6 +86,9 @@ export const scheduleMatches = pgTable("schedule_matches", {
   blue3: integer("blue3"),
   time: text("time"),
   videoUrl: text("video_url"),
+  redScore: integer("red_score"),
+  blueScore: integer("blue_score"),
+  winningAlliance: text("winning_alliance"),
 });
 
 export const usersRelations = relations(users, ({ many }) => ({
