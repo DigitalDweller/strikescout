@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -289,12 +289,105 @@ export default function AdminEvents() {
     },
   });
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isAnimatingRef = useRef(false);
+  const currentSectionRef = useRef(0);
+
+  const smoothScrollTo = useCallback((target: number) => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    isAnimatingRef.current = true;
+    const start = container.scrollTop;
+    const distance = target - start;
+    const duration = 800;
+    let startTime: number | null = null;
+
+    function easeInOutCubic(t: number) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function step(timestamp: number) {
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = easeInOutCubic(progress);
+
+      container!.scrollTop = start + distance * eased;
+
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      } else {
+        isAnimatingRef.current = false;
+      }
+    }
+
+    requestAnimationFrame(step);
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+
+      if (isAnimatingRef.current) return;
+
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        const viewH = container.clientHeight;
+        if (e.deltaY > 0 && currentSectionRef.current === 0) {
+          currentSectionRef.current = 1;
+          smoothScrollTo(viewH);
+        } else if (e.deltaY < 0 && currentSectionRef.current === 1) {
+          currentSectionRef.current = 0;
+          smoothScrollTo(0);
+        }
+      }, 50);
+    };
+
+    let touchStartY = 0;
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartY = e.touches[0].clientY;
+    };
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (isAnimatingRef.current) return;
+      const delta = touchStartY - e.changedTouches[0].clientY;
+      const viewH = container.clientHeight;
+      if (delta > 50 && currentSectionRef.current === 0) {
+        currentSectionRef.current = 1;
+        smoothScrollTo(viewH);
+      } else if (delta < -50 && currentSectionRef.current === 1) {
+        currentSectionRef.current = 0;
+        smoothScrollTo(0);
+      }
+    };
+
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    container.addEventListener("touchstart", handleTouchStart, { passive: true });
+    container.addEventListener("touchend", handleTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener("wheel", handleWheel);
+      container.removeEventListener("touchstart", handleTouchStart);
+      container.removeEventListener("touchend", handleTouchEnd);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+    };
+  }, [smoothScrollTo]);
+
   const scrollToEvents = () => {
-    document.getElementById("events-section")?.scrollIntoView({ behavior: "smooth" });
+    if (isAnimatingRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
+    currentSectionRef.current = 1;
+    smoothScrollTo(container.clientHeight);
   };
 
   return (
-    <div className="h-screen overflow-y-auto snap-y snap-mandatory bg-background" style={{ scrollBehavior: "smooth" }}>
+    <div ref={containerRef} className="h-screen overflow-hidden bg-background">
       <div className="fixed top-4 right-4 z-50">
         <Button
           size="icon"
@@ -307,7 +400,7 @@ export default function AdminEvents() {
         </Button>
       </div>
 
-      <div className="relative h-screen flex flex-col items-center justify-center overflow-hidden snap-start snap-always">
+      <div className="relative h-screen flex flex-col items-center justify-center overflow-hidden">
         <img
           src={heroBg}
           alt=""
@@ -334,7 +427,7 @@ export default function AdminEvents() {
         </button>
       </div>
 
-      <div id="events-section" className="min-h-screen snap-start snap-always p-4 sm:p-6 space-y-6 max-w-3xl mx-auto py-12">
+      <div id="events-section" className="h-screen overflow-y-auto p-4 sm:p-6 space-y-6 max-w-3xl mx-auto py-12">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-xl font-bold" data-testid="text-events-heading">Your Events</h2>
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
