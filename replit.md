@@ -25,10 +25,10 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 - Multi-robot scouting (scout multiple robots per match side-by-side)
 - Local match number control (starts at 1, auto-increments after submission)
 - Team List page with search and sort by any stat column (no entry count)
-- Schedule page with CSV import for competition match schedule (clickable rows → match detail)
+- Schedule page with TBA sync for competition match schedule (clickable rows → match detail)
 - Match detail page with alliance cards, scouting data, and embedded YouTube videos
 - Team profile pages with ranking badges (ordinal, color-coded by percentile) and match history
-- The Blue Alliance integration: TBA event key config, manual + auto-sync (every 5 min, 3-hour session limit) for match results, scores, videos, and OPRs
+- The Blue Alliance integration: TBA event key config, manual + auto-sync (every 5 min, 3-hour session limit) for match schedule, results, scores, videos, and OPRs
 - Sidebar TBA sync status widget (dot indicator + manual sync button, max 3 manual syncs per 15 min)
 - Event Settings page for TBA configuration with live auto-sync countdown timer
 - Data Management page for CSV export (scouting data, team summary, schedule)
@@ -47,7 +47,7 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 - No sign-in; open access for the team
 - Big touch-friendly buttons for tablet use
 - Field drawing canvas for recording auto paths
-- CSV import for team lists and match schedules
+- TBA sync for match schedules
 
 ## File Structure
 - `shared/schema.ts` - Drizzle schema, Zod validators, TypeScript types

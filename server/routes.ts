@@ -3,7 +3,7 @@ import { type Server } from "http";
 import { storage } from "./storage";
 import { insertEventSchema, insertTeamSchema, insertScoutingEntrySchema } from "@shared/schema";
 import { z } from "zod";
-import { fetchMatchVideos, fetchMatchResults, getVideoUrl, validateEventKey, fetchTeamAvatars, fetchEventOPRs } from "./tba";
+import { fetchMatchVideos, fetchMatchResults, getVideoUrl, validateEventKey, fetchTeamAvatars, fetchEventOPRs, fetchMatchSchedule } from "./tba";
 
 async function seedDatabase() {
   const events = await storage.getEvents();
@@ -176,30 +176,6 @@ export async function registerRoutes(
     res.json(schedule);
   });
 
-  app.post("/api/events/:eventId/schedule", async (req, res) => {
-    const eventId = parseInt(req.params.eventId);
-    const { matches } = req.body;
-    if (!Array.isArray(matches)) return res.status(400).send("matches must be an array");
-
-    await storage.deleteScheduleByEvent(eventId);
-
-    const results = [];
-    for (const m of matches) {
-      const match = await storage.createScheduleMatch({
-        eventId,
-        matchNumber: m.matchNumber,
-        red1: m.red1 || null,
-        red2: m.red2 || null,
-        red3: m.red3 || null,
-        blue1: m.blue1 || null,
-        blue2: m.blue2 || null,
-        blue3: m.blue3 || null,
-        time: m.time || null,
-      });
-      results.push(match);
-    }
-    res.status(201).json(results);
-  });
 
   app.post("/api/events/:eventId/tba/validate", async (req, res) => {
     const { eventKey } = req.body;
@@ -292,6 +268,38 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/events/:eventId/tba/sync-schedule", async (req, res) => {
+    const eventId = parseInt(req.params.eventId);
+    const event = await storage.getEvent(eventId);
+    if (!event) return res.sendStatus(404);
+    if (!event.tbaEventKey) return res.status(400).json({ message: "No TBA event key configured" });
+
+    try {
+      const tbaMatches = await fetchMatchSchedule(event.tbaEventKey);
+      await storage.deleteScheduleByEvent(eventId);
+
+      let synced = 0;
+      for (const m of tbaMatches) {
+        await storage.createScheduleMatch({
+          eventId,
+          matchNumber: m.matchNumber,
+          red1: m.red1,
+          red2: m.red2,
+          red3: m.red3,
+          blue1: m.blue1,
+          blue2: m.blue2,
+          blue3: m.blue3,
+          time: m.time,
+        });
+        synced++;
+      }
+
+      res.json({ synced, total: tbaMatches.length });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.post("/api/events/:eventId/tba/sync-results", async (req, res) => {
     const eventId = parseInt(req.params.eventId);
     const event = await storage.getEvent(eventId);
@@ -334,6 +342,29 @@ export async function registerRoutes(
       return false;
     }
 
+    let scheduleSynced = 0;
+    try {
+      const tbaSchedule = await fetchMatchSchedule(event.tbaEventKey);
+      if (tbaSchedule.length > 0) {
+        const existingSchedule = await storage.getScheduleByEvent(eventId);
+        if (existingSchedule.length === 0 || tbaSchedule.length !== existingSchedule.length) {
+          await storage.deleteScheduleByEvent(eventId);
+          for (const m of tbaSchedule) {
+            await storage.createScheduleMatch({
+              eventId,
+              matchNumber: m.matchNumber,
+              red1: m.red1, red2: m.red2, red3: m.red3,
+              blue1: m.blue1, blue2: m.blue2, blue3: m.blue3,
+              time: m.time,
+            });
+            scheduleSynced++;
+          }
+        }
+      }
+    } catch (schedErr) {
+      console.error(`[TBA Auto-Sync] Schedule sync error for event ${eventId}:`, schedErr);
+    }
+
     const results = await fetchMatchResults(event.tbaEventKey);
     let videosSynced = 0;
     let resultsSynced = 0;
@@ -366,7 +397,7 @@ export async function registerRoutes(
 
     const prev = syncStatus.get(eventId)!;
     syncStatus.set(eventId, { ...prev, lastSyncTime: Date.now(), syncing: false });
-    console.log(`[TBA Auto-Sync] Event ${eventId}: ${resultsSynced} results, ${videosSynced} videos, ${oprsSynced} OPRs synced`);
+    console.log(`[TBA Auto-Sync] Event ${eventId}: ${scheduleSynced} schedule, ${resultsSynced} results, ${videosSynced} videos, ${oprsSynced} OPRs synced`);
     return true;
   }
 

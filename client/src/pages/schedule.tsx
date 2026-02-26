@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -6,7 +6,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -16,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Upload, CalendarDays, Search, Video } from "lucide-react";
+import { CalendarDays, Search, Video, RefreshCw } from "lucide-react";
 import type { Event, ScheduleMatch, Team } from "@shared/schema";
 
 export default function Schedule() {
@@ -24,7 +23,6 @@ export default function Schedule() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id || "0");
   const [, navigate] = useLocation();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
 
   const { data: event } = useQuery<Event>({
@@ -47,80 +45,19 @@ export default function Schedule() {
     return m;
   }, [teams]);
 
-  const uploadMutation = useMutation({
-    mutationFn: async (matches: any[]) => {
-      const res = await apiRequest("POST", `/api/events/${eventId}/schedule`, { matches });
+  const syncScheduleMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/events/${eventId}/tba/sync-schedule`);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "schedule"] });
-      toast({ title: "Schedule imported successfully!" });
+      toast({ title: `Schedule synced — ${data.synced} matches loaded from TBA` });
     },
     onError: (err: Error) => {
-      toast({ title: "Import failed", description: err.message, variant: "destructive" });
+      toast({ title: "Schedule sync failed", description: err.message, variant: "destructive" });
     },
   });
-
-  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !eventId) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      const lines = text.trim().split("\n");
-      if (lines.length < 2) {
-        toast({ title: "CSV file is empty or has no data rows", variant: "destructive" });
-        return;
-      }
-
-      const header = lines[0].toLowerCase().replace(/\r/g, "");
-      const cols = header.split(",").map(c => c.trim());
-
-      const matchIdx = cols.findIndex(c => c.includes("match"));
-      const timeIdx = cols.findIndex(c => c.includes("time"));
-      const red1Idx = cols.findIndex(c => c === "red1" || c === "red 1");
-      const red2Idx = cols.findIndex(c => c === "red2" || c === "red 2");
-      const red3Idx = cols.findIndex(c => c === "red3" || c === "red 3");
-      const blue1Idx = cols.findIndex(c => c === "blue1" || c === "blue 1");
-      const blue2Idx = cols.findIndex(c => c === "blue2" || c === "blue 2");
-      const blue3Idx = cols.findIndex(c => c === "blue3" || c === "blue 3");
-
-      if (matchIdx === -1) {
-        toast({ title: "CSV must have a 'match' column", variant: "destructive" });
-        return;
-      }
-
-      const matches = [];
-      for (let i = 1; i < lines.length; i++) {
-        const row = lines[i].replace(/\r/g, "").split(",").map(c => c.trim());
-        if (row.length < 2) continue;
-
-        const matchNum = parseInt(row[matchIdx]);
-        if (isNaN(matchNum)) continue;
-
-        matches.push({
-          matchNumber: matchNum,
-          time: timeIdx >= 0 ? row[timeIdx] || null : null,
-          red1: red1Idx >= 0 ? parseInt(row[red1Idx]) || null : null,
-          red2: red2Idx >= 0 ? parseInt(row[red2Idx]) || null : null,
-          red3: red3Idx >= 0 ? parseInt(row[red3Idx]) || null : null,
-          blue1: blue1Idx >= 0 ? parseInt(row[blue1Idx]) || null : null,
-          blue2: blue2Idx >= 0 ? parseInt(row[blue2Idx]) || null : null,
-          blue3: blue3Idx >= 0 ? parseInt(row[blue3Idx]) || null : null,
-        });
-      }
-
-      if (matches.length === 0) {
-        toast({ title: "No valid matches found in CSV", variant: "destructive" });
-        return;
-      }
-
-      uploadMutation.mutate(matches);
-    };
-    reader.readAsText(file);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
 
   const TeamBadge = ({ teamNum, alliance }: { teamNum: number | null; alliance: "red" | "blue" }) => {
     if (!teamNum) return <span className="text-muted-foreground">-</span>;
@@ -148,6 +85,8 @@ export default function Schedule() {
     return list;
   }, [schedule, search]);
 
+  const hasTbaKey = !!event?.tbaEventKey;
+
   return (
     <div className="p-4 sm:p-6 space-y-4 max-w-6xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -157,24 +96,16 @@ export default function Schedule() {
             {event?.name || "Loading..."} — {sortedSchedule.length} matches
           </p>
         </div>
-        <div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={handleCSVUpload}
-            data-testid="input-csv-upload"
-          />
+        {hasTbaKey && (
           <Button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadMutation.isPending}
-            data-testid="button-import-csv"
+            onClick={() => syncScheduleMutation.mutate()}
+            disabled={syncScheduleMutation.isPending}
+            data-testid="button-sync-schedule"
           >
-            <Upload className="h-4 w-4 mr-2" />
-            Import CSV
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncScheduleMutation.isPending ? "animate-spin" : ""}`} />
+            {syncScheduleMutation.isPending ? "Syncing..." : "Sync from TBA"}
           </Button>
-        </div>
+        )}
       </div>
 
       {(schedule && schedule.length > 0) && (
@@ -198,7 +129,9 @@ export default function Schedule() {
             <CalendarDays className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
             <p className="font-medium">No Schedule Loaded</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Import a CSV file with columns: match, time, red1, red2, red3, blue1, blue2, blue3
+              {hasTbaKey
+                ? "Click \"Sync from TBA\" above to load the match schedule."
+                : "Configure a TBA event key in Settings to sync the schedule."}
             </p>
           </CardContent>
         </Card>

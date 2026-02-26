@@ -118,6 +118,50 @@ export async function fetchEventOPRs(eventKey: string): Promise<TBAOprData[]> {
   return results;
 }
 
+export interface TBAScheduleMatch {
+  matchNumber: number;
+  red1: number | null;
+  red2: number | null;
+  red3: number | null;
+  blue1: number | null;
+  blue2: number | null;
+  blue3: number | null;
+  time: string | null;
+}
+
+function parseTeamNum(key: string | undefined): number | null {
+  if (!key) return null;
+  const num = parseInt(key.replace("frc", ""));
+  return isNaN(num) ? null : num;
+}
+
+export async function fetchMatchSchedule(eventKey: string): Promise<TBAScheduleMatch[]> {
+  const matches: any[] = await tbaFetch(`/event/${eventKey}/matches`);
+
+  return matches
+    .filter(m => m.comp_level === "qm")
+    .map(m => {
+      const redTeams = m.alliances?.red?.team_keys || [];
+      const blueTeams = m.alliances?.blue?.team_keys || [];
+      let timeStr: string | null = null;
+      if (m.time) {
+        const d = new Date(m.time * 1000);
+        timeStr = d.toISOString().replace("T", " ").slice(0, 16);
+      }
+      return {
+        matchNumber: m.match_number,
+        red1: parseTeamNum(redTeams[0]),
+        red2: parseTeamNum(redTeams[1]),
+        red3: parseTeamNum(redTeams[2]),
+        blue1: parseTeamNum(blueTeams[0]),
+        blue2: parseTeamNum(blueTeams[1]),
+        blue3: parseTeamNum(blueTeams[2]),
+        time: timeStr,
+      };
+    })
+    .sort((a, b) => a.matchNumber - b.matchNumber);
+}
+
 export async function validateEventKey(eventKey: string): Promise<{ valid: boolean; name?: string }> {
   try {
     const event: any = await tbaFetch(`/event/${eventKey}/simple`);
