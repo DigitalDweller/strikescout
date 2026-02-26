@@ -102,6 +102,20 @@ export default function EventSettings() {
     },
   });
 
+  const oprSyncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/events/${eventId}/tba/sync-oprs`);
+      return res.json();
+    },
+    onSuccess: (data: { synced: number; total: number }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "teams"] });
+      toast({ title: `Synced OPR data for ${data.synced} of ${data.total} teams` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "OPR sync failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   const handleValidate = () => {
     if (!tbaEventKey.trim()) return;
     setValidationStatus("validating");
@@ -235,6 +249,19 @@ export default function EventSettings() {
                     <RefreshCw className="h-4 w-4 mr-2" />
                   )}
                   Sync Avatars
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => oprSyncMutation.mutate()}
+                  disabled={oprSyncMutation.isPending}
+                  data-testid="button-sync-oprs"
+                >
+                  {oprSyncMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Sync OPRs
                 </Button>
               </div>
             </div>

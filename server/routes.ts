@@ -3,7 +3,7 @@ import { type Server } from "http";
 import { storage } from "./storage";
 import { insertEventSchema, insertTeamSchema, insertScoutingEntrySchema } from "@shared/schema";
 import { z } from "zod";
-import { fetchMatchVideos, getVideoUrl, validateEventKey, fetchTeamAvatars } from "./tba";
+import { fetchMatchVideos, getVideoUrl, validateEventKey, fetchTeamAvatars, fetchEventOPRs } from "./tba";
 
 async function seedDatabase() {
   const events = await storage.getEvents();
@@ -262,6 +262,31 @@ export async function registerRoutes(
       }
 
       res.json({ synced, total: teamNumbers.length });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/events/:eventId/tba/sync-oprs", async (req, res) => {
+    const eventId = parseInt(req.params.eventId);
+    const event = await storage.getEvent(eventId);
+    if (!event) return res.sendStatus(404);
+    if (!event.tbaEventKey) return res.status(400).json({ message: "No TBA event key configured" });
+
+    try {
+      const oprData = await fetchEventOPRs(event.tbaEventKey);
+      const eventTeamsList = await storage.getEventTeams(eventId);
+      let synced = 0;
+
+      for (const opr of oprData) {
+        const et = eventTeamsList.find(e => e.team.teamNumber === opr.teamNumber);
+        if (et) {
+          await storage.updateEventTeamOPR(eventId, et.teamId, opr.opr, opr.dpr, opr.ccwm);
+          synced++;
+        }
+      }
+
+      res.json({ synced, total: eventTeamsList.length });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -13,6 +14,8 @@ import {
   ChevronUp,
   Zap,
   Crown,
+  BarChart3,
+  ArrowRight,
 } from "lucide-react";
 import type { Event, Team, EventTeam, ScoutingEntry } from "@shared/schema";
 import placeholderAvatar from "@assets/L4b1guuv_400x400_1772066832910.jpg";
@@ -20,6 +23,9 @@ import placeholderAvatar from "@assets/L4b1guuv_400x400_1772066832910.jpg";
 type TeamStats = {
   teamId: number;
   team?: Team;
+  opr: number;
+  dpr: number;
+  ccwm: number;
   avgAuto: number;
   avgThroughput: number;
   avgAccuracy: number;
@@ -110,6 +116,7 @@ function LeaderboardSection({
   eventId,
   sortFn,
   accentColor,
+  sortField,
 }: {
   title: string;
   icon: React.ReactNode;
@@ -119,6 +126,7 @@ function LeaderboardSection({
   eventId: number;
   sortFn?: (a: TeamStats, b: TeamStats) => number;
   accentColor: string;
+  sortField: string;
 }) {
   const sorted = [...teams].sort(sortFn ? (a, b) => sortFn(b, a) : (a, b) => getValue(b) - getValue(a));
   const top3 = sorted.slice(0, 3);
@@ -167,6 +175,13 @@ function LeaderboardSection({
             })}
           </div>
         )}
+
+        <Link href={`/events/${eventId}/teams?sort=${sortField}&dir=desc`}>
+          <Button variant="outline" size="sm" className="w-full" data-testid={`button-view-all-${sortField}`}>
+            View All Teams
+            <ArrowRight className="h-4 w-4 ml-1" />
+          </Button>
+        </Link>
       </CardContent>
     </Card>
   );

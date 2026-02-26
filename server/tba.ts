@@ -69,6 +69,31 @@ export async function fetchTeamAvatars(teamNumbers: number[], year: number = 202
   return results;
 }
 
+export interface TBAOprData {
+  teamNumber: number;
+  opr: number;
+  dpr: number;
+  ccwm: number;
+}
+
+export async function fetchEventOPRs(eventKey: string): Promise<TBAOprData[]> {
+  const data: any = await tbaFetch(`/event/${eventKey}/oprs`);
+  if (!data?.oprs) return [];
+
+  const results: TBAOprData[] = [];
+  for (const [teamKey, opr] of Object.entries(data.oprs)) {
+    const teamNumber = parseInt(teamKey.replace("frc", ""));
+    if (isNaN(teamNumber)) continue;
+    results.push({
+      teamNumber,
+      opr: opr as number,
+      dpr: (data.dprs?.[teamKey] as number) || 0,
+      ccwm: (data.ccwms?.[teamKey] as number) || 0,
+    });
+  }
+  return results;
+}
+
 export async function validateEventKey(eventKey: string): Promise<{ valid: boolean; name?: string }> {
   try {
     const event: any = await tbaFetch(`/event/${eventKey}/simple`);

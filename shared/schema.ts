@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, real } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -36,6 +36,9 @@ export const eventTeams = pgTable("event_teams", {
   id: serial("id").primaryKey(),
   eventId: integer("event_id").notNull(),
   teamId: integer("team_id").notNull(),
+  opr: real("opr"),
+  dpr: real("dpr"),
+  ccwm: real("ccwm"),
 });
 
 export const scoutingEntries = pgTable("scouting_entries", {
