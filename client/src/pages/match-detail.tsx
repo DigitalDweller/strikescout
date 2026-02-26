@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Target, Crosshair, Shield, ArrowUp, Bot, Video, Swords } from "lucide-react";
 import type { Event, ScoutingEntry, Team, ScheduleMatch, EventTeam } from "@shared/schema";
-import placeholderAvatar from "@assets/image_1772067604092.png";
+import placeholderAvatar from "@assets/image_1772067645868.png";
 
 function fmt(val: number, multiplier = 1, suffix = "") {
   const v = val * multiplier;
