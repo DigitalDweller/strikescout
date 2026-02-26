@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Swords, Video, Trophy } from "lucide-react";
 import type { Event, Team, ScheduleMatch, EventTeam } from "@shared/schema";
-import placeholderAvatar from "@assets/image_1772067645868.png";
+import placeholderAvatar from "@assets/images_1772071870956.png";
 
 export default function MatchDetail() {
   const { id, matchNumber } = useParams<{ id: string; matchNumber: string }>();

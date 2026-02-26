@@ -16,7 +16,7 @@ import {
 import { ArrowLeft, MessageSquare } from "lucide-react";
 import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
 import heatmapFieldPath from "@assets/hehehehe_1771897335677.png";
-import placeholderAvatar from "@assets/image_1772067645868.png";
+import placeholderAvatar from "@assets/images_1772071870956.png";
 
 function AggregateHeatmap({ entries }: { entries: ScoutingEntry[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);

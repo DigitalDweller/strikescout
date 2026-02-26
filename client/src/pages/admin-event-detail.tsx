@@ -16,7 +16,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import type { Event, Team, EventTeam, ScoutingEntry } from "@shared/schema";
-import placeholderAvatar from "@assets/image_1772067645868.png";
+import placeholderAvatar from "@assets/images_1772071870956.png";
 
 type TeamStats = {
   teamId: number;
