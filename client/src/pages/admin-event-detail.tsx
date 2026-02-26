@@ -49,30 +49,33 @@ function MiniPodium({
   getValue: (t: TeamStats) => number;
   eventId: number;
 }) {
-  const podiumOrder = [1, 0, 2];
-  const heights = ["h-10", "h-14", "h-7"];
+  const podiumSlots = [
+    { rankIdx: 1, height: "h-10" },
+    { rankIdx: 0, height: "h-16" },
+    { rankIdx: 2, height: "h-7" },
+  ];
 
   return (
-    <div className="flex items-end justify-center gap-1 px-1">
-      {podiumOrder.map((idx) => {
-        const ts = top3[idx];
-        if (!ts) return <div key={idx} className="flex-1" />;
-        const m = medalColors[idx];
-        const isFirst = idx === 0;
+    <div className="flex items-end justify-center gap-1.5 px-1">
+      {podiumSlots.map(({ rankIdx, height }) => {
+        const ts = top3[rankIdx];
+        if (!ts) return <div key={rankIdx} className="flex-1" />;
+        const m = medalColors[rankIdx];
+        const isFirst = rankIdx === 0;
         return (
           <Link key={ts.teamId} href={`/events/${eventId}/teams/${ts.teamId}`}>
-            <div className="flex flex-col items-center cursor-pointer group flex-1 min-w-0" data-testid={`podium-${idx + 1}`}>
-              <div className={`relative ${isFirst ? `ring-2 ${m.ring} ring-offset-1 ring-offset-background` : `ring-1 ${m.ring} ring-offset-1 ring-offset-background`} rounded-full mb-0.5`}>
+            <div className="flex flex-col items-center cursor-pointer group flex-1 min-w-0" data-testid={`podium-${rankIdx + 1}`}>
+              <div className={`relative ${isFirst ? `ring-2 ${m.ring} ring-offset-2 ring-offset-background` : `ring-1 ${m.ring} ring-offset-1 ring-offset-background`} rounded-full mb-0.5`}>
                 <img
                   src={ts.team?.avatar || placeholderAvatar}
                   alt={`Team ${ts.team?.teamNumber}`}
-                  className={`${isFirst ? "w-10 h-10" : "w-8 h-8"} rounded-full border border-border object-cover bg-white`}
+                  className={`${isFirst ? "w-11 h-11" : "w-8 h-8"} rounded-full border border-border object-cover bg-white`}
                 />
-                {isFirst && <Crown className="absolute -top-1.5 -right-1 h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />}
+                {isFirst && <Crown className="absolute -top-2 -right-1 h-4 w-4 text-yellow-500 fill-yellow-500" />}
               </div>
               <span className="font-extrabold text-xs group-hover:text-primary transition-colors">{ts.team?.teamNumber}</span>
-              <span className="text-sm font-black tabular-nums leading-tight">{formatValue(getValue(ts))}</span>
-              <div className={`w-full ${heights[idx]} ${m.bg} ${m.border} border-t rounded-t-md flex items-start justify-center pt-0.5 mt-0.5`}>
+              <span className={`${isFirst ? "text-base" : "text-sm"} font-black tabular-nums leading-tight`}>{formatValue(getValue(ts))}</span>
+              <div className={`w-full ${height} ${m.bg} ${m.border} border-t-2 rounded-t-md flex items-start justify-center pt-0.5 mt-0.5`}>
                 <span className={`text-xs font-black ${m.text}`}>{m.label}</span>
               </div>
             </div>
