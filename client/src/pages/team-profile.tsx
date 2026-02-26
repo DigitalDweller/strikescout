@@ -151,11 +151,12 @@ function MatchBar({ value, maxVal, color, suffix }: {
   suffix?: string;
 }) {
   const pct = maxVal > 0 ? Math.max((value / maxVal) * 100, 2) : 2;
+  const textColor = pct > 45 ? "text-white" : "text-foreground";
   return (
     <div className="flex items-center flex-1 min-w-0">
       <div className="flex-1 h-4 bg-muted/40 rounded-sm overflow-hidden relative">
         <div className={`h-full rounded-sm ${color}`} style={{ width: `${pct}%` }} />
-        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-foreground mix-blend-normal">{value}{suffix || ""}</span>
+        <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${textColor}`}>{value}{suffix || ""}</span>
       </div>
     </div>
   );
@@ -187,7 +188,6 @@ function PerMatchChart({ entries, title, bars }: {
                   value={b.field(entry)}
                   maxVal={maxVals[i]}
                   color={b.color}
-                  label={b.label}
                   suffix={b.suffix}
                 />
               ))}
@@ -195,16 +195,6 @@ function PerMatchChart({ entries, title, bars }: {
           </div>
         ))}
       </div>
-      {bars.length > 1 && (
-        <div className="flex gap-3 justify-end pt-0.5">
-          {bars.map((b, i) => (
-            <div key={i} className="flex items-center gap-1">
-              <div className={`w-2.5 h-2.5 rounded-sm ${b.color}`} />
-              <span className="text-[10px] text-muted-foreground">{b.label}</span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -235,20 +225,6 @@ function ClimbChart({ entries }: { entries: ScoutingEntry[] }) {
             </div>
           );
         })}
-      </div>
-      <div className="flex gap-3 justify-end pt-0.5">
-        <div className="flex items-center gap-1">
-          <div className="w-2.5 h-2.5 rounded-sm bg-green-500" />
-          <span className="text-[10px] text-muted-foreground">Success</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-2.5 h-2.5 rounded-sm bg-red-400" />
-          <span className="text-[10px] text-muted-foreground">Failed</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-2.5 h-2.5 rounded-sm bg-muted-foreground/30" />
-          <span className="text-[10px] text-muted-foreground">None</span>
-        </div>
       </div>
     </div>
   );
@@ -464,7 +440,7 @@ export default function TeamProfile() {
               {rankings && <RankBadge rank={rankings.autoRank} total={rankings.total} />}
               <p className="text-sm font-medium text-foreground/70">Balls Shot</p>
               <p className="text-4xl font-extrabold text-primary leading-none" data-testid="text-avg-auto">{avgAutoBalls}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
+
             </div>
             {entries && entries.length > 1 && (
               <PerMatchChart
@@ -486,19 +462,19 @@ export default function TeamProfile() {
                 {rankings && <RankBadge rank={rankings.throughputRank} total={rankings.total} />}
                 <p className="text-sm font-medium text-foreground/70">Throughput</p>
                 <p className="text-3xl font-extrabold text-chart-2 leading-none" data-testid="text-avg-throughput">{avgThroughput}</p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
+  
               </div>
               <div className="text-center space-y-1">
                 {rankings && <RankBadge rank={rankings.accuracyRank} total={rankings.total} />}
                 <p className="text-sm font-medium text-foreground/70">Accuracy</p>
                 <p className="text-3xl font-extrabold text-chart-3 leading-none" data-testid="text-avg-accuracy">{avgAccuracy}<span className="text-lg">%</span></p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
+  
               </div>
               <div className="text-center space-y-1">
                 {rankings && <RankBadge rank={rankings.defenseRank} total={rankings.total} />}
                 <p className="text-sm font-medium text-foreground/70">Defense</p>
                 <p className="text-3xl font-extrabold text-chart-4 leading-none" data-testid="text-avg-defense">{avgDefense}<span className="text-lg">%</span></p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
+  
               </div>
             </div>
             {entries && entries.length > 1 && (
@@ -528,7 +504,7 @@ export default function TeamProfile() {
               {rankings && <RankBadge rank={rankings.climbRank} total={rankings.total} />}
               <p className="text-sm font-medium text-foreground/70">Climb Rate</p>
               <p className="text-4xl font-extrabold text-chart-5 leading-none" data-testid="text-climb-rate">{climbRate}<span className="text-lg">%</span></p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
+
             </div>
             {entries && entries.length > 1 && (
               <ClimbChart entries={entries} />
