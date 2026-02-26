@@ -88,6 +88,20 @@ export default function EventSettings() {
     },
   });
 
+  const avatarSyncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/events/${eventId}/tba/sync-avatars`);
+      return res.json();
+    },
+    onSuccess: (data: { synced: number; total: number }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "teams"] });
+      toast({ title: `Synced ${data.synced} team avatars out of ${data.total} teams` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Avatar sync failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   const handleValidate = () => {
     if (!tbaEventKey.trim()) return;
     setValidationStatus("validating");
@@ -195,19 +209,34 @@ export default function EventSettings() {
                   )}
                 </div>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => syncMutation.mutate()}
-                disabled={syncMutation.isPending}
-                data-testid="button-sync-now"
-              >
-                {syncMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Sync Now
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => syncMutation.mutate()}
+                  disabled={syncMutation.isPending}
+                  data-testid="button-sync-now"
+                >
+                  {syncMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Sync Videos
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => avatarSyncMutation.mutate()}
+                  disabled={avatarSyncMutation.isPending}
+                  data-testid="button-sync-avatars"
+                >
+                  {avatarSyncMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Sync Avatars
+                </Button>
+              </div>
             </div>
           )}
 

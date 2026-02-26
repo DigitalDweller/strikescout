@@ -29,6 +29,7 @@ export const teams = pgTable("teams", {
   city: text("city"),
   stateProv: text("state_prov"),
   country: text("country"),
+  avatar: text("avatar"),
 });
 
 export const eventTeams = pgTable("event_teams", {

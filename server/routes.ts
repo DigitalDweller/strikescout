@@ -3,7 +3,7 @@ import { type Server } from "http";
 import { storage } from "./storage";
 import { insertEventSchema, insertTeamSchema, insertScoutingEntrySchema } from "@shared/schema";
 import { z } from "zod";
-import { fetchMatchVideos, getVideoUrl, validateEventKey } from "./tba";
+import { fetchMatchVideos, getVideoUrl, validateEventKey, fetchTeamAvatars } from "./tba";
 
 async function seedDatabase() {
   const events = await storage.getEvents();
@@ -232,6 +232,36 @@ export async function registerRoutes(
       }
 
       res.json({ synced, total: qualMatches.length });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/events/:eventId/tba/sync-avatars", async (req, res) => {
+    const eventId = parseInt(req.params.eventId);
+    const event = await storage.getEvent(eventId);
+    if (!event) return res.sendStatus(404);
+    if (!event.tbaEventKey) return res.status(400).json({ message: "No TBA event key configured" });
+
+    try {
+      const eventTeamsList = await storage.getEventTeams(eventId);
+      const teamNumbers = eventTeamsList.map(et => et.team.teamNumber);
+      const teamsWithoutAvatars = eventTeamsList
+        .filter(et => !et.team.avatar)
+        .map(et => et.team.teamNumber);
+
+      if (teamsWithoutAvatars.length === 0) {
+        return res.json({ synced: 0, total: teamNumbers.length, message: "All teams already have avatars" });
+      }
+
+      const avatars = await fetchTeamAvatars(teamsWithoutAvatars);
+      let synced = 0;
+      for (const [teamNum, avatar] of avatars) {
+        await storage.updateTeamAvatar(teamNum, avatar);
+        synced++;
+      }
+
+      res.json({ synced, total: teamNumbers.length });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

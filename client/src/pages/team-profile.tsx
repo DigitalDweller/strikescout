@@ -352,14 +352,10 @@ export default function TeamProfile() {
     };
   }, [allEntries, eventTeams, teamId]);
 
-  const RankBadge = ({ rank, total }: { rank: number; total: number }) => {
-    const color = getRankColor(rank, total);
-    return (
-      <p className={`text-sm font-bold ${color}`}>
-        {getOrdinal(rank)}
-      </p>
-    );
-  };
+  const last2 = useMemo(() => {
+    if (!entries || entries.length === 0) return [];
+    return [...entries].sort((a, b) => b.matchNumber - a.matchNumber).slice(0, 2);
+  }, [entries]);
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
@@ -370,12 +366,23 @@ export default function TeamProfile() {
             Back to Teams
           </Button>
         </Link>
-        <h1 className="text-3xl font-bold tracking-tight" data-testid="text-team-name">
-          {team ? `${team.teamNumber} - ${team.teamName}` : <Skeleton className="h-9 w-56 inline-block" />}
-        </h1>
-        {event && (
-          <p className="text-base text-muted-foreground mt-1">{event.name}</p>
-        )}
+        <div className="flex items-center gap-4">
+          {team?.avatar ? (
+            <img src={team.avatar} alt={`Team ${team.teamNumber}`} className="w-12 h-12 rounded-lg border border-border object-contain bg-white" data-testid="img-team-avatar" />
+          ) : team ? (
+            <div className="w-12 h-12 rounded-lg border border-border bg-muted flex items-center justify-center">
+              <span className="text-lg font-bold text-muted-foreground">{team.teamNumber}</span>
+            </div>
+          ) : null}
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight" data-testid="text-team-name">
+              {team ? `${team.teamNumber} - ${team.teamName}` : <Skeleton className="h-9 w-56 inline-block" />}
+            </h1>
+            {event && (
+              <p className="text-base text-muted-foreground mt-1">{event.name}</p>
+            )}
+          </div>
+        </div>
       </div>
 
       {entries && entries.length > 0 && (() => {
@@ -468,6 +475,13 @@ export default function TeamProfile() {
                   <p className={`text-xs font-bold ${getRankColor(rankings.autoRank, rankings.total)}`}>{getOrdinal(rankings.autoRank)} <span className="text-muted-foreground font-normal">of {rankings.total}</span></p>
                 </>
               )}
+              {last2.length > 0 && (
+                <p className="text-xs text-muted-foreground" data-testid="text-last2-auto">
+                  {last2.map((e, i) => (
+                    <span key={e.id}>{i > 0 ? " | " : ""}<span className="font-bold">M{e.matchNumber}:</span> {e.autoBallsShot}</span>
+                  ))}
+                </p>
+              )}
             </div>
             {entries && entries.length > 1 && (
               <PerMatchChart
@@ -496,6 +510,13 @@ export default function TeamProfile() {
                     <p className={`text-xs font-bold ${getRankColor(rankings.throughputRank, rankings.total)}`}>{getOrdinal(rankings.throughputRank)} <span className="text-muted-foreground font-normal">of {rankings.total}</span></p>
                   </>
                 )}
+                {last2.length > 0 && (
+                  <p className="text-xs text-muted-foreground" data-testid="text-last2-throughput">
+                    {last2.map((e, i) => (
+                      <span key={e.id}>{i > 0 ? " | " : ""}<span className="font-bold">M{e.matchNumber}:</span> {e.teleopFpsEstimate}</span>
+                    ))}
+                  </p>
+                )}
               </div>
               <div className="text-center space-y-2">
                 <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide">Accuracy</p>
@@ -508,6 +529,13 @@ export default function TeamProfile() {
                     <p className={`text-xs font-bold ${getRankColor(rankings.accuracyRank, rankings.total)}`}>{getOrdinal(rankings.accuracyRank)} <span className="text-muted-foreground font-normal">of {rankings.total}</span></p>
                   </>
                 )}
+                {last2.length > 0 && (
+                  <p className="text-xs text-muted-foreground" data-testid="text-last2-accuracy">
+                    {last2.map((e, i) => (
+                      <span key={e.id}>{i > 0 ? " | " : ""}<span className="font-bold">M{e.matchNumber}:</span> {e.teleopAccuracy * 10}%</span>
+                    ))}
+                  </p>
+                )}
               </div>
               <div className="text-center space-y-2">
                 <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide">Defense</p>
@@ -519,6 +547,13 @@ export default function TeamProfile() {
                     <div className="w-8 mx-auto border-t border-border" />
                     <p className={`text-xs font-bold ${getRankColor(rankings.defenseRank, rankings.total)}`}>{getOrdinal(rankings.defenseRank)} <span className="text-muted-foreground font-normal">of {rankings.total}</span></p>
                   </>
+                )}
+                {last2.length > 0 && (
+                  <p className="text-xs text-muted-foreground" data-testid="text-last2-defense">
+                    {last2.map((e, i) => (
+                      <span key={e.id}>{i > 0 ? " | " : ""}<span className="font-bold">M{e.matchNumber}:</span> {e.defenseRating * 10}%</span>
+                    ))}
+                  </p>
                 )}
               </div>
             </div>
@@ -555,6 +590,23 @@ export default function TeamProfile() {
                   <div className="w-8 mx-auto border-t border-border" />
                   <p className={`text-xs font-bold ${getRankColor(rankings.climbRank, rankings.total)}`}>{getOrdinal(rankings.climbRank)} <span className="text-muted-foreground font-normal">of {rankings.total}</span></p>
                 </>
+              )}
+              {last2.length > 0 && (
+                <p className="text-xs text-muted-foreground" data-testid="text-last2-climb">
+                  {last2.map((e, i) => (
+                    <span key={e.id}>
+                      {i > 0 ? " | " : ""}
+                      <span className="font-bold">M{e.matchNumber}:</span>{" "}
+                      {e.climbSuccess === "success" ? (
+                        <span className="text-green-600 dark:text-green-400">L{e.climbLevel || "?"}</span>
+                      ) : e.climbSuccess === "failed" ? (
+                        <span className="text-red-500">Failed</span>
+                      ) : (
+                        <span>None</span>
+                      )}
+                    </span>
+                  ))}
+                </p>
               )}
             </div>
             {entries && entries.length > 1 && (

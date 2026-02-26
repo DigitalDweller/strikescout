@@ -246,9 +246,18 @@ export default function TeamList() {
                     return (
                       <TableRow key={team.id} data-testid={`row-team-${team.id}`} className="h-12 cursor-pointer hover:bg-accent/50" onClick={() => navigate(`/events/${eventId}/teams/${team.id}`)}>
                         <TableCell>
-                          <span className="font-bold text-base text-primary">
-                            {team.teamNumber}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            {team.avatar ? (
+                              <img src={team.avatar} alt="" className="w-7 h-7 rounded border border-border object-contain bg-white shrink-0" />
+                            ) : (
+                              <div className="w-7 h-7 rounded border border-border bg-muted flex items-center justify-center shrink-0">
+                                <span className="text-[9px] font-bold text-muted-foreground">{team.teamNumber}</span>
+                              </div>
+                            )}
+                            <span className="font-bold text-base text-primary">
+                              {team.teamNumber}
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell className="font-semibold text-base">{team.teamName}</TableCell>
                         <TableCell className={`text-center font-bold text-base ${autoColor}`} data-testid={`stat-auto-${team.id}`}>

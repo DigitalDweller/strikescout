@@ -23,6 +23,7 @@ export interface IStorage {
   createTeam(team: InsertTeam): Promise<Team>;
   upsertTeam(team: InsertTeam): Promise<Team>;
   deleteTeam(id: number): Promise<void>;
+  updateTeamAvatar(teamNumber: number, avatar: string): Promise<void>;
 
   getEventTeams(eventId: number): Promise<(EventTeam & { team: Team })[]>;
   addTeamToEvent(data: InsertEventTeam): Promise<EventTeam>;
@@ -110,6 +111,10 @@ export class DatabaseStorage implements IStorage {
     await db.delete(eventTeams).where(eq(eventTeams.teamId, id));
     await db.delete(scoutingEntries).where(eq(scoutingEntries.teamId, id));
     await db.delete(teams).where(eq(teams.id, id));
+  }
+
+  async updateTeamAvatar(teamNumber: number, avatar: string): Promise<void> {
+    await db.update(teams).set({ avatar }).where(eq(teams.teamNumber, teamNumber));
   }
 
   async getEventTeams(eventId: number): Promise<(EventTeam & { team: Team })[]> {

@@ -42,6 +42,33 @@ export function getVideoUrl(videos: { type: string; key: string }[]): string | n
   return null;
 }
 
+export async function fetchTeamAvatar(teamNumber: number, year: number = 2025): Promise<string | null> {
+  try {
+    const media: any[] = await tbaFetch(`/team/frc${teamNumber}/media/${year}`);
+    const avatar = media.find((m: any) => m.type === "avatar");
+    if (avatar?.details?.base64Image) {
+      return `data:image/png;base64,${avatar.details.base64Image}`;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchTeamAvatars(teamNumbers: number[], year: number = 2025): Promise<Map<number, string>> {
+  const results = new Map<number, string>();
+  const batchSize = 5;
+  for (let i = 0; i < teamNumbers.length; i += batchSize) {
+    const batch = teamNumbers.slice(i, i + batchSize);
+    const promises = batch.map(async (num) => {
+      const avatar = await fetchTeamAvatar(num, year);
+      if (avatar) results.set(num, avatar);
+    });
+    await Promise.all(promises);
+  }
+  return results;
+}
+
 export async function validateEventKey(eventKey: string): Promise<{ valid: boolean; name?: string }> {
   try {
     const event: any = await tbaFetch(`/event/${eventKey}/simple`);
