@@ -316,11 +316,6 @@ export default function AdminEvents() {
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-background" />
 
         <div className="relative z-10 text-center space-y-4 px-4">
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg">
-              <Crosshair className="h-9 w-9" />
-            </div>
-          </div>
           <h1 className="text-5xl sm:text-6xl font-bold tracking-tight text-white drop-shadow-lg" data-testid="text-page-title">
             StrikeScout
           </h1>
