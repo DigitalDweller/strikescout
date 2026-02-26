@@ -144,6 +144,139 @@ function getRankColor(rank: number, total: number) {
   return "text-muted-foreground";
 }
 
+function RecentMatches({ entries, field }: {
+  entries: ScoutingEntry[];
+  field: (e: ScoutingEntry) => string;
+}) {
+  const sorted = [...entries].sort((a, b) => b.matchNumber - a.matchNumber);
+  const recent = sorted.slice(0, 2);
+  if (recent.length === 0) return null;
+  return (
+    <div className="flex items-center justify-center gap-3 mt-2">
+      {recent.map((e) => (
+        <span key={e.id} className="text-xs text-muted-foreground">
+          <span className="font-semibold">M{e.matchNumber}:</span>{" "}
+          <span className="font-bold text-foreground">{field(e)}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function MatchBar({ value, maxVal, color, label, suffix }: {
+  value: number;
+  maxVal: number;
+  color: string;
+  label: string;
+  suffix?: string;
+}) {
+  const pct = maxVal > 0 ? Math.max((value / maxVal) * 100, 2) : 2;
+  return (
+    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+      <span className="text-[10px] text-muted-foreground w-8 text-right shrink-0 hidden sm:block">{label}</span>
+      <div className="flex-1 h-4 bg-muted/40 rounded-sm overflow-hidden relative">
+        <div className={`h-full rounded-sm ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-xs font-bold w-10 shrink-0">{value}{suffix || ""}</span>
+    </div>
+  );
+}
+
+function PerMatchChart({ entries, title, bars }: {
+  entries: ScoutingEntry[];
+  title: string;
+  bars: { field: (e: ScoutingEntry) => number; color: string; label: string; max?: number; suffix?: string }[];
+}) {
+  const sorted = [...entries].sort((a, b) => a.matchNumber - b.matchNumber);
+  if (sorted.length === 0) return null;
+
+  const maxVals = bars.map(b => {
+    if (b.max !== undefined) return b.max;
+    return Math.max(...sorted.map(e => b.field(e)), 1);
+  });
+
+  return (
+    <div className="space-y-1.5" data-testid={`chart-${title.toLowerCase().replace(/\s/g, "-")}`}>
+      <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{title} by Match</p>
+      <div className="space-y-1">
+        {sorted.map((entry) => (
+          <div key={entry.id} className="flex items-center gap-2">
+            <span className="text-xs font-bold w-7 shrink-0 text-muted-foreground">M{entry.matchNumber}</span>
+            <div className="flex-1 flex gap-1">
+              {bars.map((b, i) => (
+                <MatchBar
+                  key={i}
+                  value={b.field(entry)}
+                  maxVal={maxVals[i]}
+                  color={b.color}
+                  label={b.label}
+                  suffix={b.suffix}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {bars.length > 1 && (
+        <div className="flex gap-3 justify-end pt-0.5">
+          {bars.map((b, i) => (
+            <div key={i} className="flex items-center gap-1">
+              <div className={`w-2.5 h-2.5 rounded-sm ${b.color}`} />
+              <span className="text-[10px] text-muted-foreground">{b.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClimbChart({ entries }: { entries: ScoutingEntry[] }) {
+  const sorted = [...entries].sort((a, b) => a.matchNumber - b.matchNumber);
+  if (sorted.length === 0) return null;
+
+  return (
+    <div className="space-y-1.5" data-testid="chart-climb">
+      <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Climb by Match</p>
+      <div className="space-y-1">
+        {sorted.map((entry) => {
+          const isSuccess = entry.climbSuccess === "success";
+          const isFailed = entry.climbSuccess === "failed";
+          const bgColor = isSuccess ? "bg-green-500" : isFailed ? "bg-red-400" : "bg-muted-foreground/30";
+          const label = isSuccess ? `L${entry.climbLevel || "?"}` : isFailed ? "Failed" : "None";
+          const width = isSuccess ? "100%" : isFailed ? "50%" : "15%";
+
+          return (
+            <div key={entry.id} className="flex items-center gap-2">
+              <span className="text-xs font-bold w-7 shrink-0 text-muted-foreground">M{entry.matchNumber}</span>
+              <div className="flex-1 h-5 bg-muted/40 rounded-sm overflow-hidden relative">
+                <div className={`h-full rounded-sm ${bgColor}`} style={{ width }} />
+              </div>
+              <span className={`text-xs font-bold w-12 shrink-0 ${isSuccess ? "text-green-600 dark:text-green-400" : isFailed ? "text-red-500" : "text-muted-foreground"}`}>
+                {label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex gap-3 justify-end pt-0.5">
+        <div className="flex items-center gap-1">
+          <div className="w-2.5 h-2.5 rounded-sm bg-green-500" />
+          <span className="text-[10px] text-muted-foreground">Success</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2.5 h-2.5 rounded-sm bg-red-400" />
+          <span className="text-[10px] text-muted-foreground">Failed</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2.5 h-2.5 rounded-sm bg-muted-foreground/30" />
+          <span className="text-[10px] text-muted-foreground">None</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TeamProfile() {
   const { id: eid, teamId: tid } = useParams<{ id: string; teamId: string }>();
   const eventId = parseInt(eid!);
@@ -348,12 +481,23 @@ export default function TeamProfile() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-bold text-primary text-center">Auto</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <div className="text-center space-y-1">
               {rankings && <RankBadge rank={rankings.autoRank} total={rankings.total} />}
               <p className="text-sm font-medium text-foreground/70">Balls Shot</p>
               <p className="text-4xl font-extrabold text-primary leading-none" data-testid="text-avg-auto">{avgAutoBalls}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
+              {entries && entries.length > 0 && (
+                <RecentMatches entries={entries} field={(e) => `${e.autoBallsShot}`} />
+              )}
             </div>
+            {entries && entries.length > 1 && (
+              <PerMatchChart
+                entries={entries}
+                title="Auto"
+                bars={[{ field: (e) => e.autoBallsShot, color: "bg-primary", label: "Balls" }]}
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -367,18 +511,41 @@ export default function TeamProfile() {
                 {rankings && <RankBadge rank={rankings.throughputRank} total={rankings.total} />}
                 <p className="text-sm font-medium text-foreground/70">Throughput</p>
                 <p className="text-3xl font-extrabold text-chart-2 leading-none" data-testid="text-avg-throughput">{avgThroughput}</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
+                {entries && entries.length > 0 && (
+                  <RecentMatches entries={entries} field={(e) => `${e.teleopFpsEstimate}`} />
+                )}
               </div>
               <div className="text-center space-y-1">
                 {rankings && <RankBadge rank={rankings.accuracyRank} total={rankings.total} />}
                 <p className="text-sm font-medium text-foreground/70">Accuracy</p>
                 <p className="text-3xl font-extrabold text-chart-3 leading-none" data-testid="text-avg-accuracy">{avgAccuracy}<span className="text-lg">%</span></p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
+                {entries && entries.length > 0 && (
+                  <RecentMatches entries={entries} field={(e) => `${e.teleopAccuracy * 10}%`} />
+                )}
               </div>
               <div className="text-center space-y-1">
                 {rankings && <RankBadge rank={rankings.defenseRank} total={rankings.total} />}
                 <p className="text-sm font-medium text-foreground/70">Defense</p>
                 <p className="text-3xl font-extrabold text-chart-4 leading-none" data-testid="text-avg-defense">{avgDefense}<span className="text-lg">%</span></p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
+                {entries && entries.length > 0 && (
+                  <RecentMatches entries={entries} field={(e) => `${e.defenseRating * 10}%`} />
+                )}
               </div>
             </div>
+            {entries && entries.length > 1 && (
+              <PerMatchChart
+                entries={entries}
+                title="Teleop"
+                bars={[
+                  { field: (e) => e.teleopFpsEstimate, color: "bg-chart-2", label: "FPS" },
+                  { field: (e) => e.teleopAccuracy * 10, color: "bg-chart-3", label: "Acc%", max: 100, suffix: "%" },
+                  { field: (e) => e.defenseRating * 10, color: "bg-chart-4", label: "Def%", max: 100, suffix: "%" },
+                ]}
+              />
+            )}
             <div>
               <p className="text-sm font-medium text-foreground/70 text-center mb-2">Shooting Heatmap</p>
               <AggregateHeatmap entries={entries || []} />
@@ -390,12 +557,22 @@ export default function TeamProfile() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-bold text-chart-5 text-center">Endgame</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <div className="text-center space-y-1">
               {rankings && <RankBadge rank={rankings.climbRank} total={rankings.total} />}
               <p className="text-sm font-medium text-foreground/70">Climb Rate</p>
               <p className="text-4xl font-extrabold text-chart-5 leading-none" data-testid="text-climb-rate">{climbRate}<span className="text-lg">%</span></p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">avg</p>
+              {entries && entries.length > 0 && (
+                <RecentMatches
+                  entries={entries}
+                  field={(e) => e.climbSuccess === "success" ? `L${e.climbLevel || "?"}` : e.climbSuccess === "failed" ? "Failed" : "None"}
+                />
+              )}
             </div>
+            {entries && entries.length > 1 && (
+              <ClimbChart entries={entries} />
+            )}
           </CardContent>
         </Card>
       </div>
