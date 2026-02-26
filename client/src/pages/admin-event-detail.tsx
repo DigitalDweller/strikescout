@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -15,7 +14,6 @@ import {
   Zap,
   Crown,
   BarChart3,
-  ArrowRight,
 } from "lucide-react";
 import type { Event, Team, EventTeam, ScoutingEntry } from "@shared/schema";
 import placeholderAvatar from "@assets/image_1772067645868.png";
@@ -34,80 +32,7 @@ type TeamStats = {
   avgClimbLevel: number;
 };
 
-function getOrdinal(n: number) {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
-}
-
-function TeamAvatar({ team, size = "md" }: { team?: Team; size?: "sm" | "md" | "lg" }) {
-  const sizeClasses = {
-    sm: "w-8 h-8",
-    md: "w-12 h-12",
-    lg: "w-20 h-20",
-  };
-  const src = team?.avatar || placeholderAvatar;
-  return (
-    <img
-      src={src}
-      alt={team ? `Team ${team.teamNumber}` : "Team"}
-      className={`${sizeClasses[size]} rounded-full border-2 border-border object-cover bg-white`}
-      data-testid={`img-avatar-${team?.teamNumber || "unknown"}`}
-    />
-  );
-}
-
-function PodiumBlock({
-  rank,
-  ts,
-  formatValue,
-  getValue,
-  eventId,
-}: {
-  rank: number;
-  ts: TeamStats;
-  formatValue: (v: number) => string;
-  getValue: (t: TeamStats) => number;
-  eventId: number;
-}) {
-  const podiumHeight = rank === 1 ? "h-28" : rank === 2 ? "h-20" : "h-14";
-  const podiumColor = rank === 1
-    ? "bg-yellow-400/20 dark:bg-yellow-500/15 border-yellow-400/50"
-    : rank === 2
-    ? "bg-gray-300/20 dark:bg-gray-400/15 border-gray-400/50"
-    : "bg-amber-600/15 dark:bg-amber-700/15 border-amber-600/40";
-  const crownColor = rank === 1 ? "text-yellow-500" : rank === 2 ? "text-gray-400" : "text-amber-600";
-  const avatarSize = rank === 1 ? "lg" : "md";
-  const order = rank === 1 ? "order-2" : rank === 2 ? "order-1" : "order-3";
-  const avatarBorderExtra = rank === 1
-    ? "ring-2 ring-yellow-400 ring-offset-2 ring-offset-background"
-    : rank === 2
-    ? "ring-2 ring-gray-400 ring-offset-1 ring-offset-background"
-    : "ring-2 ring-amber-600 ring-offset-1 ring-offset-background";
-
-  return (
-    <div className={`flex-1 flex flex-col items-center ${order}`}>
-      <Link href={`/events/${eventId}/teams/${ts.teamId}`}>
-        <div className="flex flex-col items-center cursor-pointer group" data-testid={`podium-${rank}`}>
-          <div className={`relative mb-1 ${avatarBorderExtra} rounded-full`}>
-            <TeamAvatar team={ts.team} size={avatarSize} />
-            {rank === 1 && (
-              <Crown className={`absolute -top-2 -right-2 h-5 w-5 ${crownColor} fill-current`} />
-            )}
-          </div>
-          <p className="font-extrabold text-sm group-hover:text-primary transition-colors">{ts.team?.teamNumber}</p>
-          <p className="text-xs text-muted-foreground truncate max-w-[100px] text-center">{ts.team?.teamName}</p>
-          <p className="text-lg font-black mt-0.5 tabular-nums">{formatValue(getValue(ts))}</p>
-        </div>
-      </Link>
-      <div className={`w-full ${podiumHeight} ${podiumColor} border-t-2 rounded-t-lg flex items-start justify-center pt-2 mt-1`}>
-        <span className={`text-2xl font-black ${crownColor}`}>{getOrdinal(rank)}</span>
-      </div>
-    </div>
-  );
-}
-
-function LeaderboardSection({
+function CompactLeaderboard({
   title,
   icon,
   teams,
@@ -116,7 +41,7 @@ function LeaderboardSection({
   eventId,
   sortFn,
   accentColor,
-  sortField,
+  barColor,
 }: {
   title: string;
   icon: React.ReactNode;
@@ -126,62 +51,124 @@ function LeaderboardSection({
   eventId: number;
   sortFn?: (a: TeamStats, b: TeamStats) => number;
   accentColor: string;
-  sortField: string;
+  barColor: string;
 }) {
   const sorted = [...teams].sort(sortFn ? (a, b) => sortFn(b, a) : (a, b) => getValue(b) - getValue(a));
-  const top3 = sorted.slice(0, 3);
-  const rest = sorted.slice(3, 8);
+  const top5 = sorted.slice(0, 5);
+  if (top5.length === 0) return null;
 
-  if (top3.length === 0) return null;
+  const maxVal = Math.max(...top5.map(t => getValue(t)), 0.01);
 
   return (
-    <Card className={`border-t-4 ${accentColor}`} data-testid={`leaderboard-section-${title.toLowerCase().replace(/\s+/g, "-")}`}>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base font-bold flex items-center gap-2">
+    <Card className={`border-t-3 ${accentColor}`} data-testid={`leaderboard-section-${title.toLowerCase().replace(/\s+/g, "-")}`}>
+      <CardHeader className="pb-1 pt-3 px-4">
+        <CardTitle className="text-sm font-bold flex items-center gap-1.5">
           {icon}
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-end gap-2 px-2">
-          {top3.map((ts, i) => (
-            <PodiumBlock key={ts.teamId} rank={i + 1} ts={ts} formatValue={formatValue} getValue={getValue} eventId={eventId} />
-          ))}
-        </div>
-
-        {rest.length > 0 && (
-          <div className="space-y-1 pt-2 border-t border-border">
-            {rest.map((ts, i) => {
-              const rank = i + 4;
-              return (
-                <Link key={ts.teamId} href={`/events/${eventId}/teams/${ts.teamId}`}>
-                  <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" data-testid={`leaderboard-row-${rank}`}>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-extrabold w-7 text-muted-foreground">
-                        {getOrdinal(rank)}
+      <CardContent className="px-3 pb-3 pt-1">
+        <div className="space-y-0.5">
+          {top5.map((ts, i) => {
+            const rank = i + 1;
+            const pct = maxVal > 0 ? Math.max((getValue(ts) / maxVal) * 100, 3) : 3;
+            const isFirst = rank === 1;
+            return (
+              <Link key={ts.teamId} href={`/events/${eventId}/teams/${ts.teamId}`}>
+                <div
+                  className={`flex items-center gap-1.5 py-1 px-1.5 rounded cursor-pointer transition-colors hover:bg-muted/60 ${isFirst ? "bg-muted/40" : ""}`}
+                  data-testid={`leaderboard-row-${rank}`}
+                >
+                  <span className={`text-xs font-extrabold w-4 text-center shrink-0 ${isFirst ? "text-yellow-500" : "text-muted-foreground"}`}>
+                    {rank}
+                  </span>
+                  <img
+                    src={ts.team?.avatar || placeholderAvatar}
+                    alt={`Team ${ts.team?.teamNumber}`}
+                    className="w-6 h-6 rounded-full border border-border object-cover bg-white shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className={`font-bold text-sm truncate ${isFirst ? "text-foreground" : ""}`}>
+                        {ts.team?.teamNumber}
                       </span>
-                      <TeamAvatar team={ts.team} size="sm" />
-                      <div>
-                        <span className="font-bold text-primary">{ts.team?.teamNumber}</span>
-                        <span className="ml-1.5 text-sm font-medium">{ts.team?.teamName}</span>
-                      </div>
+                      <span className="text-sm font-extrabold tabular-nums shrink-0">
+                        {formatValue(getValue(ts))}
+                      </span>
                     </div>
-                    <span className="text-lg font-extrabold tabular-nums">
-                      {formatValue(getValue(ts))}
-                    </span>
+                    <div className="h-1 bg-muted/50 rounded-full overflow-hidden mt-0.5">
+                      <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                    </div>
                   </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
-        <Link href={`/events/${eventId}/teams?sort=${sortField}&dir=desc`}>
-          <Button variant="outline" size="sm" className="w-full" data-testid={`button-view-all-${sortField}`}>
-            View All Teams
-            <ArrowRight className="h-4 w-4 ml-1" />
-          </Button>
-        </Link>
+function OprLeaderboard({
+  teams,
+  eventId,
+}: {
+  teams: TeamStats[];
+  eventId: number;
+}) {
+  const sorted = [...teams].filter(t => t.opr > 0).sort((a, b) => b.opr - a.opr);
+  const top5 = sorted.slice(0, 5);
+  if (top5.length === 0) return null;
+
+  const maxVal = Math.max(...top5.map(t => t.opr), 0.01);
+
+  return (
+    <Card className="border-t-3 border-yellow-500/40 sm:col-span-2 lg:col-span-1" data-testid="leaderboard-section-opr">
+      <CardHeader className="pb-1 pt-3 px-4">
+        <CardTitle className="text-sm font-bold flex items-center gap-1.5">
+          <Crown className="h-4 w-4 text-yellow-500" />
+          OPR
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-3 pb-3 pt-1">
+        <div className="space-y-0.5">
+          {top5.map((ts, i) => {
+            const rank = i + 1;
+            const pct = maxVal > 0 ? Math.max((ts.opr / maxVal) * 100, 3) : 3;
+            const isFirst = rank === 1;
+            return (
+              <Link key={ts.teamId} href={`/events/${eventId}/teams/${ts.teamId}`}>
+                <div
+                  className={`flex items-center gap-1.5 py-1 px-1.5 rounded cursor-pointer transition-colors hover:bg-muted/60 ${isFirst ? "bg-muted/40" : ""}`}
+                  data-testid={`leaderboard-opr-row-${rank}`}
+                >
+                  <span className={`text-xs font-extrabold w-4 text-center shrink-0 ${isFirst ? "text-yellow-500" : "text-muted-foreground"}`}>
+                    {rank}
+                  </span>
+                  <img
+                    src={ts.team?.avatar || placeholderAvatar}
+                    alt={`Team ${ts.team?.teamNumber}`}
+                    className="w-6 h-6 rounded-full border border-border object-cover bg-white shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className={`font-bold text-sm truncate ${isFirst ? "text-foreground" : ""}`}>
+                        {ts.team?.teamNumber}
+                      </span>
+                      <span className="text-sm font-extrabold tabular-nums shrink-0">
+                        {parseFloat(ts.opr.toFixed(1)).toString()}
+                      </span>
+                    </div>
+                    <div className="h-1 bg-muted/50 rounded-full overflow-hidden mt-0.5">
+                      <div className="h-full rounded-full bg-yellow-500" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       </CardContent>
     </Card>
   );
@@ -212,6 +199,9 @@ export default function AdminEventDetail() {
         return {
           teamId: et.teamId,
           team: et.team,
+          opr: (et as any).opr || 0,
+          dpr: (et as any).dpr || 0,
+          ccwm: (et as any).ccwm || 0,
           avgAuto: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, climbRate: 0, avgClimbLevel: 0,
         };
       }
@@ -219,6 +209,9 @@ export default function AdminEventDetail() {
       return {
         teamId: et.teamId,
         team: et.team,
+        opr: (et as any).opr || 0,
+        dpr: (et as any).dpr || 0,
+        ccwm: (et as any).ccwm || 0,
         avgAuto: te.reduce((s, e) => s + e.autoBallsShot, 0) / count,
         avgThroughput: te.reduce((s, e) => s + e.teleopFpsEstimate, 0) / count,
         avgAccuracy: te.reduce((s, e) => s + e.teleopAccuracy, 0) / count * 10,
@@ -230,11 +223,12 @@ export default function AdminEventDetail() {
   }, [eventTeams, entries]);
 
   const teamsWithData = teamStatsList.filter(t => t.avgAuto > 0 || t.avgThroughput > 0 || t.avgAccuracy > 0 || t.avgDefense > 0 || t.climbRate > 0);
+  const teamsWithOpr = teamStatsList.filter(t => t.opr > 0);
   const matchesScouted = entries ? new Set(entries.map(e => e.matchNumber)).size : 0;
 
   if (eventLoading) {
     return (
-      <div className="p-4 sm:p-6 max-w-5xl mx-auto">
+      <div className="p-4 sm:p-6 max-w-6xl mx-auto">
         <Skeleton className="h-8 w-48 mb-4" />
         <Skeleton className="h-40 w-full" />
       </div>
@@ -249,8 +243,10 @@ export default function AdminEventDetail() {
     );
   }
 
+  const hasAnyData = teamsWithData.length > 0 || teamsWithOpr.length > 0;
+
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 space-y-5 max-w-6xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold tracking-tight" data-testid="text-event-name">
           {event.name}
@@ -280,12 +276,12 @@ export default function AdminEventDetail() {
       </div>
 
       <div>
-        <h2 className="text-xl font-bold flex items-center gap-2 mb-4">
+        <h2 className="text-xl font-bold flex items-center gap-2 mb-3">
           <Trophy className="h-5 w-5" />
-          Leaderboard
+          Leaderboards
         </h2>
 
-        {teamsWithData.length === 0 ? (
+        {!hasAnyData ? (
           <Card>
             <CardContent className="p-8 text-center">
               <Trophy className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
@@ -296,51 +292,57 @@ export default function AdminEventDetail() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <LeaderboardSection
-              title="Auto Balls Shot"
-              icon={<Zap className="h-4 w-4 text-primary" />}
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            <OprLeaderboard teams={teamStatsList} eventId={eventId} />
+            <CompactLeaderboard
+              title="Auto"
+              icon={<Zap className="h-3.5 w-3.5 text-primary" />}
               teams={teamsWithData}
               getValue={t => t.avgAuto}
               formatValue={v => parseFloat(v.toFixed(1)).toString()}
               eventId={eventId}
               accentColor="border-primary/30"
+              barColor="bg-primary"
             />
-            <LeaderboardSection
+            <CompactLeaderboard
               title="Throughput"
-              icon={<Target className="h-4 w-4 text-chart-2" />}
+              icon={<BarChart3 className="h-3.5 w-3.5 text-chart-2" />}
               teams={teamsWithData}
               getValue={t => t.avgThroughput}
               formatValue={v => parseFloat(v.toFixed(1)).toString()}
               eventId={eventId}
               accentColor="border-chart-2/30"
+              barColor="bg-chart-2"
             />
-            <LeaderboardSection
+            <CompactLeaderboard
               title="Accuracy"
-              icon={<Target className="h-4 w-4 text-chart-3" />}
+              icon={<Target className="h-3.5 w-3.5 text-chart-3" />}
               teams={teamsWithData}
               getValue={t => t.avgAccuracy}
               formatValue={v => `${Math.round(v)}%`}
               eventId={eventId}
               accentColor="border-chart-3/30"
+              barColor="bg-chart-3"
             />
-            <LeaderboardSection
+            <CompactLeaderboard
               title="Defense"
-              icon={<Shield className="h-4 w-4 text-chart-4" />}
+              icon={<Shield className="h-3.5 w-3.5 text-chart-4" />}
               teams={teamsWithData}
               getValue={t => t.avgDefense}
               formatValue={v => `${Math.round(v)}%`}
               eventId={eventId}
               accentColor="border-chart-4/30"
+              barColor="bg-chart-4"
             />
-            <LeaderboardSection
+            <CompactLeaderboard
               title="Climb Rate"
-              icon={<ChevronUp className="h-4 w-4 text-chart-5" />}
+              icon={<ChevronUp className="h-3.5 w-3.5 text-chart-5" />}
               teams={teamsWithData}
               getValue={t => t.climbRate}
               formatValue={v => `${Math.round(v)}%`}
               eventId={eventId}
               accentColor="border-chart-5/30"
+              barColor="bg-chart-5"
               sortFn={(a, b) => {
                 const diff = a.climbRate - b.climbRate;
                 if (diff !== 0) return diff;
