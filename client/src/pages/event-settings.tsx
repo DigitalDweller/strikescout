@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Settings, Video, RefreshCw, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Settings, RefreshCw, CheckCircle2, XCircle, Loader2, Zap, Image, BarChart3, Trophy, Video } from "lucide-react";
 import type { Event } from "@shared/schema";
 
 export default function EventSettings() {
@@ -67,6 +67,7 @@ export default function EventSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "tba", "sync-status"] });
       toast({ title: "Settings saved" });
     },
     onError: (err: Error) => {
@@ -74,61 +75,56 @@ export default function EventSettings() {
     },
   });
 
-  const syncMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/events/${eventId}/tba/sync-videos`);
-      return res.json();
+  const syncActions = [
+    {
+      key: "videos",
+      label: "Videos",
+      icon: Video,
+      endpoint: "sync-videos",
+      invalidate: "schedule",
+      formatResult: (d: any) => `Synced ${d.synced} videos from ${d.total} matches`,
     },
-    onSuccess: (data: { synced: number; total: number }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "schedule"] });
-      toast({ title: `Synced ${data.synced} videos out of ${data.total} qualification matches` });
+    {
+      key: "avatars",
+      label: "Avatars",
+      icon: Image,
+      endpoint: "sync-avatars",
+      invalidate: "teams",
+      formatResult: (d: any) => `Synced ${d.synced} avatars from ${d.total} teams`,
     },
-    onError: (err: Error) => {
-      toast({ title: "Sync failed", description: err.message, variant: "destructive" });
+    {
+      key: "oprs",
+      label: "OPRs",
+      icon: BarChart3,
+      endpoint: "sync-oprs",
+      invalidate: "teams",
+      formatResult: (d: any) => `Synced OPR data for ${d.synced} of ${d.total} teams`,
     },
-  });
+    {
+      key: "results",
+      label: "Results",
+      icon: Trophy,
+      endpoint: "sync-results",
+      invalidate: "schedule",
+      formatResult: (d: any) => `Synced results for ${d.synced} matches`,
+    },
+  ];
 
-  const avatarSyncMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/events/${eventId}/tba/sync-avatars`);
-      return res.json();
-    },
-    onSuccess: (data: { synced: number; total: number }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "teams"] });
-      toast({ title: `Synced ${data.synced} team avatars out of ${data.total} teams` });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Avatar sync failed", description: err.message, variant: "destructive" });
-    },
-  });
+  const [syncingKeys, setSyncingKeys] = useState<Set<string>>(new Set());
 
-  const oprSyncMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/events/${eventId}/tba/sync-oprs`);
-      return res.json();
-    },
-    onSuccess: (data: { synced: number; total: number }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "teams"] });
-      toast({ title: `Synced OPR data for ${data.synced} of ${data.total} teams` });
-    },
-    onError: (err: Error) => {
-      toast({ title: "OPR sync failed", description: err.message, variant: "destructive" });
-    },
-  });
-
-  const resultsSyncMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/events/${eventId}/tba/sync-results`);
-      return res.json();
-    },
-    onSuccess: (data: { synced: number; total: number }) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "schedule"] });
-      toast({ title: `Synced results for ${data.synced} matches` });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Results sync failed", description: err.message, variant: "destructive" });
-    },
-  });
+  const handleSync = async (action: typeof syncActions[0]) => {
+    setSyncingKeys(prev => new Set(prev).add(action.key));
+    try {
+      const res = await apiRequest("POST", `/api/events/${eventId}/tba/${action.endpoint}`);
+      const data = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, action.invalidate] });
+      toast({ title: action.formatResult(data) });
+    } catch (err: any) {
+      toast({ title: `${action.label} sync failed`, description: err.message, variant: "destructive" });
+    } finally {
+      setSyncingKeys(prev => { const n = new Set(prev); n.delete(action.key); return n; });
+    }
+  };
 
   const handleValidate = () => {
     if (!tbaEventKey.trim()) return;
@@ -144,7 +140,7 @@ export default function EventSettings() {
   if (isLoading) return <Skeleton className="h-96 w-full m-6" />;
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-6 space-y-6 max-w-2xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2" data-testid="text-settings-title">
           <Settings className="h-6 w-6" />
@@ -156,19 +152,19 @@ export default function EventSettings() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Video className="h-5 w-5 text-primary" />
-            The Blue Alliance Integration
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Zap className="h-5 w-5 text-blue-500" />
+            The Blue Alliance
           </CardTitle>
-          <CardDescription>
-            Connect this event to The Blue Alliance to automatically pull match videos.
-            Find your event key at thebluealliance.com (e.g. "2025miket" for 2025 Kettering District).
+          <CardDescription className="text-sm">
+            Connect to TBA to auto-sync match results, scores, videos, and OPR stats.
+            Find your event key at thebluealliance.com (format: <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">2025miket</span>).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="tba-key">TBA Event Key</Label>
+          <div className="space-y-3">
+            <Label htmlFor="tba-key" className="text-sm font-semibold">Event Key</Label>
             <div className="flex gap-2">
               <Input
                 id="tba-key"
@@ -178,7 +174,7 @@ export default function EventSettings() {
                   setValidationStatus("idle");
                 }}
                 placeholder="e.g. 2025miket"
-                className="flex-1"
+                className="flex-1 font-mono"
                 data-testid="input-tba-event-key"
               />
               <Button
@@ -195,24 +191,24 @@ export default function EventSettings() {
               </Button>
             </div>
             {validationStatus === "valid" && (
-              <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Valid — {validatedName}</span>
+              <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 bg-green-500/10 rounded-md px-3 py-2">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <span className="font-medium">{validatedName}</span>
               </div>
             )}
             {validationStatus === "invalid" && (
-              <div className="flex items-center gap-2 text-sm text-red-500">
-                <XCircle className="h-4 w-4" />
-                <span>Invalid event key — check the key and try again</span>
+              <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 rounded-md px-3 py-2">
+                <XCircle className="h-4 w-4 shrink-0" />
+                <span>Invalid key — check and try again</span>
               </div>
             )}
           </div>
 
-          <div className="flex items-center justify-between rounded-md border p-4">
-            <div>
-              <Label htmlFor="auto-sync" className="font-medium">Auto-Sync Videos</Label>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                Automatically check for new match videos every 5 minutes
+          <div className="flex items-center justify-between rounded-lg border border-border p-4 bg-card">
+            <div className="space-y-0.5">
+              <Label htmlFor="auto-sync" className="text-sm font-semibold cursor-pointer">Auto-Sync</Label>
+              <p className="text-xs text-muted-foreground">
+                Pull results, videos, and OPRs every 5 minutes
               </p>
             </div>
             <Switch
@@ -224,80 +220,11 @@ export default function EventSettings() {
             />
           </div>
 
-          {event?.tbaEventKey && (
-            <div className="flex items-center justify-between rounded-md border p-4 bg-muted/30">
-              <div>
-                <p className="font-medium text-sm">Current TBA Key</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="secondary" className="font-mono">{event.tbaEventKey}</Badge>
-                  {event.tbaAutoSync && (
-                    <Badge variant="outline" className="text-green-600 dark:text-green-400 border-green-500/30">
-                      Auto-Sync ON
-                    </Badge>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => syncMutation.mutate()}
-                  disabled={syncMutation.isPending}
-                  data-testid="button-sync-now"
-                >
-                  {syncMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                  )}
-                  Sync Videos
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => avatarSyncMutation.mutate()}
-                  disabled={avatarSyncMutation.isPending}
-                  data-testid="button-sync-avatars"
-                >
-                  {avatarSyncMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                  )}
-                  Sync Avatars
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => oprSyncMutation.mutate()}
-                  disabled={oprSyncMutation.isPending}
-                  data-testid="button-sync-oprs"
-                >
-                  {oprSyncMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                  )}
-                  Sync OPRs
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => resultsSyncMutation.mutate()}
-                  disabled={resultsSyncMutation.isPending}
-                  data-testid="button-sync-results"
-                >
-                  {resultsSyncMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                  )}
-                  Sync Results
-                </Button>
-              </div>
-            </div>
-          )}
-
           <Button
             onClick={() => saveMutation.mutate()}
             disabled={saveMutation.isPending || !hasChanges}
             className="w-full"
+            size="lg"
             data-testid="button-save-settings"
           >
             {saveMutation.isPending ? (
@@ -307,6 +234,47 @@ export default function EventSettings() {
           </Button>
         </CardContent>
       </Card>
+
+      {event?.tbaEventKey && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <RefreshCw className="h-5 w-5 text-primary" />
+                Manual Sync
+              </CardTitle>
+              <Badge variant="secondary" className="font-mono text-xs">{event.tbaEventKey}</Badge>
+            </div>
+            <CardDescription className="text-sm">
+              Pull specific data from TBA right now.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3">
+              {syncActions.map(action => {
+                const isSyncing = syncingKeys.has(action.key);
+                return (
+                  <Button
+                    key={action.key}
+                    variant="outline"
+                    className="h-auto py-3 px-4 flex flex-col items-center gap-1.5 text-center"
+                    onClick={() => handleSync(action)}
+                    disabled={isSyncing}
+                    data-testid={`button-sync-${action.key}`}
+                  >
+                    {isSyncing ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    ) : (
+                      <action.icon className="h-5 w-5 text-muted-foreground" />
+                    )}
+                    <span className="text-sm font-semibold">{action.label}</span>
+                  </Button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

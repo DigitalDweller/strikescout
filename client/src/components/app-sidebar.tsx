@@ -33,6 +33,64 @@ import {
 import { useTheme } from "@/hooks/use-theme";
 import type { Event } from "@shared/schema";
 
+function TbaSyncStatus({ eventId }: { eventId: number }) {
+  const { data } = useQuery<{ enabled: boolean; syncing: boolean; lastSyncTime: number | null }>({
+    queryKey: ["/api/events", eventId, "tba", "sync-status"],
+    queryFn: async () => {
+      const res = await fetch(`/api/events/${eventId}/tba/sync-status`);
+      if (!res.ok) return { enabled: false, syncing: false, lastSyncTime: null };
+      return res.json();
+    },
+    refetchInterval: 15000,
+  });
+
+  if (!data?.enabled) return null;
+
+  const now = Date.now();
+  const lastSync = data.lastSyncTime;
+  const ageMs = lastSync ? now - lastSync : null;
+
+  let dotClass = "bg-muted-foreground/50";
+  let statusText = "Not synced yet";
+
+  if (data.syncing) {
+    dotClass = "bg-yellow-400 animate-pulse";
+    statusText = "Syncing...";
+  } else if (ageMs !== null) {
+    if (ageMs < 60_000) {
+      dotClass = "bg-green-500";
+      statusText = "Up to date";
+    } else if (ageMs < 5 * 60_000) {
+      dotClass = "bg-muted-foreground/50";
+      const mins = Math.floor(ageMs / 60_000);
+      statusText = `${mins}m ago`;
+    } else {
+      dotClass = "bg-muted-foreground/30";
+      const mins = Math.floor(ageMs / 60_000);
+      statusText = `${mins}m ago`;
+    }
+  }
+
+  const timeLabel = lastSync
+    ? new Date(lastSync).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : null;
+
+  return (
+    <div className="mx-3 mb-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5" data-testid="widget-tba-sync">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">TBA Sync</span>
+        <div className="flex items-center gap-1.5">
+          <div className={`h-2 w-2 rounded-full shrink-0 ${dotClass}`} />
+          <span className="text-[11px] font-medium text-muted-foreground">{statusText}</span>
+        </div>
+      </div>
+      {timeLabel && !data.syncing && (
+        <p className="text-[10px] text-muted-foreground/70 mt-0.5 text-right">Last: {timeLabel}</p>
+      )}
+    </div>
+  );
+}
+
 export function AppSidebar({ eventId }: { eventId: number }) {
   const [location] = useLocation();
   const { theme, toggleTheme } = useTheme();
@@ -137,7 +195,8 @@ export function AppSidebar({ eventId }: { eventId: number }) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <div className="flex items-center justify-end p-3">
+        <TbaSyncStatus eventId={eventId} />
+        <div className="flex items-center justify-end px-3 pb-3">
           <Button
             size="icon"
             variant="ghost"

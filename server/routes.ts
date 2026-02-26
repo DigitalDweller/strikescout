@@ -318,8 +318,11 @@ export async function registerRoutes(
   });
 
   const autoSyncIntervals = new Map<number, NodeJS.Timeout>();
+  const syncStatus = new Map<number, { lastSyncTime: number | null; syncing: boolean }>();
 
   async function runSync(eventId: number): Promise<boolean> {
+    const status = syncStatus.get(eventId) || { lastSyncTime: null, syncing: false };
+    syncStatus.set(eventId, { ...status, syncing: true });
     const event = await storage.getEvent(eventId);
     if (!event || !event.tbaAutoSync || !event.tbaEventKey) {
       return false;
@@ -355,6 +358,7 @@ export async function registerRoutes(
       console.error(`[TBA Auto-Sync] OPR sync error for event ${eventId}:`, oprErr);
     }
 
+    syncStatus.set(eventId, { lastSyncTime: Date.now(), syncing: false });
     console.log(`[TBA Auto-Sync] Event ${eventId}: ${resultsSynced} results, ${videosSynced} videos, ${oprsSynced} OPRs synced`);
     return true;
   }
@@ -363,6 +367,7 @@ export async function registerRoutes(
     if (autoSyncIntervals.has(eventId)) return;
 
     runSync(eventId).catch(err => {
+      syncStatus.set(eventId, { lastSyncTime: syncStatus.get(eventId)?.lastSyncTime || null, syncing: false });
       console.error(`[TBA Auto-Sync] Initial sync error for event ${eventId}:`, err);
     });
 
@@ -371,6 +376,7 @@ export async function registerRoutes(
         const ok = await runSync(eventId);
         if (!ok) stopAutoSync(eventId);
       } catch (err) {
+        syncStatus.set(eventId, { lastSyncTime: syncStatus.get(eventId)?.lastSyncTime || null, syncing: false });
         console.error(`[TBA Auto-Sync] Error for event ${eventId}:`, err);
       }
     }, 5 * 60 * 1000);
@@ -409,6 +415,18 @@ export async function registerRoutes(
       stopAutoSync(event.id);
     }
     res.json(event);
+  });
+
+  app.get("/api/events/:id/tba/sync-status", async (req, res) => {
+    const id = parseInt(req.params.id);
+    const event = await storage.getEvent(id);
+    if (!event) return res.sendStatus(404);
+    const status = syncStatus.get(id);
+    res.json({
+      enabled: !!(event.tbaAutoSync && event.tbaEventKey),
+      syncing: status?.syncing || false,
+      lastSyncTime: status?.lastSyncTime || null,
+    });
   });
 
   await seedDatabase();
