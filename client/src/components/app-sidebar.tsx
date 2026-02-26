@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import flashbangImg from "@assets/black-guy-showing-hand-1657857_1772066434323.webp";
 import {
   Sidebar,
@@ -29,16 +30,29 @@ import {
   History,
   Database,
   Settings,
+  RefreshCw,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import type { Event } from "@shared/schema";
 
+interface SyncStatusData {
+  connected: boolean;
+  autoSync: boolean;
+  syncing: boolean;
+  lastSyncTime: number | null;
+  expiresAt: number | null;
+  manualSyncsRemaining: number;
+  manualSyncResetsAt: number | null;
+}
+
 function TbaSyncStatus({ eventId }: { eventId: number }) {
-  const { data } = useQuery<{ connected: boolean; autoSync: boolean; syncing: boolean; lastSyncTime: number | null }>({
+  const [manualSyncing, setManualSyncing] = useState(false);
+
+  const { data } = useQuery<SyncStatusData>({
     queryKey: ["/api/events", eventId, "tba", "sync-status"],
     queryFn: async () => {
       const res = await fetch(`/api/events/${eventId}/tba/sync-status`);
-      if (!res.ok) return { connected: false, autoSync: false, syncing: false, lastSyncTime: null };
+      if (!res.ok) return { connected: false, autoSync: false, syncing: false, lastSyncTime: null, expiresAt: null, manualSyncsRemaining: 3, manualSyncResetsAt: null };
       return res.json();
     },
     refetchInterval: 15000,
@@ -46,44 +60,60 @@ function TbaSyncStatus({ eventId }: { eventId: number }) {
 
   if (!data?.connected) return null;
 
-  const now = Date.now();
-  const lastSync = data.lastSyncTime;
-  const ageMs = lastSync ? now - lastSync : null;
+  const isSyncing = data.syncing || manualSyncing;
 
   let dotClass = "bg-muted-foreground/50";
   let statusText = "Connected";
 
-  if (!data.autoSync) {
-    dotClass = "bg-muted-foreground/40";
-    statusText = "Auto-sync off";
-  } else if (data.syncing) {
+  if (isSyncing) {
     dotClass = "bg-yellow-400 animate-pulse";
     statusText = "Syncing...";
-  } else if (ageMs !== null) {
-    if (ageMs < 60_000) {
-      dotClass = "bg-green-500";
-      statusText = "Up to date";
-    } else if (ageMs < 5 * 60_000) {
-      dotClass = "bg-muted-foreground/50";
-      const mins = Math.floor(ageMs / 60_000);
-      statusText = `${mins}m ago`;
+  } else if (!data.autoSync) {
+    dotClass = "bg-muted-foreground/40";
+    statusText = "Auto-sync off";
+  } else {
+    const now = Date.now();
+    const ageMs = data.lastSyncTime ? now - data.lastSyncTime : null;
+    if (ageMs !== null) {
+      if (ageMs < 60_000) {
+        dotClass = "bg-green-500";
+        statusText = "Up to date";
+      } else {
+        dotClass = "bg-muted-foreground/50";
+        statusText = `${Math.floor(ageMs / 60_000)}m ago`;
+      }
     } else {
-      dotClass = "bg-muted-foreground/30";
-      const mins = Math.floor(ageMs / 60_000);
-      statusText = `${mins}m ago`;
+      statusText = "Waiting";
     }
-  } else if (data.autoSync) {
-    statusText = "Waiting for sync";
   }
 
-  const timeLabel = lastSync
-    ? new Date(lastSync).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    : null;
+  const canManualSync = data.manualSyncsRemaining > 0 && !isSyncing;
+
+  const handleManualSync = async () => {
+    if (!canManualSync) return;
+    setManualSyncing(true);
+    try {
+      await fetch(`/api/events/${eventId}/tba/manual-sync`, { method: "POST" });
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "tba", "sync-status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "schedule"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "teams"] });
+    } catch {}
+    setManualSyncing(false);
+  };
 
   return (
     <div className="flex items-center gap-1.5 min-w-0" data-testid="widget-tba-sync">
       <div className={`h-2 w-2 rounded-full shrink-0 ${dotClass}`} />
       <span className="text-[11px] font-medium text-muted-foreground truncate">{statusText}</span>
+      <button
+        onClick={handleManualSync}
+        disabled={!canManualSync}
+        className="shrink-0 p-0.5 rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        title={canManualSync ? `Sync now (${data.manualSyncsRemaining} left)` : "Sync limit reached"}
+        data-testid="button-manual-sync"
+      >
+        <RefreshCw className={`h-3 w-3 text-muted-foreground ${isSyncing ? "animate-spin" : ""}`} />
+      </button>
     </div>
   );
 }

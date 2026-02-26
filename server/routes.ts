@@ -317,14 +317,20 @@ export async function registerRoutes(
     }
   });
 
+  const AUTO_SYNC_DURATION = 3 * 60 * 60 * 1000;
+  const MANUAL_SYNC_WINDOW = 15 * 60 * 1000;
+  const MANUAL_SYNC_LIMIT = 3;
+
   const autoSyncIntervals = new Map<number, NodeJS.Timeout>();
-  const syncStatus = new Map<number, { lastSyncTime: number | null; syncing: boolean }>();
+  const autoSyncExpiry = new Map<number, NodeJS.Timeout>();
+  const syncStatus = new Map<number, { lastSyncTime: number | null; syncing: boolean; startedAt: number | null; expiresAt: number | null }>();
+  const manualSyncLog = new Map<number, number[]>();
 
   async function runSync(eventId: number): Promise<boolean> {
-    const status = syncStatus.get(eventId) || { lastSyncTime: null, syncing: false };
+    const status = syncStatus.get(eventId) || { lastSyncTime: null, syncing: false, startedAt: null, expiresAt: null };
     syncStatus.set(eventId, { ...status, syncing: true });
     const event = await storage.getEvent(eventId);
-    if (!event || !event.tbaAutoSync || !event.tbaEventKey) {
+    if (!event || !event.tbaEventKey) {
       return false;
     }
 
@@ -358,30 +364,49 @@ export async function registerRoutes(
       console.error(`[TBA Auto-Sync] OPR sync error for event ${eventId}:`, oprErr);
     }
 
-    syncStatus.set(eventId, { lastSyncTime: Date.now(), syncing: false });
+    const prev = syncStatus.get(eventId)!;
+    syncStatus.set(eventId, { ...prev, lastSyncTime: Date.now(), syncing: false });
     console.log(`[TBA Auto-Sync] Event ${eventId}: ${resultsSynced} results, ${videosSynced} videos, ${oprsSynced} OPRs synced`);
     return true;
+  }
+
+  async function expireAutoSync(eventId: number) {
+    stopAutoSync(eventId);
+    await storage.updateEvent(eventId, { tbaAutoSync: false });
+    console.log(`[TBA Auto-Sync] Expired after 3 hours for event ${eventId}`);
   }
 
   function startAutoSync(eventId: number) {
     if (autoSyncIntervals.has(eventId)) return;
 
+    const now = Date.now();
+    const expiresAt = now + AUTO_SYNC_DURATION;
+    syncStatus.set(eventId, { lastSyncTime: syncStatus.get(eventId)?.lastSyncTime || null, syncing: false, startedAt: now, expiresAt });
+
     runSync(eventId).catch(err => {
-      syncStatus.set(eventId, { lastSyncTime: syncStatus.get(eventId)?.lastSyncTime || null, syncing: false });
+      const s = syncStatus.get(eventId)!;
+      syncStatus.set(eventId, { ...s, syncing: false });
       console.error(`[TBA Auto-Sync] Initial sync error for event ${eventId}:`, err);
     });
 
     const interval = setInterval(async () => {
       try {
+        const event = await storage.getEvent(eventId);
+        if (!event?.tbaAutoSync) { stopAutoSync(eventId); return; }
         const ok = await runSync(eventId);
         if (!ok) stopAutoSync(eventId);
       } catch (err) {
-        syncStatus.set(eventId, { lastSyncTime: syncStatus.get(eventId)?.lastSyncTime || null, syncing: false });
+        const s = syncStatus.get(eventId)!;
+        syncStatus.set(eventId, { ...s, syncing: false });
         console.error(`[TBA Auto-Sync] Error for event ${eventId}:`, err);
       }
     }, 5 * 60 * 1000);
     autoSyncIntervals.set(eventId, interval);
-    console.log(`[TBA Auto-Sync] Started for event ${eventId}`);
+
+    const expiryTimeout = setTimeout(() => expireAutoSync(eventId), AUTO_SYNC_DURATION);
+    autoSyncExpiry.set(eventId, expiryTimeout);
+
+    console.log(`[TBA Auto-Sync] Started for event ${eventId} (expires in 3h)`);
   }
 
   function stopAutoSync(eventId: number) {
@@ -389,8 +414,17 @@ export async function registerRoutes(
     if (interval) {
       clearInterval(interval);
       autoSyncIntervals.delete(eventId);
-      console.log(`[TBA Auto-Sync] Stopped for event ${eventId}`);
     }
+    const expiry = autoSyncExpiry.get(eventId);
+    if (expiry) {
+      clearTimeout(expiry);
+      autoSyncExpiry.delete(eventId);
+    }
+    const s = syncStatus.get(eventId);
+    if (s) {
+      syncStatus.set(eventId, { ...s, startedAt: null, expiresAt: null });
+    }
+    console.log(`[TBA Auto-Sync] Stopped for event ${eventId}`);
   }
 
   async function initAutoSync() {
@@ -400,6 +434,16 @@ export async function registerRoutes(
         startAutoSync(event.id);
       }
     }
+  }
+
+  function getManualSyncRemaining(eventId: number): { allowed: boolean; remaining: number; resetsAt: number | null } {
+    const now = Date.now();
+    const log = manualSyncLog.get(eventId) || [];
+    const recent = log.filter(t => now - t < MANUAL_SYNC_WINDOW);
+    manualSyncLog.set(eventId, recent);
+    const remaining = MANUAL_SYNC_LIMIT - recent.length;
+    const resetsAt = recent.length > 0 ? recent[0] + MANUAL_SYNC_WINDOW : null;
+    return { allowed: remaining > 0, remaining: Math.max(remaining, 0), resetsAt };
   }
 
   app.patch("/api/events/:id/settings", async (req, res) => {
@@ -417,16 +461,47 @@ export async function registerRoutes(
     res.json(event);
   });
 
+  app.post("/api/events/:id/tba/manual-sync", async (req, res) => {
+    const id = parseInt(req.params.id);
+    const event = await storage.getEvent(id);
+    if (!event || !event.tbaEventKey) return res.status(400).json({ message: "No TBA event key configured" });
+
+    const rateInfo = getManualSyncRemaining(id);
+    if (!rateInfo.allowed) {
+      return res.status(429).json({ message: "Manual sync limit reached (3 per 15 min)", resetsAt: rateInfo.resetsAt });
+    }
+
+    const log = manualSyncLog.get(id) || [];
+    log.push(Date.now());
+    manualSyncLog.set(id, log);
+
+    try {
+      const s = syncStatus.get(id) || { lastSyncTime: null, syncing: false, startedAt: null, expiresAt: null };
+      syncStatus.set(id, { ...s, syncing: true });
+      await runSync(id);
+      const updated = getManualSyncRemaining(id);
+      res.json({ success: true, remaining: updated.remaining, resetsAt: updated.resetsAt });
+    } catch (err: any) {
+      const s = syncStatus.get(id)!;
+      syncStatus.set(id, { ...s, syncing: false });
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/events/:id/tba/sync-status", async (req, res) => {
     const id = parseInt(req.params.id);
     const event = await storage.getEvent(id);
     if (!event) return res.sendStatus(404);
     const status = syncStatus.get(id);
+    const rateInfo = getManualSyncRemaining(id);
     res.json({
       connected: !!event.tbaEventKey,
       autoSync: event.tbaAutoSync,
       syncing: status?.syncing || false,
       lastSyncTime: status?.lastSyncTime || null,
+      expiresAt: status?.expiresAt || null,
+      manualSyncsRemaining: rateInfo.remaining,
+      manualSyncResetsAt: rateInfo.resetsAt,
     });
   });
 

@@ -10,8 +10,40 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Settings, RefreshCw, CheckCircle2, XCircle, Loader2, Zap, Image, BarChart3, Trophy, Video } from "lucide-react";
+import { Settings, RefreshCw, CheckCircle2, XCircle, Loader2, Zap, Image, BarChart3, Trophy, Video, Clock, Timer } from "lucide-react";
 import type { Event } from "@shared/schema";
+
+function AutoSyncTimer({ expiresAt }: { expiresAt: number | null }) {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [expiresAt]);
+
+  if (!expiresAt) return null;
+
+  const remaining = Math.max(0, expiresAt - now);
+  if (remaining === 0) return (
+    <div className="flex items-center gap-2 text-sm text-orange-500 bg-orange-500/10 rounded-md px-3 py-2">
+      <Timer className="h-4 w-4 shrink-0" />
+      <span className="font-medium">Auto-sync expired — re-enable to continue</span>
+    </div>
+  );
+
+  const hours = Math.floor(remaining / 3_600_000);
+  const mins = Math.floor((remaining % 3_600_000) / 60_000);
+  const secs = Math.floor((remaining % 60_000) / 1000);
+  const timeStr = hours > 0 ? `${hours}h ${mins}m ${secs}s` : mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+
+  return (
+    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/30 rounded-md px-3 py-2">
+      <Clock className="h-4 w-4 shrink-0 text-primary" />
+      <span><span className="font-semibold text-foreground">{timeStr}</span> remaining</span>
+    </div>
+  );
+}
 
 export default function EventSettings() {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +52,16 @@ export default function EventSettings() {
 
   const { data: event, isLoading } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
+  });
+
+  const { data: syncStatusData } = useQuery<{ expiresAt: number | null; autoSync: boolean }>({
+    queryKey: ["/api/events", eventId, "tba", "sync-status"],
+    queryFn: async () => {
+      const res = await fetch(`/api/events/${eventId}/tba/sync-status`);
+      if (!res.ok) return { expiresAt: null, autoSync: false };
+      return res.json();
+    },
+    refetchInterval: 10000,
   });
 
   const [tbaEventKey, setTbaEventKey] = useState("");
@@ -200,20 +242,25 @@ export default function EventSettings() {
             )}
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-border p-4 bg-card">
-            <div className="space-y-0.5">
-              <Label htmlFor="auto-sync" className="text-sm font-semibold cursor-pointer">Auto-Sync</Label>
-              <p className="text-xs text-muted-foreground">
-                Pull results, videos, and OPRs every 5 minutes
-              </p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between rounded-lg border border-border p-4 bg-card">
+              <div className="space-y-0.5">
+                <Label htmlFor="auto-sync" className="text-sm font-semibold cursor-pointer">Auto-Sync</Label>
+                <p className="text-xs text-muted-foreground">
+                  Pull results, videos, and OPRs every 5 min for 3 hours
+                </p>
+              </div>
+              <Switch
+                id="auto-sync"
+                checked={tbaAutoSync}
+                onCheckedChange={setTbaAutoSync}
+                disabled={!tbaEventKey.trim()}
+                data-testid="switch-auto-sync"
+              />
             </div>
-            <Switch
-              id="auto-sync"
-              checked={tbaAutoSync}
-              onCheckedChange={setTbaAutoSync}
-              disabled={!tbaEventKey.trim()}
-              data-testid="switch-auto-sync"
-            />
+            {syncStatusData?.autoSync && syncStatusData.expiresAt && (
+              <AutoSyncTimer expiresAt={syncStatusData.expiresAt} />
+            )}
           </div>
 
           <Button
