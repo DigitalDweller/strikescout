@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Upload, CalendarDays, Search, Video } from "lucide-react";
+import { Upload, CalendarDays, Search, Video, Trophy } from "lucide-react";
 import type { Event, ScheduleMatch, Team } from "@shared/schema";
 
 export default function Schedule() {
@@ -221,6 +221,7 @@ export default function Schedule() {
                     <TableHead className="text-center text-sm font-bold text-blue-500 dark:text-blue-400">Blue 1</TableHead>
                     <TableHead className="text-center text-sm font-bold text-blue-500 dark:text-blue-400">Blue 2</TableHead>
                     <TableHead className="text-center text-sm font-bold text-blue-500 dark:text-blue-400">Blue 3</TableHead>
+                    <TableHead className="w-16 text-center text-sm font-bold">Result</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -266,6 +267,23 @@ export default function Schedule() {
                       </TableCell>
                       <TableCell className="text-center bg-blue-500/5">
                         <TeamBadge teamNum={match.blue3} alliance="blue" />
+                      </TableCell>
+                      <TableCell className="text-center" data-testid={`text-result-${match.matchNumber}`}>
+                        {match.winningAlliance === "red" ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-red-500 dark:text-red-400">
+                            <Trophy className="h-3 w-3 text-yellow-500" />
+                            Red
+                          </span>
+                        ) : match.winningAlliance === "blue" ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-500 dark:text-blue-400">
+                            <Trophy className="h-3 w-3 text-yellow-500" />
+                            Blue
+                          </span>
+                        ) : match.redScore != null && match.blueScore != null ? (
+                          <span className="text-xs font-bold text-muted-foreground">Tie</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

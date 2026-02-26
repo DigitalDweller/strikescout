@@ -41,7 +41,7 @@ export default function MatchDetail() {
   const hasScores = match?.redScore != null && match?.blueScore != null;
   const redWon = match?.winningAlliance === "red";
   const blueWon = match?.winningAlliance === "blue";
-  const isTie = hasScores && match?.redScore === match?.blueScore;
+  const isTie = hasScores && !redWon && !blueWon;
 
   const formatTime = (time: string | null) => {
     if (!time) return "";
@@ -60,6 +60,11 @@ export default function MatchDetail() {
     if (url.includes("youtu.be/")) return url.split("youtu.be/")[1]?.split("?")[0];
     return url.split("/").pop();
   };
+
+  const winnerFr = hasScores && (redWon || blueWon) ? "3fr" : "1fr";
+  const loserFr = hasScores && (redWon || blueWon) ? "2fr" : "1fr";
+  const redFr = redWon ? winnerFr : loserFr;
+  const blueFr = blueWon ? winnerFr : loserFr;
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-3xl mx-auto">
@@ -93,35 +98,40 @@ export default function MatchDetail() {
       ) : (
         <div className="space-y-4">
           {match.videoUrl && (match.videoUrl.includes("youtube.com") || match.videoUrl.includes("youtu.be")) && (
-            <div className="aspect-video rounded-lg overflow-hidden bg-black max-h-[280px]">
-              <iframe
-                src={`https://www.youtube.com/embed/${getYoutubeId(match.videoUrl)}`}
-                className="w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                title={`Match ${matchNum} Video`}
-              />
+            <div className="flex justify-center">
+              <div className="w-full max-w-lg aspect-video rounded-lg overflow-hidden bg-black">
+                <iframe
+                  src={`https://www.youtube.com/embed/${getYoutubeId(match.videoUrl)}`}
+                  className="w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title={`Match ${matchNum} Video`}
+                />
+              </div>
             </div>
           )}
 
           {match.videoUrl && !(match.videoUrl.includes("youtube.com") || match.videoUrl.includes("youtu.be")) && (
-            <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary hover:underline text-sm font-medium" data-testid="link-match-video">
+            <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 text-primary hover:underline text-sm font-medium" data-testid="link-match-video">
               <Video className="h-4 w-4" />
               Watch Match Video
             </a>
           )}
 
-          <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-0 rounded-xl overflow-hidden border border-border">
-            <div className={`p-4 ${redWon ? "bg-red-500/10 dark:bg-red-500/15" : "bg-red-500/5 dark:bg-red-500/8"}`}>
+          <div
+            className="grid items-stretch gap-0 rounded-xl overflow-hidden border border-border transition-all duration-300"
+            style={{ gridTemplateColumns: `${redFr} auto ${blueFr}` }}
+          >
+            <div className={`p-4 transition-all duration-300 ${redWon ? "bg-red-500/15 dark:bg-red-500/20" : hasScores && blueWon ? "bg-red-500/3 dark:bg-red-500/5 opacity-75" : "bg-red-500/5 dark:bg-red-500/8"}`}>
               <div className="flex items-center gap-2 mb-3">
-                {redWon && <Trophy className="h-4 w-4 text-yellow-500" />}
-                <p className={`text-sm font-bold uppercase tracking-wide ${redWon ? "text-red-600 dark:text-red-400" : "text-red-500/70 dark:text-red-400/70"}`}>
+                {redWon && <Trophy className="h-5 w-5 text-yellow-500" />}
+                <p className={`text-sm font-bold uppercase tracking-wide ${redWon ? "text-red-600 dark:text-red-400" : "text-red-500/60 dark:text-red-400/50"}`}>
                   Red Alliance
                 </p>
               </div>
 
               {hasScores && (
-                <p className={`text-5xl font-extrabold tabular-nums mb-4 ${redWon ? "text-red-600 dark:text-red-400" : "text-red-500/60 dark:text-red-400/60"}`} data-testid="text-red-score">
+                <p className={`font-extrabold tabular-nums mb-4 ${redWon ? "text-5xl text-red-600 dark:text-red-400" : "text-3xl text-red-500/40 dark:text-red-400/40"}`} data-testid="text-red-score">
                   {match.redScore}
                 </p>
               )}
@@ -135,11 +145,11 @@ export default function MatchDetail() {
                         <img
                           src={team?.avatar || placeholderAvatar}
                           alt=""
-                          className="w-8 h-8 rounded-full border border-border object-cover bg-white shrink-0"
+                          className={`rounded-full border border-border object-cover bg-white shrink-0 ${redWon ? "w-9 h-9" : "w-7 h-7"}`}
                         />
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-foreground leading-tight">{num}</p>
-                          <p className="text-xs text-muted-foreground truncate">{team?.teamName || "Unknown"}</p>
+                          <p className={`font-bold text-foreground leading-tight ${redWon ? "text-sm" : "text-xs"} ${!redWon && hasScores && blueWon ? "text-foreground/60" : ""}`}>{num}</p>
+                          <p className={`text-muted-foreground truncate ${redWon ? "text-xs" : "text-[11px]"}`}>{team?.teamName || "Unknown"}</p>
                         </div>
                       </div>
                     </Link>
@@ -155,16 +165,16 @@ export default function MatchDetail() {
               )}
             </div>
 
-            <div className={`p-4 ${blueWon ? "bg-blue-500/10 dark:bg-blue-500/15" : "bg-blue-500/5 dark:bg-blue-500/8"}`}>
+            <div className={`p-4 transition-all duration-300 ${blueWon ? "bg-blue-500/15 dark:bg-blue-500/20" : hasScores && redWon ? "bg-blue-500/3 dark:bg-blue-500/5 opacity-75" : "bg-blue-500/5 dark:bg-blue-500/8"}`}>
               <div className="flex items-center gap-2 mb-3">
-                {blueWon && <Trophy className="h-4 w-4 text-yellow-500" />}
-                <p className={`text-sm font-bold uppercase tracking-wide ${blueWon ? "text-blue-600 dark:text-blue-400" : "text-blue-500/70 dark:text-blue-400/70"}`}>
+                {blueWon && <Trophy className="h-5 w-5 text-yellow-500" />}
+                <p className={`text-sm font-bold uppercase tracking-wide ${blueWon ? "text-blue-600 dark:text-blue-400" : "text-blue-500/60 dark:text-blue-400/50"}`}>
                   Blue Alliance
                 </p>
               </div>
 
               {hasScores && (
-                <p className={`text-5xl font-extrabold tabular-nums mb-4 ${blueWon ? "text-blue-600 dark:text-blue-400" : "text-blue-500/60 dark:text-blue-400/60"}`} data-testid="text-blue-score">
+                <p className={`font-extrabold tabular-nums mb-4 ${blueWon ? "text-5xl text-blue-600 dark:text-blue-400" : "text-3xl text-blue-500/40 dark:text-blue-400/40"}`} data-testid="text-blue-score">
                   {match.blueScore}
                 </p>
               )}
@@ -178,11 +188,11 @@ export default function MatchDetail() {
                         <img
                           src={team?.avatar || placeholderAvatar}
                           alt=""
-                          className="w-8 h-8 rounded-full border border-border object-cover bg-white shrink-0"
+                          className={`rounded-full border border-border object-cover bg-white shrink-0 ${blueWon ? "w-9 h-9" : "w-7 h-7"}`}
                         />
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-foreground leading-tight">{num}</p>
-                          <p className="text-xs text-muted-foreground truncate">{team?.teamName || "Unknown"}</p>
+                          <p className={`font-bold text-foreground leading-tight ${blueWon ? "text-sm" : "text-xs"} ${!blueWon && hasScores && redWon ? "text-foreground/60" : ""}`}>{num}</p>
+                          <p className={`text-muted-foreground truncate ${blueWon ? "text-xs" : "text-[11px]"}`}>{team?.teamName || "Unknown"}</p>
                         </div>
                       </div>
                     </Link>
