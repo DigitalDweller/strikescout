@@ -40,6 +40,32 @@ function getHeatColor(value: number, min: number, max: number) {
   return "bg-red-500/20 text-red-700 dark:text-red-300";
 }
 
+function getDominantColor(colors: string[]): string {
+  const validColors = colors.filter(c => c !== "");
+  if (validColors.length === 0) return "";
+
+  const scores: Record<string, number> = {};
+  for (const c of validColors) {
+    if (c.includes("yellow-500/20")) scores["yellow"] = (scores["yellow"] || 0) + 3;
+    else if (c.includes("yellow-500/10")) scores["yellow"] = (scores["yellow"] || 0) + 2;
+    else if (c.includes("green-500/20")) scores["green"] = (scores["green"] || 0) + 2;
+    else if (c.includes("green-500/10")) scores["green"] = (scores["green"] || 0) + 1;
+    else if (c.includes("red-500/20")) scores["red"] = (scores["red"] || 0) + 2;
+    else if (c.includes("red-500/10")) scores["red"] = (scores["red"] || 0) + 1;
+  }
+
+  let best = "";
+  let bestScore = 0;
+  for (const [color, score] of Object.entries(scores)) {
+    if (score > bestScore) { best = color; bestScore = score; }
+  }
+
+  if (best === "yellow") return "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300";
+  if (best === "green") return "bg-green-500/10 text-green-700 dark:text-green-300";
+  if (best === "red") return "bg-red-500/10 text-red-700 dark:text-red-300";
+  return "";
+}
+
 export default function TeamList() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id || "0");
@@ -288,41 +314,37 @@ export default function TeamList() {
                     const defenseColor = hasData && statRanges ? getHeatColor(stats!.avgDefense, statRanges.defense.min, statRanges.defense.max) : "";
                     const climbColor = hasData && statRanges ? getHeatColor(stats!.climbRate, statRanges.climb.min, statRanges.climb.max) : "";
 
+                    const oprColorVal = opr != null && tbaRanges?.opr ? getHeatColor(opr, tbaRanges.opr.min, tbaRanges.opr.max) : "";
+                    const rpColorVal = rp != null && tbaRanges?.rp ? getHeatColor(rp, tbaRanges.rp.min, tbaRanges.rp.max) : "";
+                    const seedColorVal = seed != null && tbaRanges?.seed ? getHeatColor(tbaRanges.seed.max - seed + tbaRanges.seed.min, tbaRanges.seed.min, tbaRanges.seed.max) : "";
+                    const dominant = getDominantColor([oprColorVal, rpColorVal, seedColorVal, autoColor, throughputColor, accuracyColor, defenseColor, climbColor]);
+
                     return (
                       <TableRow key={team.id} data-testid={`row-team-${team.id}`} className="h-12 cursor-pointer hover:bg-accent/50" onClick={() => navigate(`/events/${eventId}/teams/${team.id}`)}>
-                        <TableCell>
+                        <TableCell className={dominant}>
                           <div className="flex items-center gap-2">
                             <img src={team.avatar || placeholderAvatar} alt="" className="w-7 h-7 rounded-full border border-border object-cover bg-white shrink-0" />
-                            <span className="font-bold text-base text-primary">
+                            <span className="font-bold text-base">
                               {team.teamNumber}
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-semibold text-base">{team.teamName}</TableCell>
-                        {hasTbaData && (() => {
-                          const oprColor = opr != null && tbaRanges?.opr ? getHeatColor(opr, tbaRanges.opr.min, tbaRanges.opr.max) : "";
-                          return (
-                            <TableCell className={`text-center font-bold text-base ${oprColor}`} data-testid={`stat-opr-${team.id}`}>
-                              {opr != null ? opr.toFixed(1) : <span className="text-muted-foreground/40">-</span>}
-                            </TableCell>
-                          );
-                        })()}
-                        {hasTbaData && (() => {
-                          const rpColor = rp != null && tbaRanges?.rp ? getHeatColor(rp, tbaRanges.rp.min, tbaRanges.rp.max) : "";
-                          return (
-                            <TableCell className={`text-center font-bold text-base ${rpColor}`} data-testid={`stat-rp-${team.id}`}>
-                              {rp != null ? rp.toFixed(2) : <span className="text-muted-foreground/40">-</span>}
-                            </TableCell>
-                          );
-                        })()}
-                        {hasTbaData && (() => {
-                          const seedColor = seed != null && tbaRanges?.seed ? getHeatColor(tbaRanges.seed.max - seed + tbaRanges.seed.min, tbaRanges.seed.min, tbaRanges.seed.max) : "";
-                          return (
-                            <TableCell className={`text-center font-bold text-base ${seedColor}`} data-testid={`stat-seed-${team.id}`}>
-                              {seed != null ? `#${seed}` : <span className="text-muted-foreground/40">-</span>}
-                            </TableCell>
-                          );
-                        })()}
+                        <TableCell className={`font-semibold text-base ${dominant}`}>{team.teamName}</TableCell>
+                        {hasTbaData && (
+                          <TableCell className={`text-center font-bold text-base ${oprColorVal}`} data-testid={`stat-opr-${team.id}`}>
+                            {opr != null ? opr.toFixed(1) : <span className="text-muted-foreground/40">-</span>}
+                          </TableCell>
+                        )}
+                        {hasTbaData && (
+                          <TableCell className={`text-center font-bold text-base ${rpColorVal}`} data-testid={`stat-rp-${team.id}`}>
+                            {rp != null ? rp.toFixed(2) : <span className="text-muted-foreground/40">-</span>}
+                          </TableCell>
+                        )}
+                        {hasTbaData && (
+                          <TableCell className={`text-center font-bold text-base ${seedColorVal}`} data-testid={`stat-seed-${team.id}`}>
+                            {seed != null ? `#${seed}` : <span className="text-muted-foreground/40">-</span>}
+                          </TableCell>
+                        )}
                         <TableCell className={`text-center font-bold text-base ${autoColor}`} data-testid={`stat-auto-${team.id}`}>
                           {autoVal}
                         </TableCell>
