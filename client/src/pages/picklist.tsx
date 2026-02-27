@@ -1,4 +1,5 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,14 +42,58 @@ function getRowBorderColor(value: number, min: number, max: number) {
   return "border-l-red-500";
 }
 
+function DragPreview({ team, avatar, mousePos }: { team: { teamNumber: number; teamName: string }; avatar: string; mousePos: { x: number; y: number } }) {
+  return createPortal(
+    <div
+      className="fixed pointer-events-none z-[9999] flex items-center gap-2 px-3 py-2 rounded-lg shadow-xl border border-border/50 bg-background/95 backdrop-blur-sm"
+      style={{ left: mousePos.x + 12, top: mousePos.y - 16 }}
+    >
+      <img
+        src={avatar || placeholderAvatar}
+        alt=""
+        className="w-7 h-7 rounded-full border border-border object-cover bg-white shrink-0"
+      />
+      <span className="font-bold text-sm whitespace-nowrap">
+        {team.teamNumber} - {team.teamName}
+      </span>
+    </div>,
+    document.body
+  );
+}
+
 export default function Picklist() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id!);
   const [search, setSearch] = useState("");
   const [dragSource, setDragSource] = useState<DragSource | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
-  const [dragOverPanel, setDragOverPanel] = useState<"picklist" | null>(null);
+  const [dragOverPanel, setDragOverPanel] = useState<"picklist" | "available" | null>(null);
   const dragSourceRef = useRef<DragSource | null>(null);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [draggedTeam, setDraggedTeam] = useState<{ teamNumber: number; teamName: string; avatar: string } | null>(null);
+  const emptyImg = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    const img = new Image();
+    img.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+    emptyImg.current = img;
+  }, []);
+
+  useEffect(() => {
+    if (!draggedTeam) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePos({ x: e.clientX, y: e.clientY });
+    };
+    const handleDragOver = (e: DragEvent) => {
+      setMousePos({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("dragover", handleDragOver);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("dragover", handleDragOver);
+    };
+  }, [draggedTeam]);
 
   const { data: eventTeams, isLoading: teamsLoading } = useQuery<EventTeamWithTeam[]>({
     queryKey: ["/api/events", eventId, "teams"],
@@ -113,14 +158,28 @@ export default function Picklist() {
     await updatePicklist(currentIds.filter(id => id !== teamId));
   }, [picklist, updatePicklist]);
 
+  const findTeamInfo = useCallback((source: DragSource) => {
+    if (source.type === "available") {
+      const et = eventTeams?.find(e => e.teamId === source.teamId);
+      if (et) return { teamNumber: et.team.teamNumber, teamName: et.team.teamName, avatar: et.team.avatar || "" };
+    } else if (source.type === "picklist" && picklist) {
+      const entry = picklist[source.idx];
+      if (entry) return { teamNumber: entry.team.teamNumber, teamName: entry.team.teamName, avatar: entry.team.avatar || "" };
+    }
+    return null;
+  }, [eventTeams, picklist]);
+
   const handleDragStart = (source: DragSource, e: React.DragEvent) => {
     setDragSource(source);
     dragSourceRef.current = source;
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", JSON.stringify(source));
-    if (e.currentTarget instanceof HTMLElement) {
-      e.dataTransfer.setDragImage(e.currentTarget, 0, 0);
+    if (emptyImg.current) {
+      e.dataTransfer.setDragImage(emptyImg.current, 0, 0);
     }
+    setMousePos({ x: e.clientX, y: e.clientY });
+    const info = findTeamInfo(source);
+    if (info) setDraggedTeam(info);
   };
 
   const handlePicklistDragOver = (e: React.DragEvent, idx: number) => {
@@ -134,6 +193,27 @@ export default function Picklist() {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     setDragOverPanel("picklist");
+  };
+
+  const handleAvailablePanelDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverPanel("available");
+    setDragOverIdx(null);
+  };
+
+  const handleAvailablePanelDrop = async () => {
+    const src = dragSourceRef.current;
+    if (!src) return;
+    if (src.type === "picklist" && picklist) {
+      const teamId = picklist[src.idx]?.teamId;
+      if (teamId) {
+        resetDrag();
+        await removeTeam(teamId);
+        return;
+      }
+    }
+    resetDrag();
   };
 
   const handlePicklistDrop = async (idx: number) => {
@@ -168,6 +248,7 @@ export default function Picklist() {
     setDragSource(null);
     setDragOverIdx(null);
     setDragOverPanel(null);
+    setDraggedTeam(null);
     dragSourceRef.current = null;
   };
 
@@ -201,6 +282,8 @@ export default function Picklist() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 max-w-6xl mx-auto">
+      {draggedTeam && <DragPreview team={draggedTeam} avatar={draggedTeam.avatar} mousePos={mousePos} />}
+
       <div>
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2" data-testid="text-picklist-title">
           <ListOrdered className="h-7 w-7" />
@@ -212,7 +295,13 @@ export default function Picklist() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card className="md:col-span-2 flex flex-col" data-testid="panel-available">
+        <Card
+          className={`md:col-span-2 flex flex-col transition-colors ${dragOverPanel === "available" && dragSource?.type === "picklist" ? "ring-2 ring-primary/30" : ""}`}
+          data-testid="panel-available"
+          onDragOver={handleAvailablePanelDragOver}
+          onDragLeave={e => { if (e.currentTarget && !e.currentTarget.contains(e.relatedTarget as Node)) { if (dragOverPanel === "available") { setDragOverPanel(null); } } }}
+          onDrop={e => { e.preventDefault(); handleAvailablePanelDrop(); }}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-bold">Available Teams</CardTitle>
             <div className="relative mt-1">
@@ -228,11 +317,15 @@ export default function Picklist() {
           </CardHeader>
           <CardContent className="flex-1 overflow-auto max-h-[60vh] space-y-0.5 pt-0 custom-scrollbar">
             {availableTeams.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">
-                {picklistTeamIds.size === (eventTeams?.length || 0)
-                  ? "All teams have been added"
-                  : "No teams match your search"}
-              </p>
+              <div className={`text-center py-6 rounded-lg transition-colors ${dragOverPanel === "available" && dragSource?.type === "picklist" ? "border-2 border-dashed border-primary/50 bg-primary/5" : ""}`}>
+                <p className="text-sm text-muted-foreground">
+                  {dragOverPanel === "available" && dragSource?.type === "picklist"
+                    ? "Drop here to remove from picklist"
+                    : picklistTeamIds.size === (eventTeams?.length || 0)
+                      ? "All teams have been added"
+                      : "No teams match your search"}
+                </p>
+              </div>
             ) : (
               availableTeams.map(et => {
                 const rank = (et as any).rank;
@@ -280,7 +373,7 @@ export default function Picklist() {
           className={`md:col-span-3 flex flex-col transition-colors ${dragOverPanel === "picklist" && dragSource?.type === "available" ? "ring-2 ring-primary/30" : ""}`}
           data-testid="panel-picklist"
           onDragOver={handlePicklistPanelDragOver}
-          onDragLeave={e => { if (e.currentTarget && !e.currentTarget.contains(e.relatedTarget as Node)) { setDragOverPanel(null); setDragOverIdx(null); } }}
+          onDragLeave={e => { if (e.currentTarget && !e.currentTarget.contains(e.relatedTarget as Node)) { if (dragOverPanel === "picklist") { setDragOverPanel(null); setDragOverIdx(null); } } }}
           onDrop={e => { e.preventDefault(); handlePicklistPanelDrop(); }}
         >
           <CardHeader className="pb-2">
