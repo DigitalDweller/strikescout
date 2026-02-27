@@ -192,8 +192,8 @@ export function AppSidebar({ eventId }: { eventId: number }) {
           { label: "Scouting", items: scoutingItems },
           { label: "Manage", items: manageItems },
         ].map(section => (
-          <SidebarGroup key={section.label}>
-            <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+          <SidebarGroup key={section.label} className="py-1">
+            <SidebarGroupLabel className="h-6">{section.label}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {section.items.map((item) => {
