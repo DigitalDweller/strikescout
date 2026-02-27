@@ -31,8 +31,10 @@ function getHeatColor(value: number, min: number, max: number) {
   if (max === min) return "";
   const norm = (value - min) / (max - min);
 
-  if (norm >= 0.8) return "bg-green-500/20 text-green-700 dark:text-green-300";
-  if (norm >= 0.6) return "bg-green-500/10 text-green-600 dark:text-green-400";
+  if (norm >= 0.95) return "bg-yellow-500/20 text-yellow-700 dark:text-yellow-300";
+  if (norm >= 0.85) return "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400";
+  if (norm >= 0.7) return "bg-green-500/20 text-green-700 dark:text-green-300";
+  if (norm >= 0.55) return "bg-green-500/10 text-green-600 dark:text-green-400";
   if (norm >= 0.4) return "";
   if (norm >= 0.2) return "bg-red-500/10 text-red-600 dark:text-red-400";
   return "bg-red-500/20 text-red-700 dark:text-red-300";
