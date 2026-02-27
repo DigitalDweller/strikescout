@@ -24,7 +24,7 @@ import {
 import { Search, ArrowUpDown, List } from "lucide-react";
 import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
 
-type SortField = "teamNumber" | "teamName" | "avgAuto" | "avgThroughput" | "avgAccuracy" | "avgDefense" | "climbRate" | "entries";
+type SortField = "teamNumber" | "teamName" | "opr" | "rankingPoints" | "rank" | "avgAuto" | "avgThroughput" | "avgAccuracy" | "avgDefense" | "climbRate" | "entries";
 type SortDir = "asc" | "desc";
 
 function getHeatColor(value: number, min: number, max: number) {
@@ -67,6 +67,21 @@ export default function TeamList() {
 
   const teams = eventTeams ? eventTeams.map(et => et.team) : [];
   const isLoading = teamsLoading;
+
+  const eventTeamMap = useMemo(() => {
+    const map = new Map<number, EventTeam & { team: Team }>();
+    if (eventTeams) {
+      for (const et of eventTeams) {
+        map.set(et.teamId, et);
+      }
+    }
+    return map;
+  }, [eventTeams]);
+
+  const hasTbaData = useMemo(() => {
+    if (!eventTeams) return false;
+    return eventTeams.some(et => (et as any).opr != null || (et as any).rankingPoints != null);
+  }, [eventTeams]);
 
   const teamStats = useMemo(() => {
     if (!entries || !teams) return new Map();
@@ -125,6 +140,9 @@ export default function TeamList() {
       switch (sortField) {
         case "teamNumber": valA = a.teamNumber; valB = b.teamNumber; break;
         case "teamName": valA = a.teamName.toLowerCase(); valB = b.teamName.toLowerCase(); break;
+        case "opr": valA = (eventTeamMap.get(a.id) as any)?.opr || 0; valB = (eventTeamMap.get(b.id) as any)?.opr || 0; break;
+        case "rankingPoints": valA = (eventTeamMap.get(a.id) as any)?.rankingPoints || 0; valB = (eventTeamMap.get(b.id) as any)?.rankingPoints || 0; break;
+        case "rank": valA = (eventTeamMap.get(a.id) as any)?.rank || 999; valB = (eventTeamMap.get(b.id) as any)?.rank || 999; break;
         case "avgAuto": valA = teamStats.get(a.id)?.avgAuto || 0; valB = teamStats.get(b.id)?.avgAuto || 0; break;
         case "avgThroughput": valA = teamStats.get(a.id)?.avgThroughput || 0; valB = teamStats.get(b.id)?.avgThroughput || 0; break;
         case "avgAccuracy": valA = teamStats.get(a.id)?.avgAccuracy || 0; valB = teamStats.get(b.id)?.avgAccuracy || 0; break;
@@ -140,7 +158,7 @@ export default function TeamList() {
     });
 
     return list;
-  }, [teams, search, sortField, sortDir, teamStats]);
+  }, [teams, search, sortField, sortDir, teamStats, eventTeamMap]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -192,6 +210,9 @@ export default function TeamList() {
           <SelectContent>
             <SelectItem value="teamNumber">Team Number</SelectItem>
             <SelectItem value="teamName">Team Name</SelectItem>
+            {hasTbaData && <SelectItem value="opr">OPR</SelectItem>}
+            {hasTbaData && <SelectItem value="rankingPoints">Ranking Points</SelectItem>}
+            {hasTbaData && <SelectItem value="rank">Seed</SelectItem>}
             <SelectItem value="avgAuto">Avg Auto</SelectItem>
             <SelectItem value="avgThroughput">Throughput</SelectItem>
             <SelectItem value="avgAccuracy">Avg Accuracy</SelectItem>
@@ -222,6 +243,9 @@ export default function TeamList() {
                   <TableRow>
                     <SortableHeader field="teamNumber">#</SortableHeader>
                     <SortableHeader field="teamName">Name</SortableHeader>
+                    {hasTbaData && <SortableHeader field="opr">OPR</SortableHeader>}
+                    {hasTbaData && <SortableHeader field="rankingPoints">RP</SortableHeader>}
+                    {hasTbaData && <SortableHeader field="rank">Seed</SortableHeader>}
                     <SortableHeader field="avgAuto">Auto</SortableHeader>
                     <SortableHeader field="avgThroughput">Throughput</SortableHeader>
                     <SortableHeader field="avgAccuracy">Accuracy</SortableHeader>
@@ -232,6 +256,10 @@ export default function TeamList() {
                 <TableBody>
                   {filteredTeams.map(team => {
                     const stats = teamStats.get(team.id);
+                    const et = eventTeamMap.get(team.id);
+                    const opr = (et as any)?.opr;
+                    const rp = (et as any)?.rankingPoints;
+                    const seed = (et as any)?.rank;
                     const hasData = (stats?.entries || 0) > 0;
                     const autoVal = parseFloat((stats?.avgAuto || 0).toFixed(1));
                     const throughputVal = parseFloat((stats?.avgThroughput || 0).toFixed(1));
@@ -256,6 +284,21 @@ export default function TeamList() {
                           </div>
                         </TableCell>
                         <TableCell className="font-semibold text-base">{team.teamName}</TableCell>
+                        {hasTbaData && (
+                          <TableCell className="text-center font-bold text-base text-yellow-600 dark:text-yellow-400" data-testid={`stat-opr-${team.id}`}>
+                            {opr != null ? opr.toFixed(1) : <span className="text-muted-foreground/40">-</span>}
+                          </TableCell>
+                        )}
+                        {hasTbaData && (
+                          <TableCell className="text-center font-bold text-base text-amber-600 dark:text-amber-400" data-testid={`stat-rp-${team.id}`}>
+                            {rp != null ? rp.toFixed(2) : <span className="text-muted-foreground/40">-</span>}
+                          </TableCell>
+                        )}
+                        {hasTbaData && (
+                          <TableCell className="text-center font-bold text-base" data-testid={`stat-seed-${team.id}`}>
+                            {seed != null ? `#${seed}` : <span className="text-muted-foreground/40">-</span>}
+                          </TableCell>
+                        )}
                         <TableCell className={`text-center font-bold text-base ${autoColor}`} data-testid={`stat-auto-${team.id}`}>
                           {autoVal}
                         </TableCell>

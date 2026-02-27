@@ -279,6 +279,11 @@ export default function TeamProfile() {
   });
 
   const team = teams?.find((t) => t.id === teamId);
+  const eventTeam = eventTeams?.find(et => et.teamId === teamId);
+  const tbaOpr = (eventTeam as any)?.opr;
+  const tbaRp = (eventTeam as any)?.rankingPoints;
+  const tbaSeed = (eventTeam as any)?.rank;
+  const tbaRecord = eventTeam ? `${(eventTeam as any)?.wins ?? 0}-${(eventTeam as any)?.losses ?? 0}-${(eventTeam as any)?.ties ?? 0}` : null;
 
   const avgAutoBalls = entries?.length
     ? parseFloat((entries.reduce((s, e) => s + e.autoBallsShot, 0) / entries.length).toFixed(1)).toString()
@@ -380,6 +385,34 @@ export default function TeamProfile() {
             )}
           </div>
         </div>
+        {(tbaOpr != null || tbaRp != null || tbaSeed != null) && (
+          <div className="flex flex-wrap gap-3 mt-3" data-testid="tba-stats-bar">
+            {tbaSeed != null && (
+              <div className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 bg-card">
+                <span className="text-xs font-medium text-muted-foreground uppercase">Seed</span>
+                <span className="text-lg font-extrabold">#{tbaSeed}</span>
+              </div>
+            )}
+            {tbaRp != null && (
+              <div className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 bg-card">
+                <span className="text-xs font-medium text-muted-foreground uppercase">RP</span>
+                <span className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{tbaRp.toFixed(2)}</span>
+              </div>
+            )}
+            {tbaOpr != null && (
+              <div className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 bg-card">
+                <span className="text-xs font-medium text-muted-foreground uppercase">OPR</span>
+                <span className="text-lg font-extrabold text-yellow-600 dark:text-yellow-400">{tbaOpr.toFixed(1)}</span>
+              </div>
+            )}
+            {tbaRecord && tbaRecord !== "0-0-0" && (
+              <div className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 bg-card">
+                <span className="text-xs font-medium text-muted-foreground uppercase">Record</span>
+                <span className="text-lg font-extrabold">{tbaRecord}</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {entries && entries.length > 0 && (() => {
