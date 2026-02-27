@@ -142,9 +142,9 @@ export function AppSidebar({ eventId }: { eventId: number }) {
   });
 
   const overviewItems = [
-    { title: "Leaderboards", url: `/events/${eventId}`, icon: Trophy },
-    { title: "Teams", url: `/events/${eventId}/teams`, icon: Users },
-    { title: "Schedule", url: `/events/${eventId}/schedule`, icon: CalendarDays },
+    { title: "Leaderboards", url: `/events/${eventId}`, icon: Trophy, iconClass: "text-yellow-500" },
+    { title: "Teams", url: `/events/${eventId}/teams`, icon: Users, iconClass: "text-blue-500" },
+    { title: "Schedule", url: `/events/${eventId}/schedule`, icon: CalendarDays, iconClass: "text-sky-500" },
   ];
 
   const scoutingItems = [
@@ -152,16 +152,17 @@ export function AppSidebar({ eventId }: { eventId: number }) {
       title: "Scouting Form",
       url: `/events/${eventId}/scout`,
       icon: ClipboardList,
+      iconClass: "text-emerald-500",
       children: [
-        { title: "Form History", url: `/events/${eventId}/scout/history`, icon: History },
+        { title: "Form History", url: `/events/${eventId}/scout/history`, icon: History, iconClass: "text-green-400" },
       ],
     },
-    { title: "Picklist", url: `/events/${eventId}/picklist`, icon: ListOrdered },
+    { title: "Picklist", url: `/events/${eventId}/picklist`, icon: ListOrdered, iconClass: "text-teal-500" },
   ];
 
   const manageItems = [
-    { title: "Data Management", url: `/events/${eventId}/data`, icon: Database },
-    { title: "Settings", url: `/events/${eventId}/settings`, icon: Settings },
+    { title: "Data Management", url: `/events/${eventId}/data`, icon: Database, iconClass: "text-slate-400" },
+    { title: "Settings", url: `/events/${eventId}/settings`, icon: Settings, iconClass: "text-slate-400" },
   ];
 
   return (
@@ -192,8 +193,8 @@ export function AppSidebar({ eventId }: { eventId: number }) {
           { label: "Scouting", items: scoutingItems },
           { label: "Manage", items: manageItems },
         ].map(section => (
-          <SidebarGroup key={section.label} className="py-0 px-2">
-            <SidebarGroupLabel className="h-5">{section.label}</SidebarGroupLabel>
+          <SidebarGroup key={section.label} className="py-0 px-2 gap-0">
+            <SidebarGroupLabel className="h-4 text-[10px]">{section.label}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {section.items.map((item) => {
@@ -204,7 +205,7 @@ export function AppSidebar({ eventId }: { eventId: number }) {
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild data-active={isActive || isChildActive || undefined}>
                         <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                          <item.icon className="h-4 w-4" />
+                          <item.icon className={`h-4 w-4 ${(item as any).iconClass || ""}`} />
                           <span>{item.title}</span>
                         </Link>
                       </SidebarMenuButton>
@@ -214,7 +215,7 @@ export function AppSidebar({ eventId }: { eventId: number }) {
                             <SidebarMenuSubItem key={child.title}>
                               <SidebarMenuSubButton asChild data-active={location === child.url || undefined}>
                                 <Link href={child.url} data-testid={`nav-${child.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                                  <child.icon className="h-3.5 w-3.5" />
+                                  <child.icon className={`h-3.5 w-3.5 ${child.iconClass || ""}`} />
                                   <span>{child.title}</span>
                                 </Link>
                               </SidebarMenuSubButton>
