@@ -15,6 +15,32 @@ type EventTeamWithTeam = EventTeam & { team: Team };
 
 type DragSource = { type: "available"; teamId: number } | { type: "picklist"; idx: number };
 
+function getHeatColor(value: number, min: number, max: number) {
+  if (max === min) return "";
+  const norm = (value - min) / (max - min);
+
+  if (norm >= 0.95) return "bg-yellow-500/20 text-yellow-700 dark:text-yellow-300";
+  if (norm >= 0.85) return "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400";
+  if (norm >= 0.7) return "bg-green-500/20 text-green-700 dark:text-green-300";
+  if (norm >= 0.55) return "bg-green-500/10 text-green-600 dark:text-green-400";
+  if (norm >= 0.4) return "";
+  if (norm >= 0.2) return "bg-red-500/10 text-red-600 dark:text-red-400";
+  return "bg-red-500/20 text-red-700 dark:text-red-300";
+}
+
+function getRowBorderColor(value: number, min: number, max: number) {
+  if (max === min) return "border-l-transparent";
+  const norm = (value - min) / (max - min);
+
+  if (norm >= 0.95) return "border-l-yellow-500";
+  if (norm >= 0.85) return "border-l-yellow-400";
+  if (norm >= 0.7) return "border-l-green-500";
+  if (norm >= 0.55) return "border-l-green-400";
+  if (norm >= 0.4) return "border-l-transparent";
+  if (norm >= 0.2) return "border-l-red-400";
+  return "border-l-red-500";
+}
+
 export default function Picklist() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id!);
@@ -31,6 +57,13 @@ export default function Picklist() {
   const { data: picklist, isLoading: picklistLoading } = useQuery<PicklistWithTeam[]>({
     queryKey: ["/api/events", eventId, "picklist"],
   });
+
+  const oprRange = useMemo(() => {
+    if (!eventTeams) return null;
+    const oprs = eventTeams.map(et => et.opr ?? 0).filter(v => v !== 0);
+    if (oprs.length === 0) return null;
+    return { min: Math.min(...oprs), max: Math.max(...oprs) };
+  }, [eventTeams]);
 
   const picklistTeamIds = useMemo(() => {
     return new Set(picklist?.map(p => p.teamId) || []);
@@ -142,6 +175,16 @@ export default function Picklist() {
     return eventTeams?.find(e => e.teamId === teamId);
   }, [eventTeams]);
 
+  const getTeamColor = useCallback((teamId: number) => {
+    const et = eventTeams?.find(e => e.teamId === teamId);
+    if (!et || !oprRange) return { bg: "", border: "" };
+    const opr = et.opr ?? 0;
+    return {
+      bg: getHeatColor(opr, oprRange.min, oprRange.max),
+      border: getRowBorderColor(opr, oprRange.min, oprRange.max),
+    };
+  }, [eventTeams, oprRange]);
+
   const isLoading = teamsLoading || picklistLoading;
 
   if (isLoading) {
@@ -192,16 +235,16 @@ export default function Picklist() {
               </p>
             ) : (
               availableTeams.map(et => {
-                const rp = (et as any).rankingPoints;
                 const rank = (et as any).rank;
                 const isDragging = dragSource?.type === "available" && dragSource.teamId === et.teamId;
+                const colors = getTeamColor(et.teamId);
                 return (
                   <div
                     key={et.teamId}
                     draggable
                     onDragStart={e => handleDragStart({ type: "available", teamId: et.teamId }, e)}
                     onDragEnd={resetDrag}
-                    className={`flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors group cursor-grab active:cursor-grabbing ${isDragging ? "opacity-30" : ""}`}
+                    className={`flex items-center gap-2 p-2 rounded-md transition-colors group cursor-grab active:cursor-grabbing border-l-3 ${colors.border} ${colors.bg || "hover:bg-muted/50"} ${isDragging ? "opacity-30" : ""}`}
                     data-testid={`available-team-${et.teamId}`}
                   >
                     <GripVertical className="h-4 w-4 text-muted-foreground/40 shrink-0" />
@@ -214,7 +257,6 @@ export default function Picklist() {
                       <div className="font-bold text-sm truncate">{et.team.teamNumber} - {et.team.teamName}</div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         {et.opr != null && <span>OPR: <span className="font-semibold text-foreground/80">{et.opr.toFixed(1)}</span></span>}
-                        {rp != null && <span>RP: <span className="font-semibold text-foreground/80">{rp.toFixed(1)}</span></span>}
                         {rank != null && <span>#{rank}</span>}
                       </div>
                     </div>
@@ -256,10 +298,10 @@ export default function Picklist() {
             ) : (
               picklist.map((entry, idx) => {
                 const et = getTeamEventData(entry.teamId);
-                const rp = (et as any)?.rankingPoints;
                 const tbaRank = (et as any)?.rank;
                 const isDragging = dragSource?.type === "picklist" && dragSource.idx === idx;
                 const isDragOver = dragOverIdx === idx && dragOverPanel === "picklist";
+                const colors = getTeamColor(entry.teamId);
                 return (
                   <div
                     key={entry.teamId}
@@ -268,9 +310,9 @@ export default function Picklist() {
                     onDragOver={e => handlePicklistDragOver(e, idx)}
                     onDrop={e => { e.preventDefault(); e.stopPropagation(); handlePicklistDrop(idx); }}
                     onDragEnd={resetDrag}
-                    className={`flex items-center gap-2 p-2 rounded-md transition-all cursor-grab active:cursor-grabbing ${
+                    className={`flex items-center gap-2 p-2 rounded-md transition-all cursor-grab active:cursor-grabbing border-l-3 ${colors.border} ${
                       isDragging ? "opacity-30" : ""
-                    } ${isDragOver ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50 border border-transparent"}`}
+                    } ${isDragOver ? "bg-primary/10 border border-primary/30" : `${colors.bg || "hover:bg-muted/50"} border border-transparent`}`}
                     data-testid={`picklist-row-${idx}`}
                   >
                     <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -286,7 +328,6 @@ export default function Picklist() {
                       <div className="font-bold text-sm truncate">{entry.team.teamNumber} - {entry.team.teamName}</div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         {et?.opr != null && <span>OPR: <span className="font-semibold text-foreground/80">{et.opr.toFixed(1)}</span></span>}
-                        {rp != null && <span>RP: <span className="font-semibold text-foreground/80">{rp.toFixed(1)}</span></span>}
                         {tbaRank != null && <span>#{tbaRank}</span>}
                       </div>
                     </div>
