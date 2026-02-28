@@ -3,7 +3,7 @@ import { type Server } from "http";
 import { storage } from "./storage";
 import { insertEventSchema, insertTeamSchema, insertScoutingEntrySchema } from "@shared/schema";
 import { z } from "zod";
-import { fetchMatchVideos, fetchMatchResults, getVideoUrl, validateEventKey, fetchTeamAvatars, fetchEventOPRs, fetchMatchSchedule, fetchEventRankings } from "./tba";
+import { fetchMatchVideos, fetchMatchResults, getVideoUrl, validateEventKey, fetchTeamAvatars, fetchEventOPRs, fetchMatchSchedule, fetchEventRankings, fetchEventTeams, isTbaConfigured } from "./tba";
 
 async function seedDatabase() {
   const events = await storage.getEvents();
@@ -44,7 +44,10 @@ export async function registerRoutes(
   });
 
   app.patch("/api/events/:id", async (req, res) => {
-    const event = await storage.updateEvent(parseInt(req.params.id), req.body);
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid event id" });
+    const event = await storage.updateEvent(id, req.body);
+    if (!event) return res.sendStatus(404);
     res.json(event);
   });
 
@@ -54,9 +57,13 @@ export async function registerRoutes(
   });
 
   app.post("/api/events/:id/set-active", async (req, res) => {
-    await storage.setActiveEvent(parseInt(req.params.id));
-    const event = await storage.getEvent(parseInt(req.params.id));
-    res.json(event);
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid event id" });
+    const event = await storage.getEvent(id);
+    if (!event) return res.sendStatus(404);
+    await storage.setActiveEvent(id);
+    const updated = await storage.getEvent(id);
+    res.json(updated!);
   });
 
   app.get("/api/active-event", async (_req, res) => {
@@ -108,15 +115,20 @@ export async function registerRoutes(
   });
 
   app.get("/api/events/:eventId/teams", async (req, res) => {
-    const result = await storage.getEventTeams(parseInt(req.params.eventId));
-    res.json(result);
+    const eventId = parseInt(req.params.eventId, 10);
+    if (!Number.isFinite(eventId) || eventId < 1) {
+      return res.json([]);
+    }
+    const result = await storage.getEventTeams(eventId);
+    res.json(result ?? []);
   });
 
   app.post("/api/events/:eventId/teams", async (req, res) => {
-    const eventTeam = await storage.addTeamToEvent({
-      eventId: parseInt(req.params.eventId),
-      teamId: req.body.teamId,
-    });
+    const eventId = parseInt(req.params.eventId, 10);
+    const teamId = typeof req.body?.teamId === "number" ? req.body.teamId : parseInt(req.body?.teamId, 10);
+    if (!Number.isFinite(eventId) || eventId < 1) return res.status(400).json({ message: "Invalid event id" });
+    if (!Number.isFinite(teamId) || teamId < 1) return res.status(400).json({ message: "teamId required and must be a positive number" });
+    const eventTeam = await storage.addTeamToEvent({ eventId, teamId });
     res.status(201).json(eventTeam);
   });
 
@@ -139,8 +151,10 @@ export async function registerRoutes(
   });
 
   app.patch("/api/entries/:id", async (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid entry id" });
     const updated = await storage.updateScoutingEntry(id, req.body);
+    if (!updated) return res.sendStatus(404);
     res.json(updated);
   });
 
@@ -172,23 +186,36 @@ export async function registerRoutes(
   });
 
   app.get("/api/events/:eventId/schedule", async (req, res) => {
-    const schedule = await storage.getScheduleByEvent(parseInt(req.params.eventId));
-    res.json(schedule);
+    const eventId = parseInt(req.params.eventId, 10);
+    if (!Number.isFinite(eventId) || eventId < 1) {
+      return res.json([]);
+    }
+    const schedule = await storage.getScheduleByEvent(eventId);
+    res.json(schedule ?? []);
   });
 
 
   app.post("/api/events/:eventId/tba/validate", async (req, res) => {
+    if (!isTbaConfigured()) return res.status(503).json({ message: "TBA API key not configured. Add TBA_API_KEY to your .env file." });
+    const eventId = parseInt(req.params.eventId);
     const { eventKey } = req.body;
     if (!eventKey) return res.status(400).json({ message: "eventKey required" });
     try {
       const result = await validateEventKey(eventKey);
+      if (result.valid) {
+        const event = await storage.getEvent(eventId);
+        if (event && (event.tbaEventKey ?? "") === (eventKey ?? "")) {
+          await storage.updateEvent(eventId, { tbaEventKeyValidated: true });
+        }
+      }
       res.json(result);
     } catch (err: any) {
-      res.status(500).json({ message: err.message });
+      res.status(500).json({ message: err?.message ?? "TBA request failed" });
     }
   });
 
   app.post("/api/events/:eventId/tba/sync-videos", async (req, res) => {
+    if (!isTbaConfigured()) return res.status(503).json({ message: "TBA API key not configured. Add TBA_API_KEY to your .env file." });
     const eventId = parseInt(req.params.eventId);
     const event = await storage.getEvent(eventId);
     if (!event) return res.sendStatus(404);
@@ -209,11 +236,44 @@ export async function registerRoutes(
 
       res.json({ synced, total: qualMatches.length });
     } catch (err: any) {
-      res.status(500).json({ message: err.message });
+      res.status(500).json({ message: err?.message ?? "TBA sync failed" });
+    }
+  });
+
+  app.post("/api/events/:eventId/tba/sync-teams", async (req, res) => {
+    if (!isTbaConfigured()) return res.status(503).json({ message: "TBA API key not configured. Add TBA_API_KEY to your .env file." });
+    const eventId = parseInt(req.params.eventId);
+    const event = await storage.getEvent(eventId);
+    if (!event) return res.sendStatus(404);
+    if (!event.tbaEventKey) return res.status(400).json({ message: "No TBA event key configured" });
+
+    try {
+      const tbaTeams = await fetchEventTeams(event.tbaEventKey);
+      const existing = await storage.getEventTeams(eventId);
+      const existingNumbers = new Set(existing.map(et => et.team.teamNumber));
+      let added = 0;
+      for (const t of tbaTeams) {
+        const team = await storage.upsertTeam({
+          teamNumber: t.teamNumber,
+          teamName: t.teamName,
+          city: t.city ?? undefined,
+          stateProv: t.stateProv ?? undefined,
+          country: t.country ?? undefined,
+        });
+        if (!existingNumbers.has(team.teamNumber)) {
+          await storage.addTeamToEvent({ eventId, teamId: team.id });
+          existingNumbers.add(team.teamNumber);
+          added++;
+        }
+      }
+      res.json({ added, total: tbaTeams.length });
+    } catch (err: any) {
+      res.status(500).json({ message: err?.message ?? "TBA sync failed" });
     }
   });
 
   app.post("/api/events/:eventId/tba/sync-avatars", async (req, res) => {
+    if (!isTbaConfigured()) return res.status(503).json({ message: "TBA API key not configured. Add TBA_API_KEY to your .env file." });
     const eventId = parseInt(req.params.eventId);
     const event = await storage.getEvent(eventId);
     if (!event) return res.sendStatus(404);
@@ -239,36 +299,54 @@ export async function registerRoutes(
 
       res.json({ synced, total: teamNumbers.length });
     } catch (err: any) {
-      res.status(500).json({ message: err.message });
+      res.status(500).json({ message: err?.message ?? "TBA sync failed" });
     }
   });
 
   app.post("/api/events/:eventId/tba/sync-oprs", async (req, res) => {
+    if (!isTbaConfigured()) return res.status(503).json({ message: "TBA API key not configured. Add TBA_API_KEY to your .env file." });
     const eventId = parseInt(req.params.eventId);
     const event = await storage.getEvent(eventId);
     if (!event) return res.sendStatus(404);
     if (!event.tbaEventKey) return res.status(400).json({ message: "No TBA event key configured" });
 
     try {
-      const oprData = await fetchEventOPRs(event.tbaEventKey);
+      const [oprData, rankingsData] = await Promise.all([
+        fetchEventOPRs(event.tbaEventKey),
+        fetchEventRankings(event.tbaEventKey),
+      ]);
       const eventTeamsList = await storage.getEventTeams(eventId);
-      let synced = 0;
+      let oprsSynced = 0;
+      let rankingsSynced = 0;
 
       for (const opr of oprData) {
         const et = eventTeamsList.find(e => e.team.teamNumber === opr.teamNumber);
         if (et) {
           await storage.updateEventTeamOPR(eventId, et.teamId, opr.opr, opr.dpr, opr.ccwm);
-          synced++;
+          oprsSynced++;
         }
       }
 
-      res.json({ synced, total: eventTeamsList.length });
+      for (const r of rankingsData) {
+        const et = eventTeamsList.find(e => e.team.teamNumber === r.teamNumber);
+        if (et) {
+          await storage.updateEventTeamRanking(eventId, et.teamId, r.rankingPoints, r.rank, r.wins, r.losses, r.ties);
+          rankingsSynced++;
+        }
+      }
+
+      res.json({
+        oprsSynced,
+        rankingsSynced,
+        total: eventTeamsList.length,
+      });
     } catch (err: any) {
-      res.status(500).json({ message: err.message });
+      res.status(500).json({ message: err?.message ?? "TBA sync failed" });
     }
   });
 
   app.post("/api/events/:eventId/tba/sync-schedule", async (req, res) => {
+    if (!isTbaConfigured()) return res.status(503).json({ message: "TBA API key not configured. Add TBA_API_KEY to your .env file." });
     const eventId = parseInt(req.params.eventId);
     const event = await storage.getEvent(eventId);
     if (!event) return res.sendStatus(404);
@@ -296,11 +374,12 @@ export async function registerRoutes(
 
       res.json({ synced, total: tbaMatches.length });
     } catch (err: any) {
-      res.status(500).json({ message: err.message });
+      res.status(500).json({ message: err?.message ?? "TBA sync failed" });
     }
   });
 
   app.post("/api/events/:eventId/tba/sync-results", async (req, res) => {
+    if (!isTbaConfigured()) return res.status(503).json({ message: "TBA API key not configured. Add TBA_API_KEY to your .env file." });
     const eventId = parseInt(req.params.eventId);
     const event = await storage.getEvent(eventId);
     if (!event) return res.sendStatus(404);
@@ -321,7 +400,7 @@ export async function registerRoutes(
 
       res.json({ synced, total: results.length });
     } catch (err: any) {
-      res.status(500).json({ message: err.message });
+      res.status(500).json({ message: err?.message ?? "TBA sync failed" });
     }
   });
 
@@ -335,84 +414,97 @@ export async function registerRoutes(
   const manualSyncLog = new Map<number, number[]>();
 
   async function runSync(eventId: number): Promise<boolean> {
+    if (!isTbaConfigured()) return false;
     const status = syncStatus.get(eventId) || { lastSyncTime: null, syncing: false, startedAt: null, expiresAt: null };
     syncStatus.set(eventId, { ...status, syncing: true });
-    const event = await storage.getEvent(eventId);
-    if (!event || !event.tbaEventKey) {
-      return false;
-    }
-
-    let scheduleSynced = 0;
     try {
-      const tbaSchedule = await fetchMatchSchedule(event.tbaEventKey);
-      if (tbaSchedule.length > 0) {
-        const existingSchedule = await storage.getScheduleByEvent(eventId);
-        if (existingSchedule.length === 0 || tbaSchedule.length !== existingSchedule.length) {
-          await storage.deleteScheduleByEvent(eventId);
-          for (const m of tbaSchedule) {
-            await storage.createScheduleMatch({
-              eventId,
-              matchNumber: m.matchNumber,
-              red1: m.red1, red2: m.red2, red3: m.red3,
-              blue1: m.blue1, blue2: m.blue2, blue3: m.blue3,
-              time: m.time,
-            });
-            scheduleSynced++;
+      const event = await storage.getEvent(eventId);
+      if (!event || !event.tbaEventKey) {
+        return false;
+      }
+
+      let scheduleSynced = 0;
+      try {
+        const tbaSchedule = await fetchMatchSchedule(event.tbaEventKey);
+        if (tbaSchedule.length > 0) {
+          const existingSchedule = await storage.getScheduleByEvent(eventId);
+          if (existingSchedule.length === 0 || tbaSchedule.length !== existingSchedule.length) {
+            await storage.deleteScheduleByEvent(eventId);
+            for (const m of tbaSchedule) {
+              await storage.createScheduleMatch({
+                eventId,
+                matchNumber: m.matchNumber,
+                red1: m.red1, red2: m.red2, red3: m.red3,
+                blue1: m.blue1, blue2: m.blue2, blue3: m.blue3,
+                time: m.time,
+              });
+              scheduleSynced++;
+            }
           }
         }
+      } catch (schedErr) {
+        console.error(`[TBA Auto-Sync] Schedule sync error for event ${eventId}:`, schedErr);
       }
-    } catch (schedErr) {
-      console.error(`[TBA Auto-Sync] Schedule sync error for event ${eventId}:`, schedErr);
-    }
 
-    const results = await fetchMatchResults(event.tbaEventKey);
-    let videosSynced = 0;
-    let resultsSynced = 0;
-    for (const r of results) {
-      if (r.redScore != null && r.blueScore != null) {
-        await storage.updateMatchResults(eventId, r.matchNumber, r.redScore, r.blueScore, r.winningAlliance);
-        resultsSynced++;
-      }
-      const videoUrl = getVideoUrl(r.videos);
-      if (videoUrl) {
-        await storage.updateScheduleMatchVideo(eventId, r.matchNumber, videoUrl);
-        videosSynced++;
-      }
-    }
-
-    const eventTeamsList = await storage.getEventTeams(eventId);
-    let oprsSynced = 0;
-    try {
-      const oprData = await fetchEventOPRs(event.tbaEventKey);
-      for (const opr of oprData) {
-        const et = eventTeamsList.find(e => e.team.teamNumber === opr.teamNumber);
-        if (et) {
-          await storage.updateEventTeamOPR(eventId, et.teamId, opr.opr, opr.dpr, opr.ccwm);
-          oprsSynced++;
+      let videosSynced = 0;
+      let resultsSynced = 0;
+      try {
+        const results = await fetchMatchResults(event.tbaEventKey);
+        for (const r of results) {
+          if (r.redScore != null && r.blueScore != null) {
+            await storage.updateMatchResults(eventId, r.matchNumber, r.redScore, r.blueScore, r.winningAlliance);
+            resultsSynced++;
+          }
+          const videoUrl = getVideoUrl(r.videos);
+          if (videoUrl) {
+            await storage.updateScheduleMatchVideo(eventId, r.matchNumber, videoUrl);
+            videosSynced++;
+          }
         }
+      } catch (resultsErr) {
+        console.error(`[TBA Auto-Sync] Results/videos sync error for event ${eventId}:`, resultsErr);
       }
-    } catch (oprErr) {
-      console.error(`[TBA Auto-Sync] OPR sync error for event ${eventId}:`, oprErr);
-    }
 
-    let rankingsSynced = 0;
-    try {
-      const rankingsData = await fetchEventRankings(event.tbaEventKey);
-      for (const r of rankingsData) {
-        const et = eventTeamsList.find(e => e.team.teamNumber === r.teamNumber);
-        if (et) {
-          await storage.updateEventTeamRanking(eventId, et.teamId, r.rankingPoints, r.rank, r.wins, r.losses, r.ties);
-          rankingsSynced++;
+      const eventTeamsList = await storage.getEventTeams(eventId);
+      let oprsSynced = 0;
+      try {
+        const oprData = await fetchEventOPRs(event.tbaEventKey);
+        for (const opr of oprData) {
+          const et = eventTeamsList.find(e => e.team.teamNumber === opr.teamNumber);
+          if (et) {
+            await storage.updateEventTeamOPR(eventId, et.teamId, opr.opr, opr.dpr, opr.ccwm);
+            oprsSynced++;
+          }
         }
+      } catch (oprErr) {
+        console.error(`[TBA Auto-Sync] OPR sync error for event ${eventId}:`, oprErr);
       }
-    } catch (rankErr) {
-      console.error(`[TBA Auto-Sync] Rankings sync error for event ${eventId}:`, rankErr);
-    }
 
-    const prev = syncStatus.get(eventId)!;
-    syncStatus.set(eventId, { ...prev, lastSyncTime: Date.now(), syncing: false });
-    console.log(`[TBA Auto-Sync] Event ${eventId}: ${scheduleSynced} schedule, ${resultsSynced} results, ${videosSynced} videos, ${oprsSynced} OPRs, ${rankingsSynced} rankings synced`);
-    return true;
+      let rankingsSynced = 0;
+      try {
+        const rankingsData = await fetchEventRankings(event.tbaEventKey);
+        for (const r of rankingsData) {
+          const et = eventTeamsList.find(e => e.team.teamNumber === r.teamNumber);
+          if (et) {
+            await storage.updateEventTeamRanking(eventId, et.teamId, r.rankingPoints, r.rank, r.wins, r.losses, r.ties);
+            rankingsSynced++;
+          }
+        }
+      } catch (rankErr) {
+        console.error(`[TBA Auto-Sync] Rankings sync error for event ${eventId}:`, rankErr);
+      }
+
+      const prev = syncStatus.get(eventId)!;
+      syncStatus.set(eventId, { ...prev, lastSyncTime: Date.now(), syncing: false });
+      console.log(`[TBA Auto-Sync] Event ${eventId}: ${scheduleSynced} schedule, ${resultsSynced} results, ${videosSynced} videos, ${oprsSynced} OPRs, ${rankingsSynced} rankings synced`);
+      return true;
+    } catch (err) {
+      console.error(`[TBA Auto-Sync] Sync error for event ${eventId}:`, err);
+      return false;
+    } finally {
+      const prev = syncStatus.get(eventId);
+      if (prev) syncStatus.set(eventId, { ...prev, syncing: false });
+    }
   }
 
   async function expireAutoSync(eventId: number) {
@@ -475,7 +567,7 @@ export async function registerRoutes(
   async function initAutoSync() {
     const allEvents = await storage.getEvents();
     for (const event of allEvents) {
-      if (event.tbaAutoSync && event.tbaEventKey) {
+      if (event.tbaAutoSync && event.tbaEventKey && event.tbaEventKeyValidated) {
         startAutoSync(event.id);
       }
     }
@@ -493,20 +585,36 @@ export async function registerRoutes(
 
   app.patch("/api/events/:id/settings", async (req, res) => {
     const id = parseInt(req.params.id);
-    const { tbaEventKey, tbaAutoSync } = req.body;
-    const updates: any = {};
-    if (tbaEventKey !== undefined) updates.tbaEventKey = tbaEventKey || null;
-    if (tbaAutoSync !== undefined) updates.tbaAutoSync = !!tbaAutoSync;
-    const event = await storage.updateEvent(id, updates);
-    if (event.tbaAutoSync && event.tbaEventKey) {
-      startAutoSync(event.id);
-    } else {
-      stopAutoSync(event.id);
+    const event = await storage.getEvent(id);
+    if (!event) return res.sendStatus(404);
+    const { tbaEventKey, tbaAutoSync, tbaEventKeyValidated } = req.body;
+    const updates: { tbaEventKey?: string | null; tbaEventKeyValidated?: boolean; tbaAutoSync?: boolean } = {};
+    if (tbaEventKey !== undefined) {
+      updates.tbaEventKey = tbaEventKey || null;
+      if ((tbaEventKey || null) !== (event.tbaEventKey || null)) {
+        updates.tbaEventKeyValidated = false;
+      }
     }
-    res.json(event);
+    if (tbaEventKeyValidated !== undefined) updates.tbaEventKeyValidated = !!tbaEventKeyValidated;
+    if (tbaAutoSync !== undefined) {
+      const willBeValidated = updates.tbaEventKeyValidated !== undefined ? updates.tbaEventKeyValidated : event.tbaEventKeyValidated;
+      if (tbaAutoSync && !willBeValidated) {
+        return res.status(400).json({ message: "Validate event key before enabling auto-sync." });
+      }
+      updates.tbaAutoSync = !!tbaAutoSync;
+    }
+    const updated = await storage.updateEvent(id, updates);
+    if (!updated) return res.sendStatus(404);
+    if (updated.tbaAutoSync && updated.tbaEventKey) {
+      startAutoSync(updated.id);
+    } else {
+      stopAutoSync(updated.id);
+    }
+    res.json(updated);
   });
 
   app.post("/api/events/:id/tba/manual-sync", async (req, res) => {
+    if (!isTbaConfigured()) return res.status(503).json({ message: "TBA API key not configured. Add TBA_API_KEY to your .env file." });
     const id = parseInt(req.params.id);
     const event = await storage.getEvent(id);
     if (!event || !event.tbaEventKey) return res.status(400).json({ message: "No TBA event key configured" });
@@ -529,7 +637,7 @@ export async function registerRoutes(
     } catch (err: any) {
       const s = syncStatus.get(id)!;
       syncStatus.set(id, { ...s, syncing: false });
-      res.status(500).json({ message: err.message });
+      res.status(500).json({ message: err?.message ?? "TBA sync failed" });
     }
   });
 
@@ -540,6 +648,7 @@ export async function registerRoutes(
     const status = syncStatus.get(id);
     const rateInfo = getManualSyncRemaining(id);
     res.json({
+      tbaConfigured: isTbaConfigured(),
       connected: !!event.tbaEventKey,
       autoSync: event.tbaAutoSync,
       syncing: status?.syncing || false,
