@@ -30,7 +30,7 @@ export default function Schedule() {
     enabled: !!eventId,
   });
 
-  const { data: schedule, isLoading } = useQuery<ScheduleMatch[]>({
+  const { data: schedule, isLoading: scheduleLoading, isError: scheduleError } = useQuery<ScheduleMatch[]>({
     queryKey: ["/api/events", eventId, "schedule"],
     enabled: !!eventId,
   });
@@ -38,6 +38,9 @@ export default function Schedule() {
   const { data: teams } = useQuery<Team[]>({
     queryKey: ["/api/teams"],
   });
+
+  const scheduleList = Array.isArray(schedule) ? schedule : [];
+  const isLoading = scheduleLoading;
 
   const teamMap = useMemo(() => {
     const m = new Map<number, Team>();
@@ -70,8 +73,8 @@ export default function Schedule() {
   };
 
   const sortedSchedule = useMemo(() => {
-    if (!schedule) return [];
-    let list = [...schedule].sort((a, b) => a.matchNumber - b.matchNumber);
+    if (!scheduleList.length) return [];
+    let list = [...scheduleList].sort((a, b) => a.matchNumber - b.matchNumber);
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(m => {
@@ -83,7 +86,7 @@ export default function Schedule() {
       });
     }
     return list;
-  }, [schedule, search]);
+  }, [scheduleList, search]);
 
   const hasTbaKey = !!event?.tbaEventKey;
 
@@ -108,7 +111,7 @@ export default function Schedule() {
         )}
       </div>
 
-      {(schedule && schedule.length > 0) && (
+      {(scheduleList.length > 0) && (
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -123,7 +126,14 @@ export default function Schedule() {
 
       {isLoading ? (
         <Skeleton className="h-96 w-full" />
-      ) : !schedule || schedule.length === 0 ? (
+      ) : scheduleError ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="font-medium text-destructive">Failed to load schedule</p>
+            <p className="text-sm text-muted-foreground mt-1">Check the event exists and try again.</p>
+          </CardContent>
+        </Card>
+      ) : scheduleList.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <CalendarDays className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />

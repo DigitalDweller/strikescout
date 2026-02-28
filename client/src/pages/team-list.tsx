@@ -83,7 +83,7 @@ export default function TeamList() {
     enabled: !!eventId,
   });
 
-  const { data: eventTeams, isLoading: teamsLoading } = useQuery<(EventTeam & { team: Team })[]>({
+  const { data: eventTeams, isLoading: teamsLoading, isError: teamsError } = useQuery<(EventTeam & { team: Team })[]>({
     queryKey: ["/api/events", eventId, "teams"],
     enabled: !!eventId,
   });
@@ -93,7 +93,7 @@ export default function TeamList() {
     enabled: !!eventId,
   });
 
-  const teams = eventTeams ? eventTeams.map(et => et.team) : [];
+  const teams = Array.isArray(eventTeams) ? eventTeams.map(et => et.team) : [];
   const isLoading = teamsLoading;
 
   const eventTeamMap = useMemo(() => {
@@ -265,13 +265,20 @@ export default function TeamList() {
 
       {isLoading ? (
         <Skeleton className="h-96 w-full" />
+      ) : teamsError ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="font-medium text-destructive">Failed to load teams</p>
+            <p className="text-sm text-muted-foreground mt-1">Check the event exists and try again.</p>
+          </CardContent>
+        </Card>
       ) : filteredTeams.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <List className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
             <p className="font-medium">No teams found</p>
             <p className="text-sm text-muted-foreground mt-1">
-              {search ? "Try a different search term" : "No teams have been added yet"}
+              {search ? "Try a different search term" : "No teams have been added yet. Sync teams from TBA in Event Settings."}
             </p>
           </CardContent>
         </Card>

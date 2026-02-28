@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Settings, RefreshCw, CheckCircle2, XCircle, Loader2, Zap, Image, BarChart3, Trophy, Video, Clock, Timer } from "lucide-react";
+import { Settings, RefreshCw, CheckCircle2, XCircle, Loader2, Zap, Image, BarChart3, Trophy, Video, Clock, Timer, Users } from "lucide-react";
 import type { Event } from "@shared/schema";
 
 function AutoSyncTimer({ expiresAt }: { expiresAt: number | null }) {
@@ -54,11 +54,11 @@ export default function EventSettings() {
     queryKey: ["/api/events", eventId],
   });
 
-  const { data: syncStatusData } = useQuery<{ expiresAt: number | null; autoSync: boolean }>({
+  const { data: syncStatusData } = useQuery<{ tbaConfigured?: boolean; expiresAt: number | null; autoSync: boolean }>({
     queryKey: ["/api/events", eventId, "tba", "sync-status"],
     queryFn: async () => {
       const res = await fetch(`/api/events/${eventId}/tba/sync-status`);
-      if (!res.ok) return { expiresAt: null, autoSync: false };
+      if (!res.ok) return { tbaConfigured: false, expiresAt: null, autoSync: false };
       return res.json();
     },
     refetchInterval: 10000,
@@ -90,17 +90,20 @@ export default function EventSettings() {
         setValidatedName("");
       }
     },
-    onError: () => {
+    onError: (err: Error) => {
       setValidationStatus("invalid");
+      toast({ title: "Validation failed", description: err.message, variant: "destructive" });
     },
   });
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("PATCH", `/api/events/${eventId}/settings`, {
-        tbaEventKey: tbaEventKey || null,
+      const body: Record<string, unknown> = {
+        tbaEventKey: tbaEventKey.trim() || null,
         tbaAutoSync,
-      });
+      };
+      if (validationStatus === "valid") body.tbaEventKeyValidated = true;
+      const res = await apiRequest("PATCH", `/api/events/${eventId}/settings`, body);
       return res.json();
     },
     onSuccess: () => {
@@ -114,6 +117,14 @@ export default function EventSettings() {
   });
 
   const syncActions = [
+    {
+      key: "teams",
+      label: "Teams",
+      icon: Users,
+      endpoint: "sync-teams",
+      invalidate: "teams",
+      formatResult: (d: any) => `Added ${d.added} teams from TBA (${d.total} total at event)`,
+    },
     {
       key: "videos",
       label: "Videos",
@@ -132,11 +143,11 @@ export default function EventSettings() {
     },
     {
       key: "oprs",
-      label: "OPRs",
+      label: "OPR, RP & Seed",
       icon: BarChart3,
       endpoint: "sync-oprs",
       invalidate: "teams",
-      formatResult: (d: any) => `Synced OPR data for ${d.synced} of ${d.total} teams`,
+      formatResult: (d: any) => `Synced OPR, RP & Seed for ${d.oprsSynced} teams (rankings: ${d.rankingsSynced})`,
     },
     {
       key: "results",
@@ -170,9 +181,11 @@ export default function EventSettings() {
     validateMutation.mutate(tbaEventKey.trim());
   };
 
+  const isKeyValidated = !!(event?.tbaEventKeyValidated || validationStatus === "valid");
   const hasChanges = event && (
     (tbaEventKey || "") !== (event.tbaEventKey || "") ||
-    tbaAutoSync !== event.tbaAutoSync
+    tbaAutoSync !== event.tbaAutoSync ||
+    (validationStatus === "valid" && !event.tbaEventKeyValidated)
   );
 
   if (isLoading) return <Skeleton className="h-96 w-full m-6" />;
@@ -201,6 +214,11 @@ export default function EventSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
+          {syncStatusData?.tbaConfigured === false && (
+            <div className="text-sm text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/10 rounded-md px-3 py-2 border border-amber-500/20">
+              TBA API key is not configured. Add <span className="font-mono text-xs">TBA_API_KEY</span> to your <span className="font-mono text-xs">.env</span> file (get a key at thebluealliance.com/account) for sync and validation to work.
+            </div>
+          )}
           <div className="space-y-3">
             <Label htmlFor="tba-key" className="text-sm font-semibold">Event Key</Label>
             <div className="flex gap-2">
@@ -247,14 +265,16 @@ export default function EventSettings() {
               <div className="space-y-0.5">
                 <Label htmlFor="auto-sync" className="text-sm font-semibold cursor-pointer">Auto-Sync</Label>
                 <p className="text-xs text-muted-foreground">
-                  Pull results, videos, and OPRs every 5 min for 3 hours
+                  {isKeyValidated
+                    ? "Pull results, videos, and OPRs every 5 min for 3 hours"
+                    : "Validate event key above before enabling auto-sync"}
                 </p>
               </div>
               <Switch
                 id="auto-sync"
                 checked={tbaAutoSync}
                 onCheckedChange={setTbaAutoSync}
-                disabled={!tbaEventKey.trim()}
+                disabled={!tbaEventKey.trim() || !isKeyValidated}
                 data-testid="switch-auto-sync"
               />
             </div>

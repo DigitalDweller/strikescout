@@ -19,6 +19,7 @@ export const events = pgTable("events", {
   isActive: boolean("is_active").notNull().default(false),
   currentMatchNumber: integer("current_match_number").notNull().default(1),
   tbaEventKey: text("tba_event_key"),
+  tbaEventKeyValidated: boolean("tba_event_key_validated").notNull().default(false),
   tbaAutoSync: boolean("tba_auto_sync").notNull().default(false),
 });
 

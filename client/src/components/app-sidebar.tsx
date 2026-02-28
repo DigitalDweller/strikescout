@@ -34,9 +34,11 @@ import {
   ListOrdered,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
+import { useToast } from "@/hooks/use-toast";
 import type { Event } from "@shared/schema";
 
 interface SyncStatusData {
+  tbaConfigured?: boolean;
   connected: boolean;
   autoSync: boolean;
   syncing: boolean;
@@ -48,6 +50,7 @@ interface SyncStatusData {
 
 function TbaSyncStatus({ eventId }: { eventId: number }) {
   const [manualSyncing, setManualSyncing] = useState(false);
+  const { toast } = useToast();
 
   const { data } = useQuery<SyncStatusData>({
     queryKey: ["/api/events", eventId, "tba", "sync-status"],
@@ -60,6 +63,13 @@ function TbaSyncStatus({ eventId }: { eventId: number }) {
   });
 
   if (!data?.connected) return null;
+  if (data.connected && data.tbaConfigured === false) {
+    return (
+      <div className="flex items-center gap-1.5 min-w-0 text-amber-600 dark:text-amber-400" data-testid="widget-tba-sync" title="Add TBA_API_KEY to your .env file">
+        <span className="text-[11px] font-medium truncate">TBA key not set</span>
+      </div>
+    );
+  }
 
   const isSyncing = data.syncing || manualSyncing;
 
@@ -94,12 +104,24 @@ function TbaSyncStatus({ eventId }: { eventId: number }) {
     if (!canManualSync) return;
     setManualSyncing(true);
     try {
-      await fetch(`/api/events/${eventId}/tba/manual-sync`, { method: "POST" });
+      const res = await fetch(`/api/events/${eventId}/tba/manual-sync`, { method: "POST" });
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = text;
+        try {
+          const json = JSON.parse(text);
+          if (typeof json?.message === "string") msg = json.message;
+        } catch {}
+        throw new Error(msg);
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "tba", "sync-status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "schedule"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "teams"] });
-    } catch {}
-    setManualSyncing(false);
+    } catch (e) {
+      toast({ title: "TBA sync failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setManualSyncing(false);
+    }
   };
 
   return (
