@@ -1,29 +1,132 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { type Server } from "http";
+import passport from "passport";
 import { storage } from "./storage";
+import { hashPassword } from "./auth";
 import { insertEventSchema, insertTeamSchema, insertScoutingEntrySchema } from "@shared/schema";
 import { z } from "zod";
 import { fetchMatchVideos, fetchMatchResults, getVideoUrl, validateEventKey, fetchTeamAvatars, fetchEventOPRs, fetchMatchSchedule, fetchEventRankings, fetchEventTeams, isTbaConfigured } from "./tba";
 
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (req.isAuthenticated()) return next();
+  res.status(401).json({ message: "Not authenticated" });
+}
+
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (req.isAuthenticated() && req.user?.role === "admin") return next();
+  res.status(403).json({ message: "Admin access required" });
+}
+
 async function seedDatabase() {
   const events = await storage.getEvents();
-  if (events.length > 0) return;
+  if (events.length === 0) {
+    await storage.createEvent({
+      name: "2026 Houston Regional",
+      location: "Houston, TX",
+      startDate: "2026-03-15",
+      isActive: true,
+      currentMatchNumber: 1,
+    });
+    console.log("Database seeded with initial data");
+  }
+}
 
-  await storage.createEvent({
-    name: "2026 Houston Regional",
-    location: "Houston, TX",
-    startDate: "2026-03-15",
-    isActive: true,
-    currentMatchNumber: 1,
-  });
-
-  console.log("Database seeded with initial data");
+async function seedAdminUser() {
+  const existing = await storage.getUserByUsername("username123");
+  if (!existing) {
+    const hashed = await hashPassword("supersecurepassword1");
+    await storage.createUser({
+      username: "username123",
+      password: hashed,
+      displayName: "username123",
+      role: "admin",
+    });
+    console.log("Admin user seeded");
+  }
 }
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  // --- Auth routes (public) ---
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: Express.User | false, info: { message: string } | undefined) => {
+      if (err) return next(err);
+      if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });
+      req.logIn(user, (err) => {
+        if (err) return next(err);
+        const { id, username, displayName, role } = user;
+        res.json({ id, username, displayName, role });
+      });
+    })(req, res, next);
+  });
+
+  app.post("/api/logout", (req, res) => {
+    req.logout((err) => {
+      if (err) return res.status(500).json({ message: "Logout failed" });
+      res.json({ message: "Logged out" });
+    });
+  });
+
+  app.get("/api/user", (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    const { id, username, displayName, role } = req.user!;
+    res.json({ id, username, displayName, role });
+  });
+
+  // --- Admin user management routes ---
+  app.get("/api/users", requireAuth, requireAdmin, async (_req, res) => {
+    const allUsers = await storage.getUsers();
+    res.json(allUsers.map(u => ({ id: u.id, username: u.username, displayName: u.displayName, role: u.role })));
+  });
+
+  app.post("/api/users", requireAuth, requireAdmin, async (req, res) => {
+    const { username, password, role } = req.body;
+    if (!username || !password) return res.status(400).json({ message: "Username and password are required" });
+    const existing = await storage.getUserByUsername(username);
+    if (existing) return res.status(400).json({ message: "Username already exists" });
+    const hashed = await hashPassword(password);
+    const user = await storage.createUser({
+      username,
+      password: hashed,
+      displayName: username,
+      role: role || "scouter",
+    });
+    res.status(201).json({ id: user.id, username: user.username, displayName: user.displayName, role: user.role });
+  });
+
+  app.patch("/api/users/:id", requireAuth, requireAdmin, async (req, res) => {
+    const id = parseInt(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid user id" });
+    const user = await storage.getUser(id);
+    if (!user) return res.sendStatus(404);
+    const updates: any = {};
+    if (req.body.username) updates.username = req.body.username;
+    if (req.body.username) updates.displayName = req.body.username;
+    if (req.body.role) updates.role = req.body.role;
+    if (req.body.password) updates.password = await hashPassword(req.body.password);
+    const updated = await storage.updateUser(id, updates);
+    if (!updated) return res.sendStatus(404);
+    res.json({ id: updated.id, username: updated.username, displayName: updated.displayName, role: updated.role });
+  });
+
+  app.delete("/api/users/:id", requireAuth, requireAdmin, async (req, res) => {
+    const id = parseInt(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid user id" });
+    const user = await storage.getUser(id);
+    if (!user) return res.sendStatus(404);
+    if (user.username === "username123") return res.status(400).json({ message: "Cannot delete the primary admin" });
+    await storage.deleteUser(id);
+    res.sendStatus(204);
+  });
+
+  // --- All routes below require authentication ---
+  app.use("/api", (req, res, next) => {
+    if (req.path === "/login" || req.path === "/logout" || req.path === "/user") return next();
+    requireAuth(req, res, next);
+  });
 
   app.get("/api/events", async (_req, res) => {
     const allEvents = await storage.getEvents();
@@ -143,7 +246,7 @@ export async function registerRoutes(
   app.post("/api/entries", async (req, res) => {
     const parsed = insertScoutingEntrySchema.safeParse({
       ...req.body,
-      scouterId: 0,
+      scouterId: req.user?.id ?? 0,
     });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const entry = await storage.createScoutingEntry(parsed.data);
@@ -740,6 +843,7 @@ export async function registerRoutes(
     res.json(entries);
   });
 
+  await seedAdminUser();
   await seedDatabase();
   await initAutoSync();
 

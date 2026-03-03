@@ -33,6 +33,7 @@ export async function apiRequest(
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
+    credentials: "include",
   });
 
   await throwIfResNotOk(res);
@@ -41,7 +42,7 @@ export async function apiRequest(
 
 const defaultQueryFn: QueryFunction = async ({ queryKey }) => {
   const url = queryKey.join("/") as string;
-  const res = await fetch(API_BASE + url);
+  const res = await fetch(API_BASE + url, { credentials: "include" });
   await throwIfResNotOk(res);
   return await res.json();
 };
