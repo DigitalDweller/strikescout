@@ -659,27 +659,85 @@ export async function registerRoutes(
     });
   });
 
-  app.get("/api/events/:id/picklist", async (req, res) => {
-    const eventId = parseInt(req.params.id);
-    const picklist = await storage.getPicklist(eventId);
-    res.json(picklist);
+  app.get("/api/events/:eventId/picklists", async (req, res) => {
+    const eventId = parseInt(req.params.eventId);
+    if (!Number.isFinite(eventId)) return res.status(400).json({ message: "Invalid event id" });
+    const list = await storage.getPicklists(eventId);
+    res.json(list);
   });
 
-  app.put("/api/events/:id/picklist", async (req, res) => {
-    const eventId = parseInt(req.params.id);
+  app.post("/api/events/:eventId/picklists", async (req, res) => {
+    try {
+      const eventId = parseInt(req.params.eventId);
+      const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+      if (!Number.isFinite(eventId)) return res.status(400).json({ message: "Invalid event id" });
+      if (!name) return res.status(400).json({ message: "Name is required" });
+      const event = await storage.getEvent(eventId);
+      if (!event) return res.sendStatus(404);
+      const picklist = await storage.createPicklist(eventId, name);
+      res.status(201).json(picklist);
+    } catch (err: any) {
+      const msg = err?.message ?? "Failed to create picklist";
+      const hint = msg.includes("relation") || msg.includes("does not exist") ? " Run: npm run db:push" : "";
+      res.status(500).json({ message: msg + hint });
+    }
+  });
+
+  app.patch("/api/events/:eventId/picklists/:picklistId", async (req, res) => {
+    const eventId = parseInt(req.params.eventId);
+    const picklistId = parseInt(req.params.picklistId);
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+    if (!Number.isFinite(eventId) || !Number.isFinite(picklistId)) return res.status(400).json({ message: "Invalid id" });
+    if (!name) return res.status(400).json({ message: "Name is required" });
+    const list = await storage.getPicklists(eventId);
+    if (!list.some((p) => p.id === picklistId)) return res.sendStatus(404);
+    const updated = await storage.updatePicklist(picklistId, { name });
+    res.json(updated);
+  });
+
+  app.delete("/api/events/:eventId/picklists/:picklistId", async (req, res) => {
+    const eventId = parseInt(req.params.eventId);
+    const picklistId = parseInt(req.params.picklistId);
+    if (!Number.isFinite(eventId) || !Number.isFinite(picklistId)) return res.status(400).json({ message: "Invalid id" });
+    const list = await storage.getPicklists(eventId);
+    if (!list.some((p) => p.id === picklistId)) return res.sendStatus(404);
+    await storage.deletePicklist(picklistId);
+    res.sendStatus(204);
+  });
+
+  app.get("/api/events/:eventId/picklists/:picklistId/entries", async (req, res) => {
+    const eventId = parseInt(req.params.eventId);
+    const picklistId = parseInt(req.params.picklistId);
+    if (!Number.isFinite(eventId) || !Number.isFinite(picklistId)) return res.status(400).json({ message: "Invalid id" });
+    const list = await storage.getPicklists(eventId);
+    if (!list.some((p) => p.id === picklistId)) return res.sendStatus(404);
+    const entries = await storage.getPicklistEntries(picklistId);
+    res.json(entries);
+  });
+
+  app.put("/api/events/:eventId/picklists/:picklistId/entries", async (req, res) => {
+    const eventId = parseInt(req.params.eventId);
+    const picklistId = parseInt(req.params.picklistId);
     const { teamIds } = req.body;
+    if (!Number.isFinite(eventId) || !Number.isFinite(picklistId)) return res.status(400).json({ message: "Invalid id" });
     if (!Array.isArray(teamIds)) return res.status(400).json({ message: "teamIds must be an array" });
-    await storage.setPicklist(eventId, teamIds);
-    const picklist = await storage.getPicklist(eventId);
-    res.json(picklist);
+    const list = await storage.getPicklists(eventId);
+    if (!list.some((p) => p.id === picklistId)) return res.sendStatus(404);
+    await storage.setPicklistEntries(picklistId, teamIds);
+    const entries = await storage.getPicklistEntries(picklistId);
+    res.json(entries);
   });
 
-  app.delete("/api/events/:id/picklist/:teamId", async (req, res) => {
-    const eventId = parseInt(req.params.id);
+  app.delete("/api/events/:eventId/picklists/:picklistId/entries/:teamId", async (req, res) => {
+    const eventId = parseInt(req.params.eventId);
+    const picklistId = parseInt(req.params.picklistId);
     const teamId = parseInt(req.params.teamId);
-    await storage.removeFromPicklist(eventId, teamId);
-    const picklist = await storage.getPicklist(eventId);
-    res.json(picklist);
+    if (!Number.isFinite(eventId) || !Number.isFinite(picklistId) || !Number.isFinite(teamId)) return res.status(400).json({ message: "Invalid id" });
+    const list = await storage.getPicklists(eventId);
+    if (!list.some((p) => p.id === picklistId)) return res.sendStatus(404);
+    await storage.removeFromPicklistEntries(picklistId, teamId);
+    const entries = await storage.getPicklistEntries(picklistId);
+    res.json(entries);
   });
 
   await seedDatabase();

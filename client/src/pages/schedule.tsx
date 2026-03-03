@@ -1,10 +1,7 @@
 import { useState, useMemo } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -15,11 +12,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CalendarDays, Search, Video, RefreshCw } from "lucide-react";
+import { CalendarDays, Search, Video, Trophy, Medal } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { Event, ScheduleMatch, Team } from "@shared/schema";
 
 export default function Schedule() {
-  const { toast } = useToast();
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id || "0");
   const [, navigate] = useLocation();
@@ -48,20 +49,6 @@ export default function Schedule() {
     return m;
   }, [teams]);
 
-  const syncScheduleMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/events/${eventId}/tba/sync-schedule`);
-      return res.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "schedule"] });
-      toast({ title: `Schedule synced — ${data.synced} matches loaded from TBA` });
-    },
-    onError: (err: Error) => {
-      toast({ title: "Schedule sync failed", description: err.message, variant: "destructive" });
-    },
-  });
-
   const TeamBadge = ({ teamNum, alliance }: { teamNum: number | null; alliance: "red" | "blue" }) => {
     if (!teamNum) return <span className="text-muted-foreground">-</span>;
     const team = teamMap.get(teamNum);
@@ -88,27 +75,62 @@ export default function Schedule() {
     return list;
   }, [scheduleList, search]);
 
+  const top3ScoringMatchNumbers = useMemo(() => {
+    const withScores = scheduleList.filter(m => m.redScore != null || m.blueScore != null);
+    if (withScores.length === 0) return [];
+    const total = (m: ScheduleMatch) => (m.redScore ?? 0) + (m.blueScore ?? 0);
+    const byScore = [...withScores].sort((a, b) => total(b) - total(a));
+    return byScore.slice(0, 3).map(m => m.matchNumber);
+  }, [scheduleList]);
+
   const hasTbaKey = !!event?.tbaEventKey;
+
+  const TopScoreIcon = ({ matchNumber }: { matchNumber: number }) => {
+    const rank = top3ScoringMatchNumbers.indexOf(matchNumber) + 1;
+    if (rank === 0) return null;
+    if (rank === 1) {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex shrink-0 text-amber-500 dark:text-amber-400" aria-hidden>
+              <Trophy className="h-4 w-4" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>Top scoring match at this event</TooltipContent>
+        </Tooltip>
+      );
+    }
+    if (rank === 2) {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex shrink-0 text-slate-400 dark:text-slate-500" aria-hidden>
+              <Medal className="h-4 w-4" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>2nd highest scoring match</TooltipContent>
+        </Tooltip>
+      );
+    }
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex shrink-0 text-amber-700 dark:text-amber-800" aria-hidden>
+            <Medal className="h-4 w-4" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>3rd highest scoring match</TooltipContent>
+      </Tooltip>
+    );
+  };
 
   return (
     <div className="p-4 sm:p-6 space-y-4 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">Schedule</h1>
-          <p className="text-muted-foreground text-base mt-1">
-            {event?.name || "Loading..."} — {sortedSchedule.length} matches
-          </p>
-        </div>
-        {hasTbaKey && (
-          <Button
-            onClick={() => syncScheduleMutation.mutate()}
-            disabled={syncScheduleMutation.isPending}
-            data-testid="button-sync-schedule"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${syncScheduleMutation.isPending ? "animate-spin" : ""}`} />
-            {syncScheduleMutation.isPending ? "Syncing..." : "Sync from TBA"}
-          </Button>
-        )}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">Schedule</h1>
+        <p className="text-muted-foreground text-base mt-1">
+          {event?.name || "Loading..."} — {sortedSchedule.length} matches
+        </p>
       </div>
 
       {(scheduleList.length > 0) && (
@@ -137,11 +159,11 @@ export default function Schedule() {
         <Card>
           <CardContent className="p-8 text-center">
             <CalendarDays className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-            <p className="font-medium">No Schedule Loaded</p>
+            <p className="font-medium">No matches yet</p>
             <p className="text-sm text-muted-foreground mt-1">
               {hasTbaKey
-                ? "Click \"Sync from TBA\" above to load the match schedule."
-                : "Configure a TBA event key in Settings to sync the schedule."}
+                ? "You must wait for the Blue Alliance to upload the match schedule. It will appear here once it's available."
+                : "Configure a TBA event key in Settings to load the schedule."}
             </p>
           </CardContent>
         </Card>
@@ -177,6 +199,7 @@ export default function Schedule() {
                     >
                       <TableCell className="font-bold text-base">
                         <span className="flex items-center gap-1.5">
+                          <TopScoreIcon matchNumber={match.matchNumber} />
                           Q{match.matchNumber}
                           {match.videoUrl && <Video className="h-3.5 w-3.5 text-red-500" />}
                         </span>

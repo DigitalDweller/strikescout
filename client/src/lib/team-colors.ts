@@ -36,6 +36,20 @@ export function getHeatColor(value: number, min: number, max: number) {
   return "bg-red-500/20 text-red-700 dark:text-red-300";
 }
 
+/** Returns a CSS color string (not Tailwind class) for use in inline styles like slider tracks. */
+export function getHeatCssColor(value: number, min: number, max: number): string {
+  if (max === min) return "";
+  const norm = (value - min) / (max - min);
+
+  if (norm >= 0.95) return "rgb(234 179 8)";       // yellow-500
+  if (norm >= 0.85) return "rgb(250 204 21)";       // yellow-400
+  if (norm >= 0.7)  return "rgb(34 197 94)";        // green-500
+  if (norm >= 0.55) return "rgb(74 222 128)";       // green-400
+  if (norm >= 0.4)  return "";
+  if (norm >= 0.2)  return "rgb(248 113 113)";      // red-400
+  return "rgb(239 68 68)";                           // red-500
+}
+
 export function getRowBorderColor(value: number, min: number, max: number) {
   if (max === min) return "border-l-transparent";
   const norm = (value - min) / (max - min);
@@ -101,6 +115,12 @@ export function getDominantBorderColor(colors: string[]): string {
   return "border-l-transparent";
 }
 
+/** Normalize accuracy/defense: stored as 0-10 (scale) or 0-100 (legacy %); always returns 0-100. */
+export function toPct(val: number): number {
+  if (val == null || isNaN(val)) return 0;
+  return val <= 10 ? val * 10 : Math.min(100, val);
+}
+
 export function computeTeamStats(teams: Team[], entries: ScoutingEntry[]): Map<number, TeamStats> {
   const map = new Map<number, TeamStats>();
   for (const team of teams) {
@@ -109,11 +129,13 @@ export function computeTeamStats(teams: Team[], entries: ScoutingEntry[]): Map<n
     if (count === 0) {
       map.set(team.id, { avgAuto: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, climbRate: 0, entries: 0 });
     } else {
+      const accSum = teamEntries.reduce((s, e) => s + toPct(e.teleopAccuracy ?? 0), 0);
+      const defSum = teamEntries.reduce((s, e) => s + toPct(e.defenseRating ?? 0), 0);
       map.set(team.id, {
         avgAuto: teamEntries.reduce((s, e) => s + e.autoBallsShot, 0) / count,
         avgThroughput: teamEntries.reduce((s, e) => s + e.teleopFpsEstimate, 0) / count,
-        avgAccuracy: teamEntries.reduce((s, e) => s + e.teleopAccuracy, 0) / count * 10,
-        avgDefense: teamEntries.reduce((s, e) => s + e.defenseRating, 0) / count * 10,
+        avgAccuracy: accSum / count,
+        avgDefense: defSum / count,
         climbRate: teamEntries.filter(e => e.climbSuccess === "success").length / count * 100,
         entries: count,
       });

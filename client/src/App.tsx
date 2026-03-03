@@ -7,6 +7,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { PageTransition } from "@/components/page-transition";
+import { SiteFlipProvider, useSiteFlip } from "@/contexts/site-flip";
+import { RufflesProvider } from "@/contexts/ruffles";
+import { DraggableRuffles } from "@/components/draggable-ruffles";
 import NotFound from "@/pages/not-found";
 import AdminEvents from "@/pages/admin-events";
 import AdminEventDetail from "@/pages/admin-event-detail";
@@ -20,6 +24,7 @@ import DataManagement from "@/pages/data-management";
 import MatchDetail from "@/pages/match-detail";
 import EventSettings from "@/pages/event-settings";
 import Picklist from "@/pages/picklist";
+import PlayoffPredictor from "@/pages/playoff-predictor";
 
 function ScrollToTop({ containerRef }: { containerRef: React.RefObject<HTMLElement | null> }) {
   const [location] = useLocation();
@@ -68,6 +73,7 @@ function RotatingBanner() {
 
 function EventLayout() {
   const params = useParams<{ id: string }>();
+  const [location] = useLocation();
   const eventId = parseInt(params.id || "0");
   const mainRef = useRef<HTMLElement>(null);
 
@@ -80,8 +86,9 @@ function EventLayout() {
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <RotatingBanner />
           </header>
-          <main ref={mainRef} className="flex-1 overflow-auto">
+          <main ref={mainRef} className="flex-1 overflow-x-hidden overflow-y-auto">
             <ScrollToTop containerRef={mainRef} />
+            <PageTransition key={location} className="h-full">
             <Switch>
               <Route path="/events/:id" component={AdminEventDetail} />
               <Route path="/events/:id/scout" component={ScoutForm} />
@@ -92,14 +99,35 @@ function EventLayout() {
               <Route path="/events/:id/schedule/:matchNumber" component={MatchDetail} />
               <Route path="/events/:id/settings" component={EventSettings} />
               <Route path="/events/:id/picklist" component={Picklist} />
+              <Route path="/events/:id/playoff-predictor" component={PlayoffPredictor} />
               <Route path="/events/:id/teams/:teamId" component={TeamProfile} />
               <Route path="/events/:id/teams/:teamId/notes" component={TeamNotes} />
               <Route component={NotFound} />
             </Switch>
+            </PageTransition>
           </main>
         </div>
       </div>
     </SidebarProvider>
+  );
+}
+
+function AppContent() {
+  const { flipped } = useSiteFlip();
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        transform: flipped ? "rotate(180deg)" : undefined,
+        transition: "transform 0.6s ease",
+      }}
+    >
+      <Switch>
+        <Route path="/" component={AdminEvents} />
+        <Route path="/events/:id/*?" component={EventLayout} />
+        <Route component={NotFound} />
+      </Switch>
+    </div>
   );
 }
 
@@ -108,12 +136,13 @@ function App() {
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <Toaster />
-          <Switch>
-            <Route path="/" component={AdminEvents} />
-            <Route path="/events/:id/*?" component={EventLayout} />
-            <Route component={NotFound} />
-          </Switch>
+          <SiteFlipProvider>
+            <RufflesProvider>
+              <Toaster />
+              <AppContent />
+              <DraggableRuffles />
+            </RufflesProvider>
+          </SiteFlipProvider>
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>

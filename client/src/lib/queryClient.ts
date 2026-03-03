@@ -1,6 +1,16 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+/** Optional API origin when frontend is served from a different host (e.g. Vite on :5173, API on :5000). */
+const API_BASE = (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_ORIGIN) || "";
+
 async function throwIfResNotOk(res: Response) {
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("text/html")) {
+    await res.text();
+    throw new Error(
+      "Server returned a page instead of JSON. Run the app with `npm run dev` from the project root so the API and client use the same server."
+    );
+  }
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
     let message = text;
@@ -19,7 +29,7 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const res = await fetch(url, {
+  const res = await fetch(API_BASE + url, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
@@ -30,7 +40,8 @@ export async function apiRequest(
 }
 
 const defaultQueryFn: QueryFunction = async ({ queryKey }) => {
-  const res = await fetch(queryKey.join("/") as string);
+  const url = queryKey.join("/") as string;
+  const res = await fetch(API_BASE + url);
   await throwIfResNotOk(res);
   return await res.json();
 };

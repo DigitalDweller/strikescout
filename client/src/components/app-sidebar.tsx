@@ -24,7 +24,7 @@ import {
   ClipboardList,
   Users,
   CalendarDays,
-  Trophy,
+  LayoutDashboard,
   Moon,
   Sun,
   History,
@@ -32,6 +32,7 @@ import {
   Settings,
   RefreshCw,
   ListOrdered,
+  TrendingUp,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { useToast } from "@/hooks/use-toast";
@@ -164,9 +165,10 @@ export function AppSidebar({ eventId }: { eventId: number }) {
   });
 
   const overviewItems = [
-    { title: "Leaderboards", url: `/events/${eventId}`, icon: Trophy, iconClass: "text-yellow-500" },
+    { title: "Overview", url: `/events/${eventId}`, icon: LayoutDashboard, iconClass: "text-violet-500" },
     { title: "Teams", url: `/events/${eventId}/teams`, icon: Users, iconClass: "text-blue-500" },
     { title: "Schedule", url: `/events/${eventId}/schedule`, icon: CalendarDays, iconClass: "text-sky-500" },
+    { title: "Playoff predictor", url: `/events/${eventId}/playoff-predictor`, icon: TrendingUp, iconClass: "text-amber-500" },
   ];
 
   const scoutingItems = [

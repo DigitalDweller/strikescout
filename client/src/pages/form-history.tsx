@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams } from "wouter";
+import { toPct } from "@/lib/team-colors";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -191,8 +192,8 @@ export default function FormHistory() {
                         </TableCell>
                         <TableCell className="text-center font-semibold">{entry.autoBallsShot}</TableCell>
                         <TableCell className="text-center font-semibold">{entry.teleopFpsEstimate}</TableCell>
-                        <TableCell className="text-center font-semibold">{entry.teleopAccuracy * 10}%</TableCell>
-                        <TableCell className="text-center font-semibold">{entry.defenseRating * 10}%</TableCell>
+                        <TableCell className="text-center font-semibold">{toPct(entry.teleopAccuracy ?? 0)}%</TableCell>
+                        <TableCell className="text-center font-semibold">{toPct(entry.defenseRating ?? 0)}%</TableCell>
                         <TableCell className="text-center">
                           <Badge
                             variant={entry.climbSuccess === "success" ? "default" : "secondary"}

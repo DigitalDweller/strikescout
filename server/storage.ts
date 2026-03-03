@@ -1,19 +1,20 @@
 import {
-  events, teams, eventTeams, scoutingEntries, scheduleMatches, picklistEntries,
+  events, teams, eventTeams, scoutingEntries, scheduleMatches, picklists, picklistEntries,
   type Event, type InsertEvent,
   type Team, type InsertTeam, type EventTeam, type InsertEventTeam,
   type ScoutingEntry, type InsertScoutingEntry,
   type ScheduleMatch, type InsertScheduleMatch,
+  type Picklist, type InsertPicklist,
   type PicklistEntry,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, inArray } from "drizzle-orm";
 
 export interface IStorage {
   getEvents(): Promise<Event[]>;
   getEvent(id: number): Promise<Event | undefined>;
   createEvent(event: InsertEvent): Promise<Event>;
-  updateEvent(id: number, data: Partial<Event>): Promise<Event>;
+  updateEvent(id: number, data: Partial<Event>): Promise<Event | undefined>;
   deleteEvent(id: number): Promise<void>;
   getActiveEvent(): Promise<Event | undefined>;
   setActiveEvent(id: number): Promise<void>;
@@ -31,7 +32,7 @@ export interface IStorage {
   removeTeamFromEvent(eventId: number, teamId: number): Promise<void>;
 
   createScoutingEntry(entry: InsertScoutingEntry): Promise<ScoutingEntry>;
-  updateScoutingEntry(id: number, data: Partial<ScoutingEntry>): Promise<ScoutingEntry>;
+  updateScoutingEntry(id: number, data: Partial<ScoutingEntry>): Promise<ScoutingEntry | undefined>;
   deleteScoutingEntry(id: number): Promise<void>;
   getEntriesByEvent(eventId: number): Promise<ScoutingEntry[]>;
   getEntriesByEventAndTeam(eventId: number, teamId: number): Promise<ScoutingEntry[]>;
@@ -46,9 +47,13 @@ export interface IStorage {
   updateEventTeamRanking(eventId: number, teamId: number, rankingPoints: number, rank: number, wins: number, losses: number, ties: number): Promise<void>;
   updateMatchResults(eventId: number, matchNumber: number, redScore: number | null, blueScore: number | null, winningAlliance: string | null): Promise<void>;
 
-  getPicklist(eventId: number): Promise<(PicklistEntry & { team: Team })[]>;
-  setPicklist(eventId: number, teamIds: number[]): Promise<void>;
-  removeFromPicklist(eventId: number, teamId: number): Promise<void>;
+  getPicklists(eventId: number): Promise<Picklist[]>;
+  createPicklist(eventId: number, name: string): Promise<Picklist>;
+  updatePicklist(id: number, data: { name: string }): Promise<Picklist | undefined>;
+  deletePicklist(id: number): Promise<void>;
+  getPicklistEntries(picklistId: number): Promise<(PicklistEntry & { team: Team })[]>;
+  setPicklistEntries(picklistId: number, teamIds: number[]): Promise<void>;
+  removeFromPicklistEntries(picklistId: number, teamId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -66,13 +71,18 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateEvent(id: number, data: Partial<Event>): Promise<Event> {
+  async updateEvent(id: number, data: Partial<Event>): Promise<Event | undefined> {
     const [updated] = await db.update(events).set(data).where(eq(events.id, id)).returning();
-    return updated;
+    return updated ?? undefined;
   }
 
   async deleteEvent(id: number): Promise<void> {
-    await db.delete(picklistEntries).where(eq(picklistEntries.eventId, id));
+    const eventPicklists = await db.select({ id: picklists.id }).from(picklists).where(eq(picklists.eventId, id));
+    const picklistIds = eventPicklists.map((p) => p.id);
+    if (picklistIds.length > 0) {
+      await db.delete(picklistEntries).where(inArray(picklistEntries.picklistId, picklistIds));
+    }
+    await db.delete(picklists).where(eq(picklists.eventId, id));
     await db.delete(scheduleMatches).where(eq(scheduleMatches.eventId, id));
     await db.delete(scoutingEntries).where(eq(scoutingEntries.eventId, id));
     await db.delete(eventTeams).where(eq(eventTeams.eventId, id));
@@ -156,9 +166,9 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateScoutingEntry(id: number, data: Partial<ScoutingEntry>): Promise<ScoutingEntry> {
+  async updateScoutingEntry(id: number, data: Partial<ScoutingEntry>): Promise<ScoutingEntry | undefined> {
     const [updated] = await db.update(scoutingEntries).set(data).where(eq(scoutingEntries.id, id)).returning();
-    return updated;
+    return updated ?? undefined;
   }
 
   async deleteScoutingEntry(id: number): Promise<void> {
@@ -218,25 +228,44 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(scheduleMatches.eventId, eventId), eq(scheduleMatches.matchNumber, matchNumber)));
   }
 
-  async getPicklist(eventId: number): Promise<(PicklistEntry & { team: Team })[]> {
+  async getPicklists(eventId: number): Promise<Picklist[]> {
+    return db.select().from(picklists).where(eq(picklists.eventId, eventId)).orderBy(asc(picklists.createdAt));
+  }
+
+  async createPicklist(eventId: number, name: string): Promise<Picklist> {
+    const [created] = await db.insert(picklists).values({ eventId, name }).returning();
+    return created;
+  }
+
+  async updatePicklist(id: number, data: { name: string }): Promise<Picklist | undefined> {
+    const [updated] = await db.update(picklists).set(data).where(eq(picklists.id, id)).returning();
+    return updated ?? undefined;
+  }
+
+  async deletePicklist(id: number): Promise<void> {
+    await db.delete(picklistEntries).where(eq(picklistEntries.picklistId, id));
+    await db.delete(picklists).where(eq(picklists.id, id));
+  }
+
+  async getPicklistEntries(picklistId: number): Promise<(PicklistEntry & { team: Team })[]> {
     const results = await db
       .select()
       .from(picklistEntries)
       .innerJoin(teams, eq(picklistEntries.teamId, teams.id))
-      .where(eq(picklistEntries.eventId, eventId))
+      .where(eq(picklistEntries.picklistId, picklistId))
       .orderBy(asc(picklistEntries.rank));
 
-    return results.map(r => ({
+    return results.map((r) => ({
       ...r.picklist_entries,
       team: r.teams,
     }));
   }
 
-  async setPicklist(eventId: number, teamIds: number[]): Promise<void> {
-    await db.delete(picklistEntries).where(eq(picklistEntries.eventId, eventId));
+  async setPicklistEntries(picklistId: number, teamIds: number[]): Promise<void> {
+    await db.delete(picklistEntries).where(eq(picklistEntries.picklistId, picklistId));
     if (teamIds.length > 0) {
       const values = teamIds.map((teamId, i) => ({
-        eventId,
+        picklistId,
         teamId,
         rank: i + 1,
         tier: "pick" as const,
@@ -245,13 +274,13 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async removeFromPicklist(eventId: number, teamId: number): Promise<void> {
+  async removeFromPicklistEntries(picklistId: number, teamId: number): Promise<void> {
     await db.delete(picklistEntries).where(
-      and(eq(picklistEntries.eventId, eventId), eq(picklistEntries.teamId, teamId))
+      and(eq(picklistEntries.picklistId, picklistId), eq(picklistEntries.teamId, teamId))
     );
-    const remaining = await this.getPicklist(eventId);
+    const remaining = await this.getPicklistEntries(picklistId);
     if (remaining.length > 0) {
-      await this.setPicklist(eventId, remaining.map(r => r.teamId));
+      await this.setPicklistEntries(picklistId, remaining.map((r) => r.teamId));
     }
   }
 }

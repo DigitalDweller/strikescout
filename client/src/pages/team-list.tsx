@@ -21,55 +21,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, ArrowUpDown, List } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Search, ArrowUpDown, List, AlertCircle, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useRuffles } from "@/contexts/ruffles";
 import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
+import { getHeatColor, getDominantColor, computeTeamStats, computeStatRanges, computeTbaRanges } from "@/lib/team-colors";
 
 type SortField = "teamNumber" | "teamName" | "opr" | "rankingPoints" | "rank" | "avgAuto" | "avgThroughput" | "avgAccuracy" | "avgDefense" | "climbRate" | "entries";
 type SortDir = "asc" | "desc";
 
-function getHeatColor(value: number, min: number, max: number) {
-  if (max === min) return "";
-  const norm = (value - min) / (max - min);
-
-  if (norm >= 0.95) return "bg-yellow-500/20 text-yellow-700 dark:text-yellow-300";
-  if (norm >= 0.85) return "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400";
-  if (norm >= 0.7) return "bg-green-500/20 text-green-700 dark:text-green-300";
-  if (norm >= 0.55) return "bg-green-500/10 text-green-600 dark:text-green-400";
-  if (norm >= 0.4) return "";
-  if (norm >= 0.2) return "bg-red-500/10 text-red-600 dark:text-red-400";
-  return "bg-red-500/20 text-red-700 dark:text-red-300";
-}
-
-function getDominantColor(colors: string[]): string {
-  const validColors = colors.filter(c => c !== "");
-  if (validColors.length === 0) return "";
-
-  const scores: Record<string, number> = {};
-  for (const c of validColors) {
-    if (c.includes("yellow-500/20")) scores["yellow"] = (scores["yellow"] || 0) + 3;
-    else if (c.includes("yellow-500/10")) scores["yellow"] = (scores["yellow"] || 0) + 2;
-    else if (c.includes("green-500/20")) scores["green"] = (scores["green"] || 0) + 2;
-    else if (c.includes("green-500/10")) scores["green"] = (scores["green"] || 0) + 1;
-    else if (c.includes("red-500/20")) scores["red"] = (scores["red"] || 0) + 2;
-    else if (c.includes("red-500/10")) scores["red"] = (scores["red"] || 0) + 1;
-  }
-
-  let best = "";
-  let bestScore = 0;
-  for (const [color, score] of Object.entries(scores)) {
-    if (score > bestScore) { best = color; bestScore = score; }
-  }
-
-  if (best === "yellow") return "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300";
-  if (best === "green") return "bg-green-500/10 text-green-700 dark:text-green-300";
-  if (best === "red") return "bg-red-500/10 text-red-700 dark:text-red-300";
-  return "";
-}
+const TEAM_SEARCH_EASTER_EGG = "5460";
 
 export default function TeamList() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id || "0");
   const [, navigate] = useLocation();
+  const { triggerSpawn } = useRuffles();
   const [search, _setSearch] = useState(() => sessionStorage.getItem(`teams-search-${eventId}`) || "");
   const [sortField, _setSortField] = useState<SortField>(() => (sessionStorage.getItem(`teams-sort-${eventId}`) as SortField) || "teamNumber");
   const [sortDir, _setSortDir] = useState<SortDir>(() => (sessionStorage.getItem(`teams-dir-${eventId}`) as SortDir) || "asc");
@@ -111,60 +83,9 @@ export default function TeamList() {
     return eventTeams.some(et => (et as any).opr != null || (et as any).rankingPoints != null);
   }, [eventTeams]);
 
-  const teamStats = useMemo(() => {
-    if (!entries || !teams) return new Map();
-    const map = new Map<number, {
-      avgAuto: number;
-      avgThroughput: number;
-      avgAccuracy: number;
-      avgDefense: number;
-      climbRate: number;
-      entries: number;
-    }>();
-
-    for (const team of teams) {
-      const teamEntries = entries.filter(e => e.teamId === team.id);
-      const count = teamEntries.length;
-      if (count === 0) {
-        map.set(team.id, { avgAuto: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, climbRate: 0, entries: 0 });
-      } else {
-        map.set(team.id, {
-          avgAuto: teamEntries.reduce((s, e) => s + e.autoBallsShot, 0) / count,
-          avgThroughput: teamEntries.reduce((s, e) => s + e.teleopFpsEstimate, 0) / count,
-          avgAccuracy: teamEntries.reduce((s, e) => s + e.teleopAccuracy, 0) / count * 10,
-          avgDefense: teamEntries.reduce((s, e) => s + e.defenseRating, 0) / count * 10,
-          climbRate: teamEntries.filter(e => e.climbSuccess === "success").length / count * 100,
-          entries: count,
-        });
-      }
-    }
-    return map;
-  }, [entries, teams]);
-
-  const statRanges = useMemo(() => {
-    const allStats = [...teamStats.values()].filter(s => s.entries > 0);
-    if (allStats.length === 0) return null;
-    return {
-      auto: { min: Math.min(...allStats.map(s => s.avgAuto)), max: Math.max(...allStats.map(s => s.avgAuto)) },
-      throughput: { min: Math.min(...allStats.map(s => s.avgThroughput)), max: Math.max(...allStats.map(s => s.avgThroughput)) },
-      accuracy: { min: Math.min(...allStats.map(s => s.avgAccuracy)), max: Math.max(...allStats.map(s => s.avgAccuracy)) },
-      defense: { min: Math.min(...allStats.map(s => s.avgDefense)), max: Math.max(...allStats.map(s => s.avgDefense)) },
-      climb: { min: Math.min(...allStats.map(s => s.climbRate)), max: Math.max(...allStats.map(s => s.climbRate)) },
-    };
-  }, [teamStats]);
-
-  const tbaRanges = useMemo(() => {
-    if (!eventTeams) return null;
-    const oprs = eventTeams.map(et => (et as any).opr).filter((v: any) => v != null) as number[];
-    const rps = eventTeams.map(et => (et as any).rankingPoints).filter((v: any) => v != null) as number[];
-    const seeds = eventTeams.map(et => (et as any).rank).filter((v: any) => v != null) as number[];
-    if (oprs.length === 0 && rps.length === 0 && seeds.length === 0) return null;
-    return {
-      opr: oprs.length > 0 ? { min: Math.min(...oprs), max: Math.max(...oprs) } : null,
-      rp: rps.length > 0 ? { min: Math.min(...rps), max: Math.max(...rps) } : null,
-      seed: seeds.length > 0 ? { min: Math.min(...seeds), max: Math.max(...seeds) } : null,
-    };
-  }, [eventTeams]);
+  const teamStats = useMemo(() => computeTeamStats(teams, entries || []), [teams, entries]);
+  const statRanges = useMemo(() => computeStatRanges(teamStats), [teamStats]);
+  const tbaRanges = useMemo(() => computeTbaRanges(eventTeams || []), [eventTeams]);
 
   const filteredTeams = useMemo(() => {
     let list = teams.filter(t => {
@@ -225,7 +146,7 @@ export default function TeamList() {
   );
 
   return (
-    <div className="p-4 sm:p-6 space-y-4 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 space-y-4 max-w-6xl mx-auto overflow-x-hidden">
       <div>
         <h1 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">Team List</h1>
         <p className="text-muted-foreground text-base mt-1">
@@ -234,7 +155,7 @@ export default function TeamList() {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+        <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search by team number or name..."
@@ -326,10 +247,35 @@ export default function TeamList() {
                     const seedColorVal = seed != null && tbaRanges?.seed ? getHeatColor(tbaRanges.seed.max - seed + tbaRanges.seed.min, tbaRanges.seed.min, tbaRanges.seed.max) : "";
                     const dominant = getDominantColor([oprColorVal, rpColorVal, seedColorVal, autoColor, throughputColor, accuracyColor, defenseColor, climbColor]);
 
+                    const hasTbaForTeam = opr != null || rp != null || seed != null;
+                    const hasScoutingForTeam = (stats?.entries || 0) > 0;
+                    const showNoTbaIcon = !hasTbaForTeam;
+                    const showNoScoutingIcon = !hasScoutingForTeam;
+
                     return (
                       <TableRow key={team.id} data-testid={`row-team-${team.id}`} className="h-12 cursor-pointer hover:bg-accent/50" onClick={() => navigate(`/events/${eventId}/teams/${team.id}`)}>
                         <TableCell className={dominant}>
                           <div className="flex items-center gap-2">
+                            {showNoTbaIcon && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex shrink-0 cursor-help">
+                                    <AlertCircle className="h-4 w-4 text-destructive" aria-hidden />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>No Blue Alliance (TBA) data yet</TooltipContent>
+                              </Tooltip>
+                            )}
+                            {showNoScoutingIcon && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="inline-flex shrink-0 cursor-help">
+                                    <AlertTriangle className="h-4 w-4 text-amber-500 dark:text-amber-400" aria-hidden />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>No scouting data yet</TooltipContent>
+                              </Tooltip>
+                            )}
                             <img src={team.avatar || placeholderAvatar} alt="" className="w-7 h-7 rounded-full border border-border object-cover bg-white shrink-0" />
                             <span className="font-bold text-base">
                               {team.teamNumber}
@@ -375,6 +321,18 @@ export default function TeamList() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {search.trim() === TEAM_SEARCH_EASTER_EGG && (
+        <div className="flex justify-center pt-10 pb-12 px-16 sm:px-24 min-h-[220px] items-center overflow-visible">
+          <Button
+            variant="outline"
+            onClick={triggerSpawn}
+            className="ruffles-btn ruffles-btn-big animate-ruffles-glow-pulse animate-ruffles-reveal-below border-0 shadow-none hover:opacity-95 hover:scale-[1.02] active:scale-[0.98] transition-transform"
+          >
+            <span className="ruffles-btn-text">Ruffles</span>
+          </Button>
+        </div>
       )}
     </div>
   );

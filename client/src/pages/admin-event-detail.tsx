@@ -1,151 +1,49 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
+import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   MapPin,
   Calendar,
-  Trophy,
+  Users,
+  ClipboardList,
+  CalendarDays,
+  ListOrdered,
+  Database,
+  Settings,
+  ArrowRight,
+  AlertCircle,
+  Activity,
   Target,
-  Shield,
-  ChevronUp,
-  Zap,
-  Crown,
-  BarChart3,
-  Star,
+  CheckCircle2,
+  Circle,
 } from "lucide-react";
-import type { Event, Team, EventTeam, ScoutingEntry } from "@shared/schema";
-import placeholderAvatar from "@assets/images_1772071870956.png";
+import type { Event, EventTeam, ScoutingEntry, ScheduleMatch, Team } from "@shared/schema";
+import { formatDistanceToNow, format, parseISO } from "date-fns";
 
-type TeamStats = {
-  teamId: number;
-  team?: Team;
-  opr: number;
-  dpr: number;
-  ccwm: number;
-  rankingPoints: number;
-  avgAuto: number;
-  avgThroughput: number;
-  avgAccuracy: number;
-  avgDefense: number;
-  climbRate: number;
-  avgClimbLevel: number;
-};
-
-const medalColors = [
-  { ring: "ring-yellow-400", bg: "bg-gradient-to-b from-yellow-400/25 to-yellow-500/10", text: "text-yellow-500", border: "border-yellow-400/60", label: "1st" },
-  { ring: "ring-slate-300 dark:ring-slate-400", bg: "bg-gradient-to-b from-slate-300/20 to-slate-400/10 dark:from-slate-400/20 dark:to-slate-500/10", text: "text-slate-400", border: "border-slate-300/50 dark:border-slate-400/50", label: "2nd" },
-  { ring: "ring-amber-600", bg: "bg-gradient-to-b from-amber-600/20 to-amber-700/10", text: "text-amber-600", border: "border-amber-600/50", label: "3rd" },
-];
-
-function MiniPodium({
-  top3,
-  formatValue,
-  getValue,
-  eventId,
-}: {
-  top3: TeamStats[];
-  formatValue: (v: number) => string;
-  getValue: (t: TeamStats) => number;
-  eventId: number;
-}) {
-  const podiumSlots = [
-    { rankIdx: 1, height: "h-10" },
-    { rankIdx: 0, height: "h-16" },
-    { rankIdx: 2, height: "h-7" },
-  ];
-
-  return (
-    <div className="flex items-end justify-center gap-3 px-2">
-      {podiumSlots.map(({ rankIdx, height }) => {
-        const ts = top3[rankIdx];
-        if (!ts) return <div key={rankIdx} className="flex-1" />;
-        const m = medalColors[rankIdx];
-        const isFirst = rankIdx === 0;
-        return (
-          <Link key={ts.teamId} href={`/events/${eventId}/teams/${ts.teamId}`} className="flex-1">
-            <div className="flex flex-col items-center cursor-pointer group min-w-0 w-full" data-testid={`podium-${rankIdx + 1}`}>
-              <div className={`relative ${isFirst ? `ring-2 ${m.ring} ring-offset-2 ring-offset-background` : `ring-1 ${m.ring} ring-offset-1 ring-offset-background`} rounded-full mb-0.5`}>
-                <img
-                  src={ts.team?.avatar || placeholderAvatar}
-                  alt={`Team ${ts.team?.teamNumber}`}
-                  className={`${isFirst ? "w-11 h-11" : "w-8 h-8"} rounded-full border border-border object-cover bg-white`}
-                />
-                {isFirst && <Crown className="absolute -top-2 -right-1 h-4 w-4 text-yellow-500 fill-yellow-500" />}
-              </div>
-              <span className="font-extrabold text-xs group-hover:text-primary transition-colors">{ts.team?.teamNumber}</span>
-              <span className={`${isFirst ? "text-base" : "text-sm"} font-black tabular-nums leading-tight`}>{formatValue(getValue(ts))}</span>
-              <div className={`w-full ${height} ${m.bg} ${m.border} border-t-2 rounded-t-md flex items-start justify-center pt-0.5 mt-0.5`}>
-                <span className={`text-xs font-black ${m.text}`}>{m.label}</span>
-              </div>
-            </div>
-          </Link>
-        );
-      })}
-    </div>
-  );
+function formatMatchLabel(matchNumber: number): string {
+  return `Q${matchNumber}`;
 }
 
-function LeaderboardCard({
-  title,
-  icon,
-  teams,
-  getValue,
-  formatValue,
-  eventId,
-  sortFn,
-  accentColor,
-  extraProps,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  teams: TeamStats[];
-  getValue: (t: TeamStats) => number;
-  formatValue: (v: number) => string;
-  eventId: number;
-  sortFn?: (a: TeamStats, b: TeamStats) => number;
-  accentColor: string;
-  extraProps?: string;
-}) {
-  const sorted = [...teams].sort(sortFn ? (a, b) => sortFn(b, a) : (a, b) => getValue(b) - getValue(a));
-  const top3 = sorted.slice(0, 3);
-  const rest = sorted.slice(3, 5);
+function formatScheduleTime(timeStr: string | null | undefined): string | null {
+  if (!timeStr || !timeStr.trim()) return null;
+  try {
+    const iso = timeStr.replace(" ", "T");
+    const d = parseISO(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return format(d, "EEE h:mm a");
+  } catch {
+    return null;
+  }
+}
 
-  if (top3.length === 0) return null;
-
-  return (
-    <Card className={`border-t-3 ${accentColor} ${extraProps || ""}`} data-testid={`leaderboard-section-${title.toLowerCase().replace(/\s+/g, "-")}`}>
-      <CardHeader className="pb-1 pt-2.5 px-3">
-        <CardTitle className="text-sm font-bold flex items-center gap-1.5">
-          {icon}
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="px-3 pb-2.5 pt-0">
-        <MiniPodium top3={top3} formatValue={formatValue} getValue={getValue} eventId={eventId} />
-        {rest.length > 0 && (
-          <div className="mt-1.5 pt-1.5 border-t border-border/50 space-y-0">
-            {rest.map((ts, i) => (
-              <Link key={ts.teamId} href={`/events/${eventId}/teams/${ts.teamId}`}>
-                <div className="flex items-center gap-2 py-1 px-1 rounded hover:bg-muted/50 cursor-pointer transition-colors" data-testid={`leaderboard-row-${i + 4}`}>
-                  <span className="text-[11px] font-bold text-muted-foreground w-4 text-center shrink-0">{i + 4}</span>
-                  <img
-                    src={ts.team?.avatar || placeholderAvatar}
-                    alt={`Team ${ts.team?.teamNumber}`}
-                    className="w-5 h-5 rounded-full border border-border object-cover bg-white shrink-0"
-                  />
-                  <span className="font-bold text-xs flex-1 truncate">{ts.team?.teamNumber}</span>
-                  <span className="text-xs font-extrabold tabular-nums shrink-0">{formatValue(getValue(ts))}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
+function isMatchOver(m: { winningAlliance?: string | null; videoUrl?: string | null }): boolean {
+  const hasWinner = m.winningAlliance != null && String(m.winningAlliance).trim() !== "";
+  const hasVideo = m.videoUrl != null && String(m.videoUrl).trim() !== "";
+  return hasWinner || hasVideo;
 }
 
 export default function AdminEventDetail() {
@@ -164,51 +62,66 @@ export default function AdminEventDetail() {
     queryKey: ["/api/events", eventId, "entries"],
   });
 
-  const teamStatsList = useMemo((): TeamStats[] => {
-    if (!eventTeams || !entries) return [];
-    return eventTeams.map(et => {
-      const te = entries.filter(e => e.teamId === et.teamId);
-      const count = te.length;
-      if (count === 0) {
-        return {
-          teamId: et.teamId,
-          team: et.team,
-          opr: (et as any).opr || 0,
-          dpr: (et as any).dpr || 0,
-          ccwm: (et as any).ccwm || 0,
-          rankingPoints: (et as any).rankingPoints || 0,
-          avgAuto: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, climbRate: 0, avgClimbLevel: 0,
-        };
-      }
-      const climbs = te.filter(e => e.climbSuccess === "success");
-      return {
-        teamId: et.teamId,
-        team: et.team,
-        opr: (et as any).opr || 0,
-        dpr: (et as any).dpr || 0,
-        ccwm: (et as any).ccwm || 0,
-        rankingPoints: (et as any).rankingPoints || 0,
-        avgAuto: te.reduce((s, e) => s + e.autoBallsShot, 0) / count,
-        avgThroughput: te.reduce((s, e) => s + e.teleopFpsEstimate, 0) / count,
-        avgAccuracy: te.reduce((s, e) => s + e.teleopAccuracy, 0) / count * 10,
-        avgDefense: te.reduce((s, e) => s + e.defenseRating, 0) / count * 10,
-        climbRate: climbs.length / count * 100,
-        avgClimbLevel: climbs.length > 0 ? climbs.reduce((s, e) => s + (parseInt(e.climbLevel || "0") || 0), 0) / climbs.length : 0,
-      };
-    });
-  }, [eventTeams, entries]);
+  const { data: schedule } = useQuery<ScheduleMatch[]>({
+    queryKey: ["/api/events", eventId, "schedule"],
+  });
 
-  const teamsWithData = teamStatsList.filter(t => t.avgAuto > 0 || t.avgThroughput > 0 || t.avgAccuracy > 0 || t.avgDefense > 0 || t.climbRate > 0);
-  const teamsWithOpr = teamStatsList.filter(t => t.opr > 0);
-  const hasRankingData = eventTeams?.some(et => (et as any).rankingPoints != null) ?? false;
-  const teamsWithRP = hasRankingData ? teamStatsList : [];
-  const matchesScouted = entries ? new Set(entries.map(e => e.matchNumber)).size : 0;
+  const stats = useMemo(() => {
+    const teamCount = eventTeams?.length ?? 0;
+    const scheduleCount = Array.isArray(schedule) ? schedule.length : 0;
+    const totalEntries = entries?.length ?? 0;
+    const matchesScouted = entries ? new Set(entries.map((e) => e.matchNumber)).size : 0;
+    const teamsWithData = entries ? new Set(entries.map((e) => e.teamId)).size : 0;
+    const teamsWithoutData = teamCount - teamsWithData;
+    const coveragePct =
+      teamCount > 0 && scheduleCount > 0
+        ? Math.round((totalEntries / (teamCount * Math.max(scheduleCount, 1))) * 100)
+        : 0;
+    return {
+      teamCount,
+      scheduleCount,
+      totalEntries,
+      matchesScouted,
+      teamsWithData,
+      teamsWithoutData: Math.max(0, teamsWithoutData),
+      coveragePct,
+    };
+  }, [eventTeams, entries, schedule]);
+
+  const recentEntries = useMemo(() => {
+    if (!entries?.length || !eventTeams?.length) return [];
+    const teamMap = new Map(eventTeams.map((et) => [et.teamId, et.team]));
+    return [...entries]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5)
+      .map((e) => ({
+        ...e,
+        teamNumber: teamMap.get(e.teamId)?.teamNumber ?? "?",
+      }));
+  }, [entries, eventTeams]);
+
+  const { completedMatches, upcomingMatches } = useMemo(() => {
+    if (!Array.isArray(schedule) || schedule.length === 0) {
+      return { completedMatches: [], upcomingMatches: [] };
+    }
+    const sorted = [...schedule].sort((a, b) => a.matchNumber - b.matchNumber);
+    const completed = sorted.filter((m) => isMatchOver(m));
+    const upcoming = sorted.filter((m) => !isMatchOver(m));
+    return { completedMatches: completed, upcomingMatches: upcoming };
+  }, [schedule]);
+
+  const firstUpcomingRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (upcomingMatches.length > 0 && firstUpcomingRef.current) {
+      firstUpcomingRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [upcomingMatches.length]);
 
   if (eventLoading) {
     return (
       <div className="p-4 sm:p-6 max-w-6xl mx-auto">
         <Skeleton className="h-8 w-48 mb-4" />
-        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-32 w-full" />
       </div>
     );
   }
@@ -221,10 +134,18 @@ export default function AdminEventDetail() {
     );
   }
 
-  const hasAnyData = teamsWithData.length > 0 || teamsWithOpr.length > 0 || teamsWithRP.length > 0;
+  const quickActions = [
+    { title: "Scout", href: `/events/${eventId}/scout`, icon: ClipboardList, color: "text-emerald-500", desc: "Record match data" },
+    { title: "Teams", href: `/events/${eventId}/teams`, icon: Users, color: "text-blue-500", desc: "View & sort teams" },
+    { title: "Schedule", href: `/events/${eventId}/schedule`, icon: CalendarDays, color: "text-sky-500", desc: "Matches & results" },
+    { title: "Picklist", href: `/events/${eventId}/picklist`, icon: ListOrdered, color: "text-teal-500", desc: "Build draft order" },
+    { title: "Data", href: `/events/${eventId}/data`, icon: Database, color: "text-slate-400", desc: "Export CSV" },
+    { title: "Settings", href: `/events/${eventId}/settings`, icon: Settings, color: "text-slate-400", desc: "TBA & sync" },
+  ];
 
   return (
-    <div className="p-4 sm:p-6 space-y-4 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 space-y-6 max-w-6xl mx-auto">
+      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight" data-testid="text-event-name">
           {event.name}
@@ -243,109 +164,285 @@ export default function AdminEventDetail() {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-4 mt-3">
+        <div className="flex flex-wrap items-center gap-2 mt-3">
           <Badge variant="secondary" className="text-sm font-semibold px-3 py-1">
-            {eventTeams?.length || 0} teams
+            {stats.teamCount} teams
           </Badge>
           <Badge variant="secondary" className="text-sm font-semibold px-3 py-1">
-            {matchesScouted} matches scouted
+            {stats.matchesScouted} matches scouted
           </Badge>
+          {stats.scheduleCount > 0 && (
+            <Badge variant="outline" className="text-sm font-medium px-3 py-1">
+              {stats.scheduleCount} on schedule
+            </Badge>
+          )}
+          {stats.totalEntries > 0 && (
+            <Badge variant="outline" className="text-sm font-medium px-3 py-1">
+              {stats.totalEntries} entries
+            </Badge>
+          )}
         </div>
       </div>
 
+      {/* Quick actions */}
       <div>
-        <h2 className="text-xl font-bold flex items-center gap-2 mb-3">
-          <Trophy className="h-5 w-5" />
-          Leaderboards
-        </h2>
+        <h2 className="text-lg font-semibold mb-3">Quick actions</h2>
+        <motion.div
+          className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6"
+          initial="hidden"
+          animate="visible"
+          variants={{
+            visible: { transition: { staggerChildren: 0.04, delayChildren: 0.02 } },
+            hidden: {},
+          }}
+        >
+          {quickActions.map((action) => (
+            <motion.div
+              key={action.title}
+              variants={{ visible: { opacity: 1, y: 0 }, hidden: { opacity: 0, y: 8 } }}
+              transition={{ duration: 0.2, ease: [0.33, 1, 0.68, 1] }}
+            >
+              <Link href={action.href}>
+                <Card className="cursor-pointer hover-elevate transition-colors h-full group border-border/80">
+                  <CardContent className="p-4 flex flex-col items-center text-center">
+                    <action.icon className={`h-6 w-6 mb-1.5 ${action.color}`} />
+                    <span className="font-semibold text-sm">{action.title}</span>
+                    <span className="text-xs text-muted-foreground mt-0.5">{action.desc}</span>
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </CardContent>
+                </Card>
+              </Link>
+            </motion.div>
+          ))}
+        </motion.div>
+      </div>
 
-        {!hasAnyData ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Trophy className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-              <p className="font-medium text-lg">No scouting data yet</p>
-              <p className="text-muted-foreground mt-1">
-                Head to the Scout tab to start recording match data. Leaderboards will populate automatically.
-              </p>
+      {/* Needs attention */}
+      {stats.teamsWithoutData > 0 && stats.teamCount > 0 && (
+        <div className="mt-6">
+        <Link href={`/events/${eventId}/teams`}>
+          <Card className="cursor-pointer hover-elevate transition-colors border-amber-500/30 bg-amber-500/5">
+            <CardContent className="p-4 flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <div>
+                <p className="font-medium">
+                  {stats.teamsWithoutData} team{stats.teamsWithoutData !== 1 ? "s" : ""} have no scouting data yet
+                </p>
+                <p className="text-sm text-muted-foreground">View team list to see who still needs to be scouted</p>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground ml-auto shrink-0" />
             </CardContent>
           </Card>
-        ) : (
-          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {teamsWithOpr.length > 0 && (
-              <LeaderboardCard
-                title="OPR"
-                icon={<Crown className="h-3.5 w-3.5 text-yellow-500" />}
-                teams={teamsWithOpr}
-                getValue={t => t.opr}
-                formatValue={v => parseFloat(v.toFixed(1)).toString()}
-                eventId={eventId}
-                accentColor="border-yellow-500/40"
-              />
-            )}
-            {teamsWithRP.length > 0 && (
-              <LeaderboardCard
-                title="Ranking Points"
-                icon={<Star className="h-3.5 w-3.5 text-amber-500" />}
-                teams={teamsWithRP}
-                getValue={t => t.rankingPoints}
-                formatValue={v => parseFloat(v.toFixed(2)).toString()}
-                eventId={eventId}
-                accentColor="border-amber-500/40"
-              />
-            )}
-            <LeaderboardCard
-              title="Auto"
-              icon={<Zap className="h-3.5 w-3.5 text-primary" />}
-              teams={teamsWithData}
-              getValue={t => t.avgAuto}
-              formatValue={v => parseFloat(v.toFixed(1)).toString()}
-              eventId={eventId}
-              accentColor="border-primary/30"
-            />
-            <LeaderboardCard
-              title="Throughput"
-              icon={<BarChart3 className="h-3.5 w-3.5 text-chart-2" />}
-              teams={teamsWithData}
-              getValue={t => t.avgThroughput}
-              formatValue={v => parseFloat(v.toFixed(1)).toString()}
-              eventId={eventId}
-              accentColor="border-chart-2/30"
-            />
-            <LeaderboardCard
-              title="Accuracy"
-              icon={<Target className="h-3.5 w-3.5 text-chart-3" />}
-              teams={teamsWithData}
-              getValue={t => t.avgAccuracy}
-              formatValue={v => `${Math.round(v)}%`}
-              eventId={eventId}
-              accentColor="border-chart-3/30"
-            />
-            <LeaderboardCard
-              title="Defense"
-              icon={<Shield className="h-3.5 w-3.5 text-chart-4" />}
-              teams={teamsWithData}
-              getValue={t => t.avgDefense}
-              formatValue={v => `${Math.round(v)}%`}
-              eventId={eventId}
-              accentColor="border-chart-4/30"
-            />
-            <LeaderboardCard
-              title="Climb Rate"
-              icon={<ChevronUp className="h-3.5 w-3.5 text-chart-5" />}
-              teams={teamsWithData}
-              getValue={t => t.climbRate}
-              formatValue={v => `${Math.round(v)}%`}
-              eventId={eventId}
-              accentColor="border-chart-5/30"
-              sortFn={(a, b) => {
-                const diff = a.climbRate - b.climbRate;
-                if (diff !== 0) return diff;
-                return a.avgClimbLevel - b.avgClimbLevel;
-              }}
-            />
-          </div>
-        )}
+        </Link>
+        </div>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Upcoming matches */}
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
+            <CalendarDays className="h-5 w-5 text-sky-500" />
+            Upcoming matches
+          </h2>
+          {!schedule?.length ? (
+            <Card>
+              <CardContent className="p-6 text-center">
+                <CalendarDays className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">No schedule yet</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Sync from TBA in <Link href={`/events/${eventId}/settings`} className="text-primary underline">Settings</Link>
+                </p>
+              </CardContent>
+            </Card>
+          ) : upcomingMatches.length === 0 ? (
+            <Card>
+              <CardContent className="p-6 text-center">
+                <p className="text-sm text-muted-foreground">All matches are over</p>
+                <Link href={`/events/${eventId}/schedule`} className="text-xs text-primary hover:underline mt-1 inline-block">
+                  View schedule →
+                </Link>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <ul className="divide-y divide-border max-h-[50vh] overflow-y-auto custom-scrollbar">
+                  {upcomingMatches.map((m, idx) => {
+                    const dayTime = formatScheduleTime(m.time);
+                    const redTeams = [m.red1, m.red2, m.red3].filter((n): n is number => n != null && n > 0);
+                    const blueTeams = [m.blue1, m.blue2, m.blue3].filter((n): n is number => n != null && n > 0);
+                    const isFirstUpcoming = idx === 0;
+                    return (
+                      <li key={m.matchNumber} ref={isFirstUpcoming ? firstUpcomingRef : undefined}>
+                        <Link href={`/events/${eventId}/schedule/${m.matchNumber}`}>
+                          <div className={`px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-2 hover:bg-muted/50 transition-colors ${isFirstUpcoming ? "ring-inset ring-1 ring-primary/20 bg-primary/5" : ""}`}>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Target className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-semibold">{formatMatchLabel(m.matchNumber)}</span>
+                              {dayTime && <span className="text-sm text-muted-foreground">{dayTime}</span>}
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                              <div className="flex items-center gap-1">
+                                {redTeams.length > 0 ? redTeams.map((num) => (
+                                  <span key={num} className="inline-flex items-center justify-center min-w-[2rem] px-1.5 py-0.5 rounded text-xs font-semibold bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30">{num}</span>
+                                )) : <span className="text-xs text-muted-foreground">—</span>}
+                              </div>
+                              <span className="text-muted-foreground/50 text-xs">vs</span>
+                              <div className="flex items-center gap-1">
+                                {blueTeams.length > 0 ? blueTeams.map((num) => (
+                                  <span key={num} className="inline-flex items-center justify-center min-w-[2rem] px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">{num}</span>
+                                )) : <span className="text-xs text-muted-foreground">—</span>}
+                              </div>
+                            </div>
+                            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-auto" />
+                          </div>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="px-4 py-2 border-t border-border bg-muted/30">
+                  <Link href={`/events/${eventId}/schedule`} className="text-sm text-primary hover:underline font-medium">
+                    View full schedule →
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Recent scouting */}
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2 mb-3">
+            <Activity className="h-5 w-5 text-emerald-500" />
+            Recent scouting
+          </h2>
+          {recentEntries.length === 0 ? (
+            <Card>
+              <CardContent className="p-6 text-center">
+                <ClipboardList className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">No entries yet</p>
+                <Link href={`/events/${eventId}/scout`}>
+                  <span className="text-sm text-primary hover:underline font-medium">Scout a match →</span>
+                </Link>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <ul className="divide-y divide-border">
+                  {recentEntries.map((e) => (
+                    <li key={e.id}>
+                      <Link href={`/events/${eventId}/teams/${e.teamId}/notes`}>
+                        <div className="px-4 py-3 flex items-center justify-between gap-2 hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">Team {e.teamNumber}</span>
+                            <Badge variant="secondary" className="text-xs font-medium">
+                              Match {e.matchNumber}
+                            </Badge>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(e.createdAt), { addSuffix: true })}
+                          </span>
+                          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                <div className="px-4 py-2 border-t border-border bg-muted/30">
+                  <Link href={`/events/${eventId}/scout/history`} className="text-sm text-primary hover:underline font-medium">
+                    View form history →
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
+
+      {/* Scouting checklist */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Scouting checklist</CardTitle>
+          <p className="text-sm text-muted-foreground font-normal">
+            Track progress for your scouting team
+          </p>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <ul className="space-y-4">
+            {/* Each team scouted at least once */}
+            <li>
+              <Link
+                href={`/events/${eventId}/teams`}
+                className="block p-2.5 rounded-lg hover:bg-muted/60 transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  {stats.teamsWithData >= stats.teamCount && stats.teamCount > 0 ? (
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" aria-hidden />
+                  ) : (
+                    <Circle className="h-5 w-5 text-muted-foreground shrink-0" aria-hidden />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium text-sm">Scout each team at least once</span>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {stats.teamCount === 0
+                        ? "Add teams to this event to track"
+                        : `${stats.teamsWithData} of ${stats.teamCount} teams`}
+                    </p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                </div>
+                <div className="mt-2 ml-8">
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-500"
+                      style={{
+                        width: `${stats.teamCount > 0 ? Math.round((stats.teamsWithData / stats.teamCount) * 100) : 0}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </Link>
+            </li>
+
+            {/* All qualification matches scouted */}
+            <li>
+              <Link
+                href={stats.scheduleCount > 0 ? `/events/${eventId}/schedule` : `/events/${eventId}/settings`}
+                className="block p-2.5 rounded-lg hover:bg-muted/60 transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  {stats.scheduleCount > 0 && stats.matchesScouted >= stats.scheduleCount ? (
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" aria-hidden />
+                  ) : (
+                    <Circle className="h-5 w-5 text-muted-foreground shrink-0" aria-hidden />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium text-sm">Scout all qualification matches</span>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {stats.scheduleCount === 0
+                        ? "Sync schedule from TBA to track"
+                        : `${stats.matchesScouted} of ${stats.scheduleCount} matches`}
+                    </p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                </div>
+                <div className="mt-2 ml-8">
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-500"
+                      style={{
+                        width: `${stats.scheduleCount > 0 ? Math.round((stats.matchesScouted / stats.scheduleCount) * 100) : 0}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </Link>
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
     </div>
   );
 }

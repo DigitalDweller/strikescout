@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { motion } from "framer-motion";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
@@ -495,15 +496,25 @@ export default function AdminEvents() {
       </div>
 
         {isLoading ? (
-          <div className="space-y-3">
+          <motion.div
+            className="space-y-3"
+            initial="hidden"
+            animate="visible"
+            variants={{
+              visible: { transition: { staggerChildren: 0.06, delayChildren: 0.02 } },
+              hidden: {},
+            }}
+          >
             {[1, 2, 3].map((i) => (
-              <Card key={i}>
-                <CardContent className="p-4">
-                  <Skeleton className="h-16 w-full" />
-                </CardContent>
-              </Card>
+              <motion.div key={i} variants={{ visible: { opacity: 1, y: 0 }, hidden: { opacity: 0, y: 8 } }} transition={{ duration: 0.2 }}>
+                <Card>
+                  <CardContent className="p-4">
+                    <Skeleton className="h-16 w-full" />
+                  </CardContent>
+                </Card>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         ) : events?.length === 0 ? (
           <Card>
             <CardContent className="p-12 text-center">
@@ -519,10 +530,23 @@ export default function AdminEvents() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-3">
+          <motion.div
+            className="space-y-3"
+            initial="hidden"
+            animate="visible"
+            variants={{
+              visible: { transition: { staggerChildren: 0.05, delayChildren: 0.03 } },
+              hidden: {},
+            }}
+          >
             {events?.map((event) => (
-              <Card
+              <motion.div
                 key={event.id}
+                variants={{ visible: { opacity: 1, y: 0 }, hidden: { opacity: 0, y: 10 } }}
+                transition={{ duration: 0.25, ease: [0.33, 1, 0.68, 1] }}
+                className="transition-transform duration-150 hover:translate-y-[-1px]"
+              >
+              <Card
                 className="cursor-pointer hover-elevate transition-colors"
                 data-testid={`card-event-${event.id}`}
               >
@@ -564,8 +588,9 @@ export default function AdminEvents() {
                   </div>
                 </CardContent>
               </Card>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
 
         {settingsEvent && (
