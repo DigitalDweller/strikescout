@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
 import flashbangImg from "@assets/black-guy-showing-hand-1657857_1772066434323.webp";
 import {
   Sidebar,
@@ -33,6 +34,8 @@ import {
   RefreshCw,
   ListOrdered,
   TrendingUp,
+  LogOut,
+  User as UserIcon,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { useToast } from "@/hooks/use-toast";
@@ -56,7 +59,7 @@ function TbaSyncStatus({ eventId }: { eventId: number }) {
   const { data } = useQuery<SyncStatusData>({
     queryKey: ["/api/events", eventId, "tba", "sync-status"],
     queryFn: async () => {
-      const res = await fetch(`/api/events/${eventId}/tba/sync-status`);
+      const res = await fetch(`/api/events/${eventId}/tba/sync-status`, { credentials: "include" });
       if (!res.ok) return { connected: false, autoSync: false, syncing: false, lastSyncTime: null, expiresAt: null, manualSyncsRemaining: 3, manualSyncResetsAt: null };
       return res.json();
     },
@@ -105,7 +108,7 @@ function TbaSyncStatus({ eventId }: { eventId: number }) {
     if (!canManualSync) return;
     setManualSyncing(true);
     try {
-      const res = await fetch(`/api/events/${eventId}/tba/manual-sync`, { method: "POST" });
+      const res = await fetch(`/api/events/${eventId}/tba/manual-sync`, { method: "POST", credentials: "include" });
       const text = await res.text();
       if (!res.ok) {
         let msg = text;
@@ -145,6 +148,7 @@ function TbaSyncStatus({ eventId }: { eventId: number }) {
 export function AppSidebar({ eventId }: { eventId: number }) {
   const [location] = useLocation();
   const { theme, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
   const [showFlashbang, setShowFlashbang] = useState(false);
   const clickTimestamps = useRef<number[]>([]);
 
@@ -256,17 +260,34 @@ export function AppSidebar({ eventId }: { eventId: number }) {
         ))}
       </SidebarContent>
       <SidebarFooter>
+        <div className="px-3 pb-1">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <UserIcon className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{user?.username}</span>
+          </div>
+        </div>
         <div className="flex items-center justify-between px-3 pb-3">
           <TbaSyncStatus eventId={eventId} />
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={handleThemeClick}
-            className="shrink-0"
-            data-testid="button-toggle-theme"
-          >
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={handleThemeClick}
+              className="h-8 w-8"
+              data-testid="button-toggle-theme"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={logout}
+              className="h-8 w-8"
+              title="Sign out"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </SidebarFooter>
       {showFlashbang && (

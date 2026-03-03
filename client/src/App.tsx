@@ -5,6 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/hooks/use-theme";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { PageTransition } from "@/components/page-transition";
@@ -12,8 +13,10 @@ import { SiteFlipProvider, useSiteFlip } from "@/contexts/site-flip";
 import { RufflesProvider } from "@/contexts/ruffles";
 import { DraggableRuffles } from "@/components/draggable-ruffles";
 import NotFound from "@/pages/not-found";
+import Login from "@/pages/login";
 import AdminEvents from "@/pages/admin-events";
 import AdminEventDetail from "@/pages/admin-event-detail";
+import UserManagement from "@/pages/user-management";
 import TeamProfile from "@/pages/team-profile";
 import TeamList from "@/pages/team-list";
 import Schedule from "@/pages/schedule";
@@ -25,6 +28,7 @@ import MatchDetail from "@/pages/match-detail";
 import EventSettings from "@/pages/event-settings";
 import Picklist from "@/pages/picklist";
 import PlayoffPredictor from "@/pages/playoff-predictor";
+import { Loader2 } from "lucide-react";
 
 function ScrollToTop({ containerRef }: { containerRef: React.RefObject<HTMLElement | null> }) {
   const [location] = useLocation();
@@ -114,6 +118,20 @@ function EventLayout() {
 
 function AppContent() {
   const { flipped } = useSiteFlip();
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-200 dark:bg-zinc-900">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
   return (
     <div
       style={{
@@ -124,6 +142,7 @@ function AppContent() {
     >
       <Switch>
         <Route path="/" component={AdminEvents} />
+        <Route path="/admin/users" component={UserManagement} />
         <Route path="/events/:id/*?" component={EventLayout} />
         <Route component={NotFound} />
       </Switch>
@@ -135,15 +154,17 @@ function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <SiteFlipProvider>
-            <RufflesProvider>
-              <Toaster />
-              <AppContent />
-              <DraggableRuffles />
-            </RufflesProvider>
-          </SiteFlipProvider>
-        </TooltipProvider>
+        <AuthProvider>
+          <TooltipProvider>
+            <SiteFlipProvider>
+              <RufflesProvider>
+                <Toaster />
+                <AppContent />
+                <DraggableRuffles />
+              </RufflesProvider>
+            </SiteFlipProvider>
+          </TooltipProvider>
+        </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

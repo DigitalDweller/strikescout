@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,87 +46,12 @@ import {
   Wrench,
   Bug,
   Sparkles,
-  Rocket,
-  GitCommit,
-  Clock,
+  LogOut,
+  Shield,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import type { Event } from "@shared/schema";
-
-const VERSION_HISTORY = [
-  {
-    version: "0.4.0",
-    date: "Mar 2, 2026",
-    tag: "latest",
-    changes: [
-      { type: "feature" as const, text: "Added version history and dev logs to home page" },
-      { type: "feature" as const, text: "Playoff predictor with bracket visualization" },
-      { type: "improvement" as const, text: "Improved team profile stat breakdowns" },
-    ],
-  },
-  {
-    version: "0.3.0",
-    date: "Feb 20, 2026",
-    changes: [
-      { type: "feature" as const, text: "Picklist ranking system with drag-and-drop" },
-      { type: "feature" as const, text: "Match schedule import from TBA" },
-      { type: "fix" as const, text: "Fixed scouting form data not saving on slow connections" },
-      { type: "improvement" as const, text: "Better mobile responsiveness across all pages" },
-    ],
-  },
-  {
-    version: "0.2.0",
-    date: "Feb 8, 2026",
-    changes: [
-      { type: "feature" as const, text: "Team notes and collaborative scouting" },
-      { type: "feature" as const, text: "Data export to CSV" },
-      { type: "improvement" as const, text: "Dark mode theme with smoother transitions" },
-      { type: "fix" as const, text: "Event deletion now properly cascades to all related data" },
-    ],
-  },
-  {
-    version: "0.1.0",
-    date: "Jan 25, 2026",
-    changes: [
-      { type: "feature" as const, text: "Initial release with event management" },
-      { type: "feature" as const, text: "Scouting form with customizable fields" },
-      { type: "feature" as const, text: "Team list and basic profiles" },
-    ],
-  },
-];
-
-const DEV_LOGS = [
-  {
-    date: "Mar 2, 2026",
-    title: "Home page polish",
-    content:
-      "Added version history and dev logs so the team can track what's changed. Also cleaned up some animation jank on the hero section.",
-  },
-  {
-    date: "Feb 25, 2026",
-    title: "Playoff predictor shipped",
-    content:
-      "The bracket visualization is live. It pulls alliance data and simulates outcomes based on OPR. Still need to fine-tune the prediction model but it's usable for strategy meetings.",
-  },
-  {
-    date: "Feb 15, 2026",
-    title: "TBA integration work",
-    content:
-      "Spent the weekend wiring up The Blue Alliance API for schedule imports. Saves a ton of manual entry. Next up: auto-pulling team lists per event.",
-  },
-  {
-    date: "Feb 5, 2026",
-    title: "Data layer refactor",
-    content:
-      "Migrated from raw SQL to Drizzle ORM. Much cleaner queries and type safety across the stack. Also fixed the cascading delete bug that was leaving orphaned scouting records.",
-  },
-  {
-    date: "Jan 25, 2026",
-    title: "We're live!",
-    content:
-      "First working version of StrikeScout deployed. Basic event CRUD, scouting forms, and team lists. Lots more to build but the foundation is solid.",
-  },
-];
+import { VERSION_HISTORY } from "@/config/version-history";
 
 const changeTypeConfig = {
   feature: { icon: Sparkles, label: "New", className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" },
@@ -351,6 +277,7 @@ export default function AdminEvents() {
   const [createOpen, setCreateOpen] = useState(false);
   const [settingsEvent, setSettingsEvent] = useState<Event | null>(null);
   const { theme, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
 
   const { data: events, isLoading } = useQuery<Event[]>({
     queryKey: ["/api/events"],
@@ -377,106 +304,32 @@ export default function AdminEvents() {
     },
   });
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isAnimatingRef = useRef(false);
-  const currentSectionRef = useRef(0);
-
-  const smoothScrollTo = useCallback((target: number) => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    isAnimatingRef.current = true;
-    const start = container.scrollTop;
-    const distance = target - start;
-    const duration = 800;
-    let startTime: number | null = null;
-
-    function easeInOutCubic(t: number) {
-      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-    }
-
-    function step(timestamp: number) {
-      if (!startTime) startTime = timestamp;
-      const elapsed = timestamp - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = easeInOutCubic(progress);
-
-      container!.scrollTop = start + distance * eased;
-
-      if (progress < 1) {
-        requestAnimationFrame(step);
-      } else {
-        isAnimatingRef.current = false;
-      }
-    }
-
-    requestAnimationFrame(step);
-  }, []);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-
-      if (isAnimatingRef.current) return;
-
-      if (scrollTimeout) clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => {
-        const viewH = container.clientHeight;
-        if (e.deltaY > 0 && currentSectionRef.current === 0) {
-          currentSectionRef.current = 1;
-          smoothScrollTo(viewH);
-        } else if (e.deltaY < 0 && currentSectionRef.current === 1) {
-          currentSectionRef.current = 0;
-          smoothScrollTo(0);
-        }
-      }, 50);
-    };
-
-    let touchStartY = 0;
-    const handleTouchStart = (e: TouchEvent) => {
-      touchStartY = e.touches[0].clientY;
-    };
-    const handleTouchEnd = (e: TouchEvent) => {
-      if (isAnimatingRef.current) return;
-      const delta = touchStartY - e.changedTouches[0].clientY;
-      const viewH = container.clientHeight;
-      if (delta > 50 && currentSectionRef.current === 0) {
-        currentSectionRef.current = 1;
-        smoothScrollTo(viewH);
-      } else if (delta < -50 && currentSectionRef.current === 1) {
-        currentSectionRef.current = 0;
-        smoothScrollTo(0);
-      }
-    };
-
-    container.addEventListener("wheel", handleWheel, { passive: false });
-    container.addEventListener("touchstart", handleTouchStart, { passive: true });
-    container.addEventListener("touchend", handleTouchEnd, { passive: true });
-
-    return () => {
-      container.removeEventListener("wheel", handleWheel);
-      container.removeEventListener("touchstart", handleTouchStart);
-      container.removeEventListener("touchend", handleTouchEnd);
-      if (scrollTimeout) clearTimeout(scrollTimeout);
-    };
-  }, [smoothScrollTo]);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const eventsSectionRef = useRef<HTMLDivElement>(null);
 
   const scrollToEvents = () => {
-    if (isAnimatingRef.current) return;
-    const container = containerRef.current;
-    if (!container) return;
-    currentSectionRef.current = 1;
-    smoothScrollTo(container.clientHeight);
+    const container = scrollContainerRef.current;
+    const section = eventsSectionRef.current;
+    if (!container || !section) return;
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (
-    <div ref={containerRef} className="h-screen overflow-hidden bg-background">
-      <div className="fixed top-4 right-4 z-50">
+    <div
+      ref={scrollContainerRef}
+      className="h-screen overflow-y-auto overflow-x-hidden bg-background scrollbar-hide"
+    >
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        <span className="text-xs text-muted-foreground bg-background/50 backdrop-blur-sm px-2 py-1 rounded">
+          {user?.username}
+        </span>
+        {user?.role === "admin" && (
+          <Link href="/admin/users">
+            <Button size="icon" variant="ghost" className="bg-background/50 backdrop-blur-sm" title="Manage Users">
+              <Shield className="h-4 w-4" />
+            </Button>
+          </Link>
+        )}
         <Button
           size="icon"
           variant="ghost"
@@ -486,9 +339,18 @@ export default function AdminEvents() {
         >
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={logout}
+          className="bg-background/50 backdrop-blur-sm"
+          title="Sign out"
+        >
+          <LogOut className="h-4 w-4" />
+        </Button>
       </div>
 
-      <div className="relative h-screen flex flex-col items-center justify-center overflow-hidden bg-zinc-200 dark:bg-zinc-900">
+      <div className="relative min-h-screen flex flex-col items-center justify-center bg-zinc-200 dark:bg-zinc-900">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background" />
 
         <div className="relative z-10 text-center space-y-4 px-4">
@@ -510,7 +372,11 @@ export default function AdminEvents() {
         </button>
       </div>
 
-      <div id="events-section" className="h-screen overflow-y-auto p-4 sm:p-6 space-y-6 max-w-3xl mx-auto py-12">
+      <div
+        id="events-section"
+        ref={eventsSectionRef}
+        className="p-4 sm:p-6 space-y-6 max-w-3xl mx-auto py-12"
+      >
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-xl font-bold" data-testid="text-events-heading">Your Events</h2>
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -691,8 +557,8 @@ export default function AdminEvents() {
           />
         )}
 
-        <div className="border-t mt-10 pt-10 space-y-10">
-          {/* Version History */}
+        <div className="border-t mt-10 pt-10 pb-12">
+          {/* Version History - edit client/src/config/version-history.ts */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -746,47 +612,6 @@ export default function AdminEvents() {
                       );
                     })}
                   </ul>
-                </motion.div>
-              ))}
-            </div>
-          </motion.section>
-
-          {/* Dev Logs */}
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.4, delay: 0.1 }}
-            className="pb-12"
-          >
-            <div className="flex items-center gap-2 mb-5">
-              <GitCommit className="h-5 w-5 text-muted-foreground" />
-              <h2 className="text-xl font-bold">Dev Logs</h2>
-            </div>
-
-            <div className="space-y-3">
-              {DEV_LOGS.map((log, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, y: 8 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-20px" }}
-                  transition={{ duration: 0.25, delay: idx * 0.04 }}
-                >
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="font-semibold text-sm">{log.title}</span>
-                        <span className="text-xs text-muted-foreground flex items-center gap-1 ml-auto shrink-0">
-                          <Clock className="h-3 w-3" />
-                          {log.date}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground leading-relaxed">
-                        {log.content}
-                      </p>
-                    </CardContent>
-                  </Card>
                 </motion.div>
               ))}
             </div>
