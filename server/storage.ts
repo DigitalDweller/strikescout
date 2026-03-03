@@ -1,5 +1,7 @@
 import {
+  users,
   events, teams, eventTeams, scoutingEntries, scheduleMatches, picklists, picklistEntries,
+  type User, type InsertUser,
   type Event, type InsertEvent,
   type Team, type InsertTeam, type EventTeam, type InsertEventTeam,
   type ScoutingEntry, type InsertScoutingEntry,
@@ -11,6 +13,13 @@ import { db } from "./db";
 import { eq, and, asc, inArray } from "drizzle-orm";
 
 export interface IStorage {
+  getUser(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getUsers(): Promise<User[]>;
+  createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, data: Partial<User>): Promise<User | undefined>;
+  deleteUser(id: number): Promise<void>;
+
   getEvents(): Promise<Event[]>;
   getEvent(id: number): Promise<Event | undefined>;
   createEvent(event: InsertEvent): Promise<Event>;

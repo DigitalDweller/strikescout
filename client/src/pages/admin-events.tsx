@@ -41,9 +41,97 @@ import {
   Moon,
   Sun,
   ChevronDown,
+  Tag,
+  Wrench,
+  Bug,
+  Sparkles,
+  Rocket,
+  GitCommit,
+  Clock,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import type { Event } from "@shared/schema";
+
+const VERSION_HISTORY = [
+  {
+    version: "0.4.0",
+    date: "Mar 2, 2026",
+    tag: "latest",
+    changes: [
+      { type: "feature" as const, text: "Added version history and dev logs to home page" },
+      { type: "feature" as const, text: "Playoff predictor with bracket visualization" },
+      { type: "improvement" as const, text: "Improved team profile stat breakdowns" },
+    ],
+  },
+  {
+    version: "0.3.0",
+    date: "Feb 20, 2026",
+    changes: [
+      { type: "feature" as const, text: "Picklist ranking system with drag-and-drop" },
+      { type: "feature" as const, text: "Match schedule import from TBA" },
+      { type: "fix" as const, text: "Fixed scouting form data not saving on slow connections" },
+      { type: "improvement" as const, text: "Better mobile responsiveness across all pages" },
+    ],
+  },
+  {
+    version: "0.2.0",
+    date: "Feb 8, 2026",
+    changes: [
+      { type: "feature" as const, text: "Team notes and collaborative scouting" },
+      { type: "feature" as const, text: "Data export to CSV" },
+      { type: "improvement" as const, text: "Dark mode theme with smoother transitions" },
+      { type: "fix" as const, text: "Event deletion now properly cascades to all related data" },
+    ],
+  },
+  {
+    version: "0.1.0",
+    date: "Jan 25, 2026",
+    changes: [
+      { type: "feature" as const, text: "Initial release with event management" },
+      { type: "feature" as const, text: "Scouting form with customizable fields" },
+      { type: "feature" as const, text: "Team list and basic profiles" },
+    ],
+  },
+];
+
+const DEV_LOGS = [
+  {
+    date: "Mar 2, 2026",
+    title: "Home page polish",
+    content:
+      "Added version history and dev logs so the team can track what's changed. Also cleaned up some animation jank on the hero section.",
+  },
+  {
+    date: "Feb 25, 2026",
+    title: "Playoff predictor shipped",
+    content:
+      "The bracket visualization is live. It pulls alliance data and simulates outcomes based on OPR. Still need to fine-tune the prediction model but it's usable for strategy meetings.",
+  },
+  {
+    date: "Feb 15, 2026",
+    title: "TBA integration work",
+    content:
+      "Spent the weekend wiring up The Blue Alliance API for schedule imports. Saves a ton of manual entry. Next up: auto-pulling team lists per event.",
+  },
+  {
+    date: "Feb 5, 2026",
+    title: "Data layer refactor",
+    content:
+      "Migrated from raw SQL to Drizzle ORM. Much cleaner queries and type safety across the stack. Also fixed the cascading delete bug that was leaving orphaned scouting records.",
+  },
+  {
+    date: "Jan 25, 2026",
+    title: "We're live!",
+    content:
+      "First working version of StrikeScout deployed. Basic event CRUD, scouting forms, and team lists. Lots more to build but the foundation is solid.",
+  },
+];
+
+const changeTypeConfig = {
+  feature: { icon: Sparkles, label: "New", className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" },
+  improvement: { icon: Wrench, label: "Improved", className: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" },
+  fix: { icon: Bug, label: "Fix", className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" },
+};
 
 const createEventSchema = z.object({
   name: z.string().min(1, "Event name is required"),
@@ -602,6 +690,108 @@ export default function AdminEvents() {
             }}
           />
         )}
+
+        <div className="border-t mt-10 pt-10 space-y-10">
+          {/* Version History */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.4 }}
+          >
+            <div className="flex items-center gap-2 mb-5">
+              <Tag className="h-5 w-5 text-muted-foreground" />
+              <h2 className="text-xl font-bold">Version History</h2>
+            </div>
+
+            <div className="relative space-y-0">
+              <div className="absolute left-[15px] top-2 bottom-2 w-px bg-border" />
+
+              {VERSION_HISTORY.map((release, idx) => (
+                <motion.div
+                  key={release.version}
+                  initial={{ opacity: 0, x: -10 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true, margin: "-20px" }}
+                  transition={{ duration: 0.3, delay: idx * 0.05 }}
+                  className="relative pl-10 pb-6 last:pb-0"
+                >
+                  <div className="absolute left-[10px] top-1.5 h-[11px] w-[11px] rounded-full border-2 border-primary bg-background" />
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-base">v{release.version}</span>
+                    <span className="text-xs text-muted-foreground">{release.date}</span>
+                    {release.tag && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                        {release.tag}
+                      </Badge>
+                    )}
+                  </div>
+
+                  <ul className="mt-2 space-y-1.5">
+                    {release.changes.map((change, cIdx) => {
+                      const config = changeTypeConfig[change.type];
+                      const Icon = config.icon;
+                      return (
+                        <li key={cIdx} className="flex items-start gap-2 text-sm">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1.5 py-0 shrink-0 mt-0.5 font-medium ${config.className}`}
+                          >
+                            <Icon className="h-2.5 w-2.5 mr-0.5" />
+                            {config.label}
+                          </Badge>
+                          <span className="text-muted-foreground">{change.text}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </motion.div>
+              ))}
+            </div>
+          </motion.section>
+
+          {/* Dev Logs */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            className="pb-12"
+          >
+            <div className="flex items-center gap-2 mb-5">
+              <GitCommit className="h-5 w-5 text-muted-foreground" />
+              <h2 className="text-xl font-bold">Dev Logs</h2>
+            </div>
+
+            <div className="space-y-3">
+              {DEV_LOGS.map((log, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, y: 8 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-20px" }}
+                  transition={{ duration: 0.25, delay: idx * 0.04 }}
+                >
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="font-semibold text-sm">{log.title}</span>
+                        <span className="text-xs text-muted-foreground flex items-center gap-1 ml-auto shrink-0">
+                          <Clock className="h-3 w-3" />
+                          {log.date}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {log.content}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          </motion.section>
+        </div>
       </div>
     </div>
   );
