@@ -75,11 +75,22 @@ function RotatingBanner() {
   );
 }
 
+function ScouterRedirect() {
+  const params = useParams<{ id: string }>();
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    setLocation(`/events/${params.id}/scout`, { replace: true });
+  }, [params.id, setLocation]);
+  return null;
+}
+
 function EventLayout() {
   const params = useParams<{ id: string }>();
   const [location] = useLocation();
+  const { user } = useAuth();
   const eventId = parseInt(params.id || "0");
   const mainRef = useRef<HTMLElement>(null);
+  const isAdmin = user?.role === "admin";
 
   return (
     <SidebarProvider>
@@ -93,21 +104,30 @@ function EventLayout() {
           <main ref={mainRef} className="flex-1 overflow-x-hidden overflow-y-auto">
             <ScrollToTop containerRef={mainRef} />
             <PageTransition key={location} className="h-full">
-            <Switch>
-              <Route path="/events/:id" component={AdminEventDetail} />
-              <Route path="/events/:id/scout" component={ScoutForm} />
-              <Route path="/events/:id/scout/history" component={FormHistory} />
-              <Route path="/events/:id/data" component={DataManagement} />
-              <Route path="/events/:id/teams" component={TeamList} />
-              <Route path="/events/:id/schedule" component={Schedule} />
-              <Route path="/events/:id/schedule/:matchNumber" component={MatchDetail} />
-              <Route path="/events/:id/settings" component={EventSettings} />
-              <Route path="/events/:id/picklist" component={Picklist} />
-              <Route path="/events/:id/playoff-predictor" component={PlayoffPredictor} />
-              <Route path="/events/:id/teams/:teamId" component={TeamProfile} />
-              <Route path="/events/:id/teams/:teamId/notes" component={TeamNotes} />
-              <Route component={NotFound} />
-            </Switch>
+            {isAdmin ? (
+              <Switch>
+                <Route path="/events/:id" component={AdminEventDetail} />
+                <Route path="/events/:id/scout" component={ScoutForm} />
+                <Route path="/events/:id/scout/history" component={FormHistory} />
+                <Route path="/events/:id/data" component={DataManagement} />
+                <Route path="/events/:id/teams" component={TeamList} />
+                <Route path="/events/:id/schedule" component={Schedule} />
+                <Route path="/events/:id/schedule/:matchNumber" component={MatchDetail} />
+                <Route path="/events/:id/settings" component={EventSettings} />
+                <Route path="/events/:id/picklist" component={Picklist} />
+                <Route path="/events/:id/playoff-predictor" component={PlayoffPredictor} />
+                <Route path="/events/:id/teams/:teamId" component={TeamProfile} />
+                <Route path="/events/:id/teams/:teamId/notes" component={TeamNotes} />
+                <Route component={NotFound} />
+              </Switch>
+            ) : (
+              <Switch>
+                <Route path="/events/:id/scout" component={ScoutForm} />
+                <Route path="/events/:id/scout/history" component={FormHistory} />
+                <Route path="/events/:id" component={ScouterRedirect} />
+                <Route component={ScouterRedirect} />
+              </Switch>
+            )}
             </PageTransition>
           </main>
         </div>

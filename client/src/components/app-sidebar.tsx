@@ -168,12 +168,7 @@ export function AppSidebar({ eventId }: { eventId: number }) {
     queryKey: ["/api/events", eventId],
   });
 
-  const overviewItems = [
-    { title: "Overview", url: `/events/${eventId}`, icon: LayoutDashboard, iconClass: "text-violet-500" },
-    { title: "Teams", url: `/events/${eventId}/teams`, icon: Users, iconClass: "text-blue-500" },
-    { title: "Schedule", url: `/events/${eventId}/schedule`, icon: CalendarDays, iconClass: "text-sky-500" },
-    { title: "Playoff predictor", url: `/events/${eventId}/playoff-predictor`, icon: TrendingUp, iconClass: "text-amber-500" },
-  ];
+  const isAdmin = user?.role === "admin";
 
   const scoutingItems = [
     {
@@ -185,13 +180,30 @@ export function AppSidebar({ eventId }: { eventId: number }) {
         { title: "Form History", url: `/events/${eventId}/scout/history`, icon: History, iconClass: "text-green-400" },
       ],
     },
-    { title: "Picklist", url: `/events/${eventId}/picklist`, icon: ListOrdered, iconClass: "text-teal-500" },
+    ...(isAdmin ? [{ title: "Picklist", url: `/events/${eventId}/picklist`, icon: ListOrdered, iconClass: "text-teal-500" }] : []),
   ];
 
-  const manageItems = [
-    { title: "Data Management", url: `/events/${eventId}/data`, icon: Database, iconClass: "text-slate-400" },
-    { title: "Settings", url: `/events/${eventId}/settings`, icon: Settings, iconClass: "text-slate-400" },
-  ];
+  const sections = isAdmin
+    ? [
+        {
+          label: "Overview",
+          items: [
+            { title: "Overview", url: `/events/${eventId}`, icon: LayoutDashboard, iconClass: "text-violet-500" },
+            { title: "Teams", url: `/events/${eventId}/teams`, icon: Users, iconClass: "text-blue-500" },
+            { title: "Schedule", url: `/events/${eventId}/schedule`, icon: CalendarDays, iconClass: "text-sky-500" },
+            { title: "Playoff predictor", url: `/events/${eventId}/playoff-predictor`, icon: TrendingUp, iconClass: "text-amber-500" },
+          ],
+        },
+        { label: "Scouting", items: scoutingItems },
+        {
+          label: "Manage",
+          items: [
+            { title: "Data Management", url: `/events/${eventId}/data`, icon: Database, iconClass: "text-slate-400" },
+            { title: "Settings", url: `/events/${eventId}/settings`, icon: Settings, iconClass: "text-slate-400" },
+          ],
+        },
+      ]
+    : [{ label: "Scouting", items: scoutingItems }];
 
   return (
     <Sidebar>
@@ -216,11 +228,7 @@ export function AppSidebar({ eventId }: { eventId: number }) {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        {[
-          { label: "Overview", items: overviewItems },
-          { label: "Scouting", items: scoutingItems },
-          { label: "Manage", items: manageItems },
-        ].map(section => (
+        {sections.map(section => (
           <SidebarGroup key={section.label} className="py-0 px-2 gap-0">
             <SidebarGroupLabel className="h-4 text-[10px]">{section.label}</SidebarGroupLabel>
             <SidebarGroupContent>

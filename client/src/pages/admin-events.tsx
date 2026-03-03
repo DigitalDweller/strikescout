@@ -379,7 +379,7 @@ export default function AdminEvents() {
       >
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-xl font-bold" data-testid="text-events-heading">Your Events</h2>
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          {user?.role === "admin" && <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-create-event">
                 <Plus className="h-4 w-4 mr-1" />
@@ -446,7 +446,7 @@ export default function AdminEvents() {
               </form>
             </Form>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
       </div>
 
         {isLoading ? (
@@ -475,12 +475,14 @@ export default function AdminEvents() {
               <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
               <p className="font-semibold text-lg">No events yet</p>
               <p className="text-sm text-muted-foreground mt-1 mb-4">
-                Create your first event to start scouting robots.
+                {user?.role === "admin" ? "Create your first event to start scouting robots." : "No events have been created. Ask an admin to set one up."}
               </p>
-              <Button onClick={() => setCreateOpen(true)} data-testid="button-create-event-empty">
-                <Plus className="h-4 w-4 mr-1" />
-                Create Event
-              </Button>
+              {user?.role === "admin" && (
+                <Button onClick={() => setCreateOpen(true)} data-testid="button-create-event-empty">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Create Event
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -508,7 +510,7 @@ export default function AdminEvents() {
                   <div className="flex items-center justify-between gap-3">
                     <div
                       className="flex-1 min-w-0"
-                      onClick={() => setLocation(`/events/${event.id}`)}
+                      onClick={() => setLocation(user?.role === "admin" ? `/events/${event.id}` : `/events/${event.id}/scout`)}
                     >
                       <span className="font-semibold text-lg" data-testid={`text-event-name-${event.id}`}>
                         {event.name}
@@ -528,17 +530,19 @@ export default function AdminEvents() {
                         )}
                       </div>
                     </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSettingsEvent(event);
-                      }}
-                      data-testid={`button-settings-${event.id}`}
-                    >
-                      <Settings className="h-4 w-4" />
-                    </Button>
+                    {user?.role === "admin" && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSettingsEvent(event);
+                        }}
+                        data-testid={`button-settings-${event.id}`}
+                      >
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>

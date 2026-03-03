@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams } from "wouter";
 import { toPct } from "@/lib/team-colors";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +51,8 @@ export default function FormHistory() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id || "0");
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [search, setSearch] = useState("");
   const [editEntry, setEditEntry] = useState<ScoutingEntry | null>(null);
   const [deleteEntry, setDeleteEntry] = useState<ScoutingEntry | null>(null);
@@ -59,8 +62,12 @@ export default function FormHistory() {
     queryKey: ["/api/events", eventId],
   });
 
+  const entriesUrl = isAdmin
+    ? `/api/events/${eventId}/entries`
+    : `/api/events/${eventId}/entries?mine=true`;
+
   const { data: entries, isLoading } = useQuery<ScoutingEntry[]>({
-    queryKey: ["/api/events", eventId, "entries"],
+    queryKey: [entriesUrl],
   });
 
   const { data: eventTeams } = useQuery<(EventTeam & { team: Team })[]>({
@@ -75,7 +82,7 @@ export default function FormHistory() {
       await apiRequest("PATCH", `/api/entries/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "entries"] });
+      queryClient.invalidateQueries({ queryKey: [entriesUrl] });
       toast({ title: "Entry updated" });
       setEditEntry(null);
     },
@@ -86,7 +93,7 @@ export default function FormHistory() {
       await apiRequest("DELETE", `/api/entries/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "entries"] });
+      queryClient.invalidateQueries({ queryKey: [entriesUrl] });
       toast({ title: "Entry deleted" });
       setDeleteEntry(null);
     },
@@ -135,7 +142,7 @@ export default function FormHistory() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2" data-testid="text-form-history-title">
           <History className="h-6 w-6" />
-          Form History
+          {isAdmin ? "Form History" : "My Form History"}
         </h1>
         {event && (
           <p className="text-sm text-muted-foreground mt-1">{event.name} &middot; {filtered.length} entries</p>

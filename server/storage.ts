@@ -45,6 +45,7 @@ export interface IStorage {
   deleteScoutingEntry(id: number): Promise<void>;
   getEntriesByEvent(eventId: number): Promise<ScoutingEntry[]>;
   getEntriesByEventAndTeam(eventId: number, teamId: number): Promise<ScoutingEntry[]>;
+  getEntriesByEventAndScouter(eventId: number, scouterId: number): Promise<ScoutingEntry[]>;
   getEntriesByMatch(eventId: number, matchNumber: number): Promise<ScoutingEntry[]>;
 
   getScheduleByEvent(eventId: number): Promise<ScheduleMatch[]>;
@@ -219,6 +220,12 @@ export class DatabaseStorage implements IStorage {
   async getEntriesByEventAndTeam(eventId: number, teamId: number): Promise<ScoutingEntry[]> {
     return db.select().from(scoutingEntries).where(
       and(eq(scoutingEntries.eventId, eventId), eq(scoutingEntries.teamId, teamId))
+    );
+  }
+
+  async getEntriesByEventAndScouter(eventId: number, scouterId: number): Promise<ScoutingEntry[]> {
+    return db.select().from(scoutingEntries).where(
+      and(eq(scoutingEntries.eventId, eventId), eq(scoutingEntries.scouterId, scouterId))
     );
   }
 

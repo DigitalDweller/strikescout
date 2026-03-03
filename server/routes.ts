@@ -50,7 +50,14 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  // --- Auth routes (public) ---
+  // --- Auth gate: runs FIRST for every /api request ---
+  app.use("/api", (req: Request, res: Response, next: NextFunction) => {
+    const path = req.path;
+    if (path === "/login" || path === "/logout" || path === "/user") return next();
+    requireAuth(req, res, next);
+  });
+
+  // --- Public auth routes ---
   app.post("/api/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: Express.User | false, info: { message: string } | undefined) => {
       if (err) return next(err);
@@ -76,64 +83,84 @@ export async function registerRoutes(
     res.json({ id, username, displayName, role });
   });
 
-  // --- Admin user management routes ---
-  app.get("/api/users", requireAuth, requireAdmin, async (_req, res) => {
-    const allUsers = await storage.getUsers();
-    res.json(allUsers.map(u => ({ id: u.id, username: u.username, displayName: u.displayName, role: u.role })));
+  // --- Admin user management routes (requireAuth handled by gate above) ---
+  app.get("/api/users", requireAdmin, async (_req, res) => {
+    try {
+      const allUsers = await storage.getUsers();
+      res.json(allUsers.map(u => ({ id: u.id, username: u.username, displayName: u.displayName, role: u.role })));
+    } catch (err: any) {
+      res.status(500).json({ message: err?.message || "Failed to fetch users" });
+    }
   });
 
-  app.post("/api/users", requireAuth, requireAdmin, async (req, res) => {
-    const { username, password, role } = req.body;
-    if (!username || !password) return res.status(400).json({ message: "Username and password are required" });
-    const existing = await storage.getUserByUsername(username);
-    if (existing) return res.status(400).json({ message: "Username already exists" });
-    const hashed = await hashPassword(password);
-    const user = await storage.createUser({
-      username,
-      password: hashed,
-      displayName: username,
-      role: role || "scouter",
-    });
-    res.status(201).json({ id: user.id, username: user.username, displayName: user.displayName, role: user.role });
+  app.post("/api/users", requireAdmin, async (req, res) => {
+    try {
+      const { username, password, role } = req.body;
+      if (!username || !password) return res.status(400).json({ message: "Username and password are required" });
+      if (typeof username !== "string" || typeof password !== "string") return res.status(400).json({ message: "Username and password must be strings" });
+      const trimmedUsername = username.trim();
+      if (!trimmedUsername) return res.status(400).json({ message: "Username cannot be empty" });
+      const existing = await storage.getUserByUsername(trimmedUsername);
+      if (existing) return res.status(400).json({ message: "Username already exists" });
+      const hashed = await hashPassword(password);
+      const user = await storage.createUser({
+        username: trimmedUsername,
+        password: hashed,
+        displayName: trimmedUsername,
+        role: role === "admin" ? "admin" : "scouter",
+      });
+      res.status(201).json({ id: user.id, username: user.username, displayName: user.displayName, role: user.role });
+    } catch (err: any) {
+      console.error("Failed to create user:", err);
+      res.status(500).json({ message: err?.message || "Failed to create user" });
+    }
   });
 
-  app.patch("/api/users/:id", requireAuth, requireAdmin, async (req, res) => {
-    const id = parseInt(req.params.id);
-    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid user id" });
-    const user = await storage.getUser(id);
-    if (!user) return res.sendStatus(404);
-    const updates: any = {};
-    if (req.body.username) updates.username = req.body.username;
-    if (req.body.username) updates.displayName = req.body.username;
-    if (req.body.role) updates.role = req.body.role;
-    if (req.body.password) updates.password = await hashPassword(req.body.password);
-    const updated = await storage.updateUser(id, updates);
-    if (!updated) return res.sendStatus(404);
-    res.json({ id: updated.id, username: updated.username, displayName: updated.displayName, role: updated.role });
+  app.patch("/api/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid user id" });
+      const user = await storage.getUser(id);
+      if (!user) return res.sendStatus(404);
+      if (user.username === "username123") return res.status(400).json({ message: "Cannot modify the default admin account" });
+      const updates: any = {};
+      if (req.body.username) {
+        updates.username = req.body.username.trim();
+        updates.displayName = req.body.username.trim();
+      }
+      if (req.body.role) updates.role = req.body.role;
+      if (req.body.password) updates.password = await hashPassword(req.body.password);
+      const updated = await storage.updateUser(id, updates);
+      if (!updated) return res.sendStatus(404);
+      res.json({ id: updated.id, username: updated.username, displayName: updated.displayName, role: updated.role });
+    } catch (err: any) {
+      console.error("Failed to update user:", err);
+      res.status(500).json({ message: err?.message || "Failed to update user" });
+    }
   });
 
-  app.delete("/api/users/:id", requireAuth, requireAdmin, async (req, res) => {
-    const id = parseInt(req.params.id);
-    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid user id" });
-    const user = await storage.getUser(id);
-    if (!user) return res.sendStatus(404);
-    if (user.username === "username123") return res.status(400).json({ message: "Cannot delete the primary admin" });
-    await storage.deleteUser(id);
-    res.sendStatus(204);
+  app.delete("/api/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid user id" });
+      const user = await storage.getUser(id);
+      if (!user) return res.sendStatus(404);
+      if (user.username === "username123") return res.status(400).json({ message: "Cannot delete the default admin account" });
+      await storage.deleteUser(id);
+      res.sendStatus(204);
+    } catch (err: any) {
+      console.error("Failed to delete user:", err);
+      res.status(500).json({ message: err?.message || "Failed to delete user" });
+    }
   });
 
-  // --- All routes below require authentication ---
-  app.use("/api", (req, res, next) => {
-    if (req.path === "/login" || req.path === "/logout" || req.path === "/user") return next();
-    requireAuth(req, res, next);
-  });
-
+  // --- Protected routes (requireAuth handled by gate above) ---
   app.get("/api/events", async (_req, res) => {
     const allEvents = await storage.getEvents();
     res.json(allEvents);
   });
 
-  app.post("/api/events", async (req, res) => {
+  app.post("/api/events", requireAdmin, async (req, res) => {
     const parsed = insertEventSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const event = await storage.createEvent(parsed.data);
@@ -146,7 +173,7 @@ export async function registerRoutes(
     res.json(event);
   });
 
-  app.patch("/api/events/:id", async (req, res) => {
+  app.patch("/api/events/:id", requireAdmin, async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid event id" });
     const event = await storage.updateEvent(id, req.body);
@@ -154,12 +181,12 @@ export async function registerRoutes(
     res.json(event);
   });
 
-  app.delete("/api/events/:id", async (req, res) => {
+  app.delete("/api/events/:id", requireAdmin, async (req, res) => {
     await storage.deleteEvent(parseInt(req.params.id));
     res.sendStatus(204);
   });
 
-  app.post("/api/events/:id/set-active", async (req, res) => {
+  app.post("/api/events/:id/set-active", requireAdmin, async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid event id" });
     const event = await storage.getEvent(id);
@@ -268,7 +295,12 @@ export async function registerRoutes(
   });
 
   app.get("/api/events/:eventId/entries", async (req, res) => {
-    const entries = await storage.getEntriesByEvent(parseInt(req.params.eventId));
+    const eventId = parseInt(req.params.eventId);
+    if (req.user?.role !== "admin" && req.query.mine === "true") {
+      const entries = await storage.getEntriesByEventAndScouter(eventId, req.user!.id);
+      return res.json(entries);
+    }
+    const entries = await storage.getEntriesByEvent(eventId);
     res.json(entries);
   });
 
