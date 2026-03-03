@@ -43,6 +43,7 @@ export interface IStorage {
   createScoutingEntry(entry: InsertScoutingEntry): Promise<ScoutingEntry>;
   updateScoutingEntry(id: number, data: Partial<ScoutingEntry>): Promise<ScoutingEntry | undefined>;
   deleteScoutingEntry(id: number): Promise<void>;
+  getScoutingEntry(id: number): Promise<ScoutingEntry | undefined>;
   getEntriesByEvent(eventId: number): Promise<ScoutingEntry[]>;
   getEntriesByEventAndTeam(eventId: number, teamId: number): Promise<ScoutingEntry[]>;
   getEntriesByEventAndScouter(eventId: number, scouterId: number): Promise<ScoutingEntry[]>;
@@ -211,6 +212,11 @@ export class DatabaseStorage implements IStorage {
 
   async deleteScoutingEntry(id: number): Promise<void> {
     await db.delete(scoutingEntries).where(eq(scoutingEntries.id, id));
+  }
+
+  async getScoutingEntry(id: number): Promise<ScoutingEntry | undefined> {
+    const [row] = await db.select().from(scoutingEntries).where(eq(scoutingEntries.id, id));
+    return row;
   }
 
   async getEntriesByEvent(eventId: number): Promise<ScoutingEntry[]> {

@@ -1,7 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 /** Optional API origin when frontend is served from a different host (e.g. Vite on :5173, API on :5000). */
-const API_BASE = (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_ORIGIN) || "";
+export const API_BASE = (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_ORIGIN) || "";
 
 async function throwIfResNotOk(res: Response) {
   const contentType = res.headers.get("content-type") || "";

@@ -3,6 +3,7 @@ import { type Server } from "http";
 import passport from "passport";
 import { storage } from "./storage";
 import { hashPassword } from "./auth";
+import { eventBroadcast, CHANNEL_ENTRIES, notifyEntriesUpdated } from "./eventBroadcast";
 import { insertEventSchema, insertTeamSchema, insertScoutingEntrySchema } from "@shared/schema";
 import { z } from "zod";
 import { fetchMatchVideos, fetchMatchResults, getVideoUrl, validateEventKey, fetchTeamAvatars, fetchEventOPRs, fetchMatchSchedule, fetchEventRankings, fetchEventTeams, isTbaConfigured } from "./tba";
@@ -277,6 +278,7 @@ export async function registerRoutes(
     });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const entry = await storage.createScoutingEntry(parsed.data);
+    notifyEntriesUpdated(entry.eventId);
     res.status(201).json(entry);
   });
 
@@ -285,13 +287,37 @@ export async function registerRoutes(
     if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid entry id" });
     const updated = await storage.updateScoutingEntry(id, req.body);
     if (!updated) return res.sendStatus(404);
+    notifyEntriesUpdated(updated.eventId);
     res.json(updated);
   });
 
   app.delete("/api/entries/:id", async (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid entry id" });
+    const entry = await storage.getScoutingEntry(id);
     await storage.deleteScoutingEntry(id);
+    if (entry) notifyEntriesUpdated(entry.eventId);
     res.sendStatus(204);
+  });
+
+  /** SSE: stream "entries" when scouting data for this event changes (so admin tabs can refetch). */
+  app.get("/api/events/:eventId/updates", (req, res) => {
+    const eventId = parseInt(req.params.eventId, 10);
+    if (!Number.isFinite(eventId) || eventId < 1) {
+      return res.status(400).json({ message: "Invalid event id" });
+    }
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders?.();
+    const listener = (emittedEventId: number) => {
+      if (emittedEventId === eventId) res.write(`data: ${CHANNEL_ENTRIES}\n\n`);
+    };
+    eventBroadcast.on(CHANNEL_ENTRIES, listener);
+    req.on("close", () => {
+      eventBroadcast.off(CHANNEL_ENTRIES, listener);
+    });
   });
 
   app.get("/api/events/:eventId/entries", async (req, res) => {

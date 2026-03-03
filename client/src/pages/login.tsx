@@ -32,7 +32,7 @@ export default function Login() {
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-2">
             <Crosshair className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold tracking-tight">StrikeScout</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Strikescout</h1>
           </div>
           <p className="text-sm text-muted-foreground">Sign in to continue</p>
         </div>

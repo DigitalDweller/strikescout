@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Switch, Route, useParams, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { useEventUpdates } from "@/hooks/use-event-updates";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { PageTransition } from "@/components/page-transition";
@@ -43,35 +44,10 @@ function ScrollToTop({ containerRef }: { containerRef: React.RefObject<HTMLEleme
 }
 
 function RotatingBanner() {
-  const [showAlt, setShowAlt] = useState(false);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setShowAlt(true);
-      setTimeout(() => setShowAlt(false), 5000);
-    }, 15000);
-    return () => clearInterval(interval);
-  }, []);
-
   return (
-    <div className="relative h-5 flex-1 overflow-hidden">
-      <p
-        className={`absolute inset-x-0 text-xs text-muted-foreground transition-all duration-500 ease-in-out ${
-          showAlt ? "-translate-y-full opacity-0" : "translate-y-0 opacity-100"
-        }`}
-        style={{ lineHeight: "1.25rem" }}
-      >
-        StrikeScout is still under development. Please report any bugs or suggestions to Chris
-      </p>
-      <p
-        className={`absolute inset-x-0 text-xs text-muted-foreground transition-all duration-500 ease-in-out ${
-          showAlt ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"
-        }`}
-        style={{ lineHeight: "1.25rem" }}
-      >
-        Yooo what should I add here?
-      </p>
-    </div>
+    <p className="text-xs text-muted-foreground truncate" style={{ lineHeight: "1.25rem" }}>
+      Strikescout — FRC scouting made simple
+    </p>
   );
 }
 
@@ -91,6 +67,8 @@ function EventLayout() {
   const eventId = parseInt(params.id || "0");
   const mainRef = useRef<HTMLElement>(null);
   const isAdmin = user?.role === "admin";
+
+  useEventUpdates(eventId);
 
   return (
     <SidebarProvider>

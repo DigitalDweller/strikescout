@@ -27,18 +27,19 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
-    version: "0.5.0",
+    version: "1.0.0",
     date: "Mar 2, 2026",
     tag: "latest",
     changes: [
-      { type: "fix", text: "Unbroke" },
+      { type: "feature", text: "Strikescout v1 launch" },
+      { type: "improvement", text: "Scouting, schedule, picklist, and playoff predictor" },
     ],
   },
   {
-    version: "<0.4.3",
-    date: "Mar 1, 2026",
+    version: "0.5.0",
+    date: "Mar 2, 2026",
     changes: [
-      { type: "feature", text: "Broken" },
+      { type: "fix", text: "Stability and polish before v1" },
     ],
   },
 ];

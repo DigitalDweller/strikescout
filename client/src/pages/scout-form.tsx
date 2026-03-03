@@ -31,7 +31,6 @@ import {
   Users,
 } from "lucide-react";
 import type { Event, Team, EventTeam, ScoutingEntry } from "@shared/schema";
-import fieldImagePath from "@assets/6846b9eeb548474b11b6b16d828c2e6092a99131_1771896624665.png";
 import heatmapFieldPath from "@assets/hehehehe_1771897335677.png";
 import { getHeatColor as getHeatColorLib, getHeatCssColor, getRowBorderColor, computeTeamStats, computeStatRanges } from "@/lib/team-colors";
 
@@ -206,210 +205,6 @@ function BigCounterInput({
           <Plus className="h-4 w-4" />
         </Button>
       </div>
-    </div>
-  );
-}
-
-function FieldDrawingCanvas({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [strokes, setStrokes] = useState<{ x: number; y: number }[][]>([]);
-  const [currentStroke, setCurrentStroke] = useState<{ x: number; y: number }[]>([]);
-  const prevValueRef = useRef(value);
-  const fieldImgRef = useRef<HTMLImageElement | null>(null);
-
-  useEffect(() => {
-    const img = new Image();
-    img.src = fieldImagePath;
-    img.onload = () => { fieldImgRef.current = img; redraw(); };
-    fieldImgRef.current = img;
-  }, []);
-
-  useEffect(() => {
-    if (value !== prevValueRef.current) {
-      prevValueRef.current = value;
-      if (value) {
-        try {
-          const parsed = JSON.parse(value);
-          if (Array.isArray(parsed)) {
-            setStrokes(parsed);
-            setCurrentStroke([]);
-            return;
-          }
-        } catch {}
-      }
-      setStrokes([]);
-      setCurrentStroke([]);
-    }
-  }, [value]);
-
-  const redraw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const W = canvas.width;
-    const H = canvas.height;
-    ctx.clearRect(0, 0, W, H);
-
-    // Soft field-style background
-    ctx.fillStyle = "#e8ebe6";
-    ctx.fillRect(0, 0, W, H);
-    if (fieldImgRef.current?.complete) {
-      const img = fieldImgRef.current;
-      const scale = Math.min(W / img.naturalWidth, H / img.naturalHeight);
-      const dw = img.naturalWidth * scale;
-      const dh = img.naturalHeight * scale;
-      ctx.save();
-      ctx.globalAlpha = 0.92;
-      ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
-      ctx.restore();
-    }
-
-    const allStrokes = [...strokes, currentStroke];
-    const lineWidth = 4;
-    const shadowWidth = 6;
-
-    for (const stroke of allStrokes) {
-      if (stroke.length < 2) continue;
-      // Soft shadow for depth
-      ctx.beginPath();
-      ctx.moveTo(stroke[0].x, stroke[0].y);
-      for (let i = 1; i < stroke.length; i++) ctx.lineTo(stroke[i].x, stroke[i].y);
-      ctx.strokeStyle = "rgba(0,0,0,0.2)";
-      ctx.lineWidth = shadowWidth;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.stroke();
-      // Main path: primary blue
-      ctx.beginPath();
-      ctx.moveTo(stroke[0].x, stroke[0].y);
-      for (let i = 1; i < stroke.length; i++) ctx.lineTo(stroke[i].x, stroke[i].y);
-      ctx.strokeStyle = "hsl(217, 91%, 55%)";
-      ctx.lineWidth = lineWidth;
-      ctx.stroke();
-    }
-    // Draw start/end caps as small circles for polish
-    for (const stroke of allStrokes) {
-      if (stroke.length === 0) continue;
-      const start = stroke[0];
-      ctx.beginPath();
-      ctx.arc(start.x, start.y, lineWidth / 2 + 1, 0, Math.PI * 2);
-      ctx.fillStyle = "hsl(217, 91%, 55%)";
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.8)";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      if (stroke.length > 1) {
-        const end = stroke[stroke.length - 1];
-        ctx.beginPath();
-        ctx.arc(end.x, end.y, lineWidth / 2 + 1, 0, Math.PI * 2);
-        ctx.fillStyle = "hsl(142, 76%, 36%)";
-        ctx.fill();
-        ctx.strokeStyle = "rgba(255,255,255,0.8)";
-        ctx.stroke();
-      }
-    }
-  }, [strokes, currentStroke]);
-
-  useEffect(() => {
-    redraw();
-  }, [redraw]);
-
-  const getPos = (e: React.TouchEvent | React.MouseEvent) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-
-    if ("touches" in e) {
-      return {
-        x: (e.touches[0].clientX - rect.left) * scaleX,
-        y: (e.touches[0].clientY - rect.top) * scaleY,
-      };
-    }
-    return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
-    };
-  };
-
-  const startDraw = (e: React.TouchEvent | React.MouseEvent) => {
-    e.preventDefault();
-    setIsDrawing(true);
-    const pos = getPos(e);
-    setCurrentStroke([pos]);
-  };
-
-  const draw = (e: React.TouchEvent | React.MouseEvent) => {
-    if (!isDrawing) return;
-    e.preventDefault();
-    const pos = getPos(e);
-    setCurrentStroke((prev) => [...prev, pos]);
-  };
-
-  const endDraw = () => {
-    if (!isDrawing) return;
-    setIsDrawing(false);
-    if (currentStroke.length > 1) {
-      const newStrokes = [...strokes, currentStroke];
-      setStrokes(newStrokes);
-      onChange(JSON.stringify(newStrokes));
-    }
-    setCurrentStroke([]);
-  };
-
-  const undo = () => {
-    const newStrokes = strokes.slice(0, -1);
-    setStrokes(newStrokes);
-    onChange(JSON.stringify(newStrokes));
-  };
-
-  const clear = () => {
-    setStrokes([]);
-    setCurrentStroke([]);
-    onChange("");
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium">Draw Auto Path on Field</Label>
-        <div className="flex gap-1">
-          <Button type="button" size="sm" variant="outline" onClick={undo} data-testid="button-drawing-undo">
-            <Undo2 className="h-4 w-4" />
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={clear} data-testid="button-drawing-clear">
-            <Eraser className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-      <div className="overflow-hidden rounded-xl border border-border bg-muted/30 shadow-inner">
-        <canvas
-          ref={canvasRef}
-          width={400}
-          height={250}
-          className="w-full touch-none cursor-crosshair block"
-          style={{ aspectRatio: "400/250" }}
-          onMouseDown={startDraw}
-          onMouseMove={draw}
-          onMouseUp={endDraw}
-          onMouseLeave={endDraw}
-          onTouchStart={startDraw}
-          onTouchMove={draw}
-          onTouchEnd={endDraw}
-          data-testid="canvas-field-drawing"
-        />
-      </div>
-      <p className="text-xs text-muted-foreground">Draw the robot's autonomous path — green dot = end</p>
     </div>
   );
 }
@@ -759,12 +554,143 @@ function TeamFormColumn({
         </CardContent>
       </Card>
 
-      <div className={singleScreen ? "grid grid-cols-1 lg:grid-cols-2 gap-3" : "space-y-4"}>
-      {/* Qualitative: visual center */}
-      <Card className="border-primary/20 bg-primary/[0.02]">
+      {/* Stats — themed like team profile Teleop section */}
+      <Card className="border-t-4 border-chart-2/30">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <MessageSquare className="h-4 w-4 text-primary" />
+          <CardTitle className="text-sm flex items-center gap-2 text-chart-2">
+            <Target className="h-4 w-4" />
+            Stats
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">Colors match Team List — yellow = top, green = strong, red = weak</p>
+        </CardHeader>
+        <CardContent className="space-y-3 pt-0">
+          <BigCounterInput
+            value={form.autoBallsShot}
+            onChange={(v) => onUpdateField("autoBallsShot", v)}
+            label="Auto balls"
+            testId={`auto-balls-${index}`}
+            heatClass={autoHeat}
+          />
+          <div className={`rounded-lg border-l-4 p-2 ${throughputHeat || "border-border"}`}>
+            <Label className="text-sm font-medium text-muted-foreground">Throughput</Label>
+            <div className="flex items-center gap-2 mt-1">
+              <Button type="button" variant="outline" size="sm" className="h-8 w-8 shrink-0" onClick={() => onUpdateField("teleopFpsEstimate", Math.max(0, form.teleopFpsEstimate - 1))} data-testid={`button-fps-estimate-minus-${index}`}>
+                <Minus className="h-4 w-4" />
+              </Button>
+              <input
+                type="number"
+                min={0}
+                value={form.teleopFpsEstimate === 0 ? "" : form.teleopFpsEstimate}
+                placeholder="0"
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === "") onUpdateField("teleopFpsEstimate", 0);
+                  else { const v = parseInt(raw, 10); if (!isNaN(v)) onUpdateField("teleopFpsEstimate", Math.max(0, v)); }
+                }}
+                className="h-9 flex-1 min-w-0 text-center font-bold tabular-nums rounded border bg-transparent focus:outline-none focus:ring-2 focus:ring-ring [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                data-testid={`input-fps-estimate-${index}`}
+              />
+              <Button type="button" variant="outline" size="sm" className="h-8 w-8 shrink-0" onClick={() => onUpdateField("teleopFpsEstimate", form.teleopFpsEstimate + 1)} data-testid={`button-fps-estimate-plus-${index}`}>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <RatingSelector value={form.teleopAccuracy} onChange={(v) => onUpdateField("teleopAccuracy", v)} label="Accuracy (%)" testId={`accuracy-${index}`} heatClass={accuracyHeat} sliderColor={accuracySliderColor} />
+          <RatingSelector value={form.defenseRating} onChange={(v) => onUpdateField("defenseRating", v)} label="Defense (%)" testId={`defense-${index}`} heatClass={defenseHeat} sliderColor={defenseSliderColor} />
+          <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+            <Label className="text-sm font-medium text-muted-foreground">Moves while shooting?</Label>
+            <Switch checked={form.teleopMoveWhileShoot} onCheckedChange={(v) => onUpdateField("teleopMoveWhileShoot", v)} data-testid={`switch-move-while-shoot-${index}`} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className={singleScreen ? "grid grid-cols-1 lg:grid-cols-3 gap-3" : "space-y-4"}>
+      {/* Auto climb — primary theme like team profile Auto */}
+      <Card className="border-t-4 border-primary/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2 text-primary">
+            <ArrowUp className="h-4 w-4" />
+            Auto climb
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0 space-y-3">
+          <div>
+            <Label className="text-sm font-medium text-muted-foreground">Climb</Label>
+            <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+              {[{ value: "success", label: "Climbed" }, { value: "failed", label: "Failed" }, { value: "none", label: "Didn't try" }].map((opt) => (
+                <Button key={opt.value} type="button" variant={form.autoClimbSuccess === opt.value ? "default" : "outline"} size="sm" className="h-9 text-sm" onClick={() => { onUpdateField("autoClimbSuccess", opt.value); if (opt.value === "none") { onUpdateField("autoClimbPosition", ""); onUpdateField("autoClimbLevel", ""); } else if (opt.value === "success") { onUpdateField("autoClimbLevel", "1"); } }} data-testid={`button-auto-climb-${opt.value}-${index}`}>{opt.label}</Button>
+              ))}
+            </div>
+          </div>
+          {form.autoClimbSuccess !== "none" && (
+            <>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[{ value: "left", label: "Left" }, { value: "middle", label: "Mid" }, { value: "right", label: "Right" }].map((opt) => (
+                  <Button key={opt.value} type="button" variant={form.autoClimbPosition === opt.value ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => onUpdateField("autoClimbPosition", opt.value)} data-testid={`button-auto-climb-pos-${opt.value}-${index}`}>{opt.label}</Button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Label className="text-xs text-muted-foreground shrink-0">Level</Label>
+                <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium" data-testid="text-auto-climb-level-1">L1</span>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Teleop — chart-2 theme like team profile */}
+      <Card className="border-t-4 border-chart-2/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2 text-chart-2">
+            <Crosshair className="h-4 w-4" />
+            Teleop
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <ShootingHeatmap value={form.teleopShootPosition} onChange={(v) => onUpdateField("teleopShootPosition", v)} />
+        </CardContent>
+      </Card>
+
+      {/* Endgame — chart-5 theme like team profile */}
+      <Card className="border-t-4 border-chart-5/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2 text-chart-5">
+            <ArrowUp className="h-4 w-4" />
+            Endgame
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0 space-y-3">
+          <div>
+            <Label className="text-sm font-medium text-muted-foreground">Climb</Label>
+            <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+              {[{ value: "success", label: "Climbed" }, { value: "failed", label: "Failed" }, { value: "none", label: "Didn't try" }].map((opt) => (
+                <Button key={opt.value} type="button" variant={form.climbSuccess === opt.value ? "default" : "outline"} size="sm" className="h-9 text-sm" onClick={() => { onUpdateField("climbSuccess", opt.value); if (opt.value === "none") { onUpdateField("climbPosition", ""); onUpdateField("climbLevel", ""); } }} data-testid={`button-climb-${opt.value}-${index}`}>{opt.label}</Button>
+              ))}
+            </div>
+          </div>
+          {form.climbSuccess !== "none" && (
+            <>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[{ value: "left", label: "Left" }, { value: "middle", label: "Mid" }, { value: "right", label: "Right" }].map((opt) => (
+                  <Button key={opt.value} type="button" variant={form.climbPosition === opt.value ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => onUpdateField("climbPosition", opt.value)} data-testid={`button-climb-pos-${opt.value}-${index}`}>{opt.label}</Button>
+                ))}
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[{ value: "1", label: "L1" }, { value: "2", label: "L2" }, { value: "3", label: "L3" }].map((opt) => (
+                  <Button key={opt.value} type="button" variant={form.climbLevel === opt.value ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => onUpdateField("climbLevel", opt.value)} data-testid={`button-climb-level-${opt.value}-${index}`}>{opt.label}</Button>
+                ))}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+      </div>
+
+      {/* Notes & observations — at bottom, themed like team profile Scout Notes */}
+      <Card className="border-t-4 border-primary/30 bg-primary/[0.02]">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2 text-primary">
+            <MessageSquare className="h-4 w-4" />
             Notes & observations
           </CardTitle>
           <p className="text-xs text-muted-foreground">What you saw — this is what matters most for picks</p>
@@ -816,152 +742,6 @@ function TeamFormColumn({
           </div>
         </CardContent>
       </Card>
-
-      {/* Quantitative: compact, heat-colored like Team List */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Target className="h-4 w-4 text-muted-foreground" />
-            Stats
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">Colors match Team List — yellow = top, green = strong, red = weak</p>
-        </CardHeader>
-        <CardContent className="space-y-3 pt-0">
-          <BigCounterInput
-            value={form.autoBallsShot}
-            onChange={(v) => onUpdateField("autoBallsShot", v)}
-            label="Auto balls"
-            testId={`auto-balls-${index}`}
-            heatClass={autoHeat}
-          />
-          <div className={`rounded-lg border-l-4 p-2 ${throughputHeat || "border-border"}`}>
-            <Label className="text-sm font-medium text-muted-foreground">Throughput</Label>
-            <div className="flex items-center gap-2 mt-1">
-              <Button type="button" variant="outline" size="sm" className="h-8 w-8 shrink-0" onClick={() => onUpdateField("teleopFpsEstimate", Math.max(0, form.teleopFpsEstimate - 1))} data-testid={`button-fps-estimate-minus-${index}`}>
-                <Minus className="h-4 w-4" />
-              </Button>
-              <input
-                type="number"
-                min={0}
-                value={form.teleopFpsEstimate === 0 ? "" : form.teleopFpsEstimate}
-                placeholder="0"
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  if (raw === "") onUpdateField("teleopFpsEstimate", 0);
-                  else { const v = parseInt(raw, 10); if (!isNaN(v)) onUpdateField("teleopFpsEstimate", Math.max(0, v)); }
-                }}
-                className="h-9 flex-1 min-w-0 text-center font-bold tabular-nums rounded border bg-transparent focus:outline-none focus:ring-2 focus:ring-ring [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                data-testid={`input-fps-estimate-${index}`}
-              />
-              <Button type="button" variant="outline" size="sm" className="h-8 w-8 shrink-0" onClick={() => onUpdateField("teleopFpsEstimate", form.teleopFpsEstimate + 1)} data-testid={`button-fps-estimate-plus-${index}`}>
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-          <RatingSelector value={form.teleopAccuracy} onChange={(v) => onUpdateField("teleopAccuracy", v)} label="Accuracy (%)" testId={`accuracy-${index}`} heatClass={accuracyHeat} sliderColor={accuracySliderColor} />
-          <RatingSelector value={form.defenseRating} onChange={(v) => onUpdateField("defenseRating", v)} label="Defense (%)" testId={`defense-${index}`} heatClass={defenseHeat} sliderColor={defenseSliderColor} />
-          <div className="flex items-center justify-between rounded-lg border px-3 py-2">
-            <Label className="text-sm font-medium text-muted-foreground">Moves while shooting?</Label>
-            <Switch checked={form.teleopMoveWhileShoot} onCheckedChange={(v) => onUpdateField("teleopMoveWhileShoot", v)} data-testid={`switch-move-while-shoot-${index}`} />
-          </div>
-        </CardContent>
-      </Card>
-      </div>
-
-      <div className={singleScreen ? "grid grid-cols-1 md:grid-cols-3 gap-3 mt-3" : "space-y-4"}>
-      {/* Autonomous: path only */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Bot className="h-4 w-4 text-muted-foreground" />
-            Autonomous
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <FieldDrawingCanvas value={form.autoDrawing} onChange={(v) => onUpdateField("autoDrawing", v)} />
-        </CardContent>
-      </Card>
-
-      {/* Auto climb - same structure as Endgame climb */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <ArrowUp className="h-4 w-4 text-muted-foreground" />
-            Auto climb
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0 space-y-3">
-          <div>
-            <Label className="text-sm font-medium text-muted-foreground">Climb</Label>
-            <div className="grid grid-cols-3 gap-1.5 mt-1.5">
-              {[{ value: "success", label: "Climbed" }, { value: "failed", label: "Failed" }, { value: "none", label: "Didn't try" }].map((opt) => (
-                <Button key={opt.value} type="button" variant={form.autoClimbSuccess === opt.value ? "default" : "outline"} size="sm" className="h-9 text-sm" onClick={() => { onUpdateField("autoClimbSuccess", opt.value); if (opt.value === "none") { onUpdateField("autoClimbPosition", ""); onUpdateField("autoClimbLevel", ""); } else if (opt.value === "success") { onUpdateField("autoClimbLevel", "1"); } }} data-testid={`button-auto-climb-${opt.value}-${index}`}>{opt.label}</Button>
-              ))}
-            </div>
-          </div>
-          {form.autoClimbSuccess !== "none" && (
-            <>
-              <div className="grid grid-cols-3 gap-1.5">
-                {[{ value: "left", label: "Left" }, { value: "middle", label: "Mid" }, { value: "right", label: "Right" }].map((opt) => (
-                  <Button key={opt.value} type="button" variant={form.autoClimbPosition === opt.value ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => onUpdateField("autoClimbPosition", opt.value)} data-testid={`button-auto-climb-pos-${opt.value}-${index}`}>{opt.label}</Button>
-                ))}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Label className="text-xs text-muted-foreground shrink-0">Level</Label>
-                <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium" data-testid="text-auto-climb-level-1">L1</span>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Teleop: heatmap only (throughput/accuracy in Stats) */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Crosshair className="h-4 w-4 text-muted-foreground" />
-            Teleop
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <ShootingHeatmap value={form.teleopShootPosition} onChange={(v) => onUpdateField("teleopShootPosition", v)} />
-        </CardContent>
-      </Card>
-
-      {/* Endgame */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <ArrowUp className="h-4 w-4 text-muted-foreground" />
-            Endgame
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0 space-y-3">
-          <div>
-            <Label className="text-sm font-medium text-muted-foreground">Climb</Label>
-            <div className="grid grid-cols-3 gap-1.5 mt-1.5">
-              {[{ value: "success", label: "Climbed" }, { value: "failed", label: "Failed" }, { value: "none", label: "Didn't try" }].map((opt) => (
-                <Button key={opt.value} type="button" variant={form.climbSuccess === opt.value ? "default" : "outline"} size="sm" className="h-9 text-sm" onClick={() => { onUpdateField("climbSuccess", opt.value); if (opt.value === "none") { onUpdateField("climbPosition", ""); onUpdateField("climbLevel", ""); } }} data-testid={`button-climb-${opt.value}-${index}`}>{opt.label}</Button>
-              ))}
-            </div>
-          </div>
-          {form.climbSuccess !== "none" && (
-            <>
-              <div className="grid grid-cols-3 gap-1.5">
-                {[{ value: "left", label: "Left" }, { value: "middle", label: "Mid" }, { value: "right", label: "Right" }].map((opt) => (
-                  <Button key={opt.value} type="button" variant={form.climbPosition === opt.value ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => onUpdateField("climbPosition", opt.value)} data-testid={`button-climb-pos-${opt.value}-${index}`}>{opt.label}</Button>
-                ))}
-              </div>
-              <div className="grid grid-cols-3 gap-1.5">
-                {[{ value: "1", label: "L1" }, { value: "2", label: "L2" }, { value: "3", label: "L3" }].map((opt) => (
-                  <Button key={opt.value} type="button" variant={form.climbLevel === opt.value ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => onUpdateField("climbLevel", opt.value)} data-testid={`button-climb-level-${opt.value}-${index}`}>{opt.label}</Button>
-                ))}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-      </div>
     </div>
   );
 }
