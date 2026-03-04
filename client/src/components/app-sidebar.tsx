@@ -188,7 +188,6 @@ export function AppSidebar({ eventId }: { eventId: number }) {
       iconClass: "text-emerald-500",
       children: [
         { title: "Form History", url: `/events/${eventId}/scout/history`, icon: History, iconClass: "text-green-400" },
-        { title: "Scouter Profiles", url: `/events/${eventId}/scouters`, icon: Users, iconClass: "text-indigo-400" },
       ],
     },
     ...(isAdmin ? [{ title: "Picklist", url: `/events/${eventId}/picklist`, icon: ListOrdered, iconClass: "text-teal-500" }] : []),

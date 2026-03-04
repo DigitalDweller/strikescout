@@ -30,8 +30,6 @@ import MatchDetail from "@/pages/match-detail";
 import MatchSimulator from "@/pages/match-simulator";
 import EventSettings from "@/pages/event-settings";
 import Picklist from "@/pages/picklist";
-import ScoutersList from "@/pages/scouters-list";
-import ScouterProfile from "@/pages/scouter-profile";
 import { Loader2 } from "lucide-react";
 
 function ScrollToTop({ containerRef }: { containerRef: React.RefObject<HTMLElement | null> }) {
@@ -89,8 +87,6 @@ function EventLayout() {
                 <Route path="/events/:id" component={AdminEventDetail} />
                 <Route path="/events/:id/scout" component={ScoutForm} />
                 <Route path="/events/:id/scout/history" component={FormHistory} />
-                <Route path="/events/:id/scouters" component={ScoutersList} />
-                <Route path="/events/:id/scouters/:scouterId" component={ScouterProfile} />
                 <Route path="/events/:id/data" component={DataManagement} />
                 <Route path="/events/:id/teams" component={TeamList} />
                 <Route path="/events/:id/schedule" component={Schedule} />
@@ -107,8 +103,6 @@ function EventLayout() {
               <Switch>
                 <Route path="/events/:id/scout" component={ScoutForm} />
                 <Route path="/events/:id/scout/history" component={FormHistory} />
-                <Route path="/events/:id/scouters" component={ScoutersList} />
-                <Route path="/events/:id/scouters/:scouterId" component={ScouterProfile} />
                 <Route path="/events/:id" component={ScouterRedirect} />
                 <Route component={ScouterRedirect} />
               </Switch>
