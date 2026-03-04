@@ -10,7 +10,7 @@ import {
   type PicklistEntry,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, asc, inArray } from "drizzle-orm";
+import { eq, and, asc, inArray, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -48,13 +48,15 @@ export interface IStorage {
   getEntriesByEventAndTeam(eventId: number, teamId: number): Promise<ScoutingEntry[]>;
   getEntriesByEventAndScouter(eventId: number, scouterId: number): Promise<ScoutingEntry[]>;
   getEntriesByMatch(eventId: number, matchNumber: number): Promise<ScoutingEntry[]>;
+  getScouterStats(userId: number): Promise<{ eventId: number; eventName: string; entryCount: number }[]>;
+  getScoutersForEvent(eventId: number): Promise<{ id: number; displayName: string; entryCount: number }[]>;
 
   getScheduleByEvent(eventId: number): Promise<ScheduleMatch[]>;
   createScheduleMatch(match: InsertScheduleMatch): Promise<ScheduleMatch>;
   deleteScheduleByEvent(eventId: number): Promise<void>;
   updateScheduleMatchVideo(eventId: number, matchNumber: number, videoUrl: string): Promise<void>;
 
-  updateEventTeamOPR(eventId: number, teamId: number, opr: number, dpr: number, ccwm: number): Promise<void>;
+  updateEventTeamOPR(eventId: number, teamId: number, opr: number): Promise<void>;
   updateEventTeamRanking(eventId: number, teamId: number, rankingPoints: number, rank: number, wins: number, losses: number, ties: number): Promise<void>;
   updateMatchResults(eventId: number, matchNumber: number, redScore: number | null, blueScore: number | null, winningAlliance: string | null): Promise<void>;
 
@@ -241,6 +243,46 @@ export class DatabaseStorage implements IStorage {
     );
   }
 
+  async getScouterStats(userId: number): Promise<{ eventId: number; eventName: string; entryCount: number }[]> {
+    const rows = await db
+      .select({
+        eventId: scoutingEntries.eventId,
+        eventName: events.name,
+        entryCount: sql<number>`count(*)::int`,
+      })
+      .from(scoutingEntries)
+      .innerJoin(events, eq(scoutingEntries.eventId, events.id))
+      .where(eq(scoutingEntries.scouterId, userId))
+      .groupBy(scoutingEntries.eventId, events.name);
+    return rows;
+  }
+
+  async getScoutersForEvent(eventId: number): Promise<{ id: number; displayName: string; entryCount: number }[]> {
+    const scouters = await db
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+      })
+      .from(users)
+      .where(eq(users.role, "scouter"));
+
+    const entryCounts = await db
+      .select({
+        scouterId: scoutingEntries.scouterId,
+        entryCount: sql<number>`count(*)::int`,
+      })
+      .from(scoutingEntries)
+      .where(eq(scoutingEntries.eventId, eventId))
+      .groupBy(scoutingEntries.scouterId);
+
+    const countMap = new Map(entryCounts.map(r => [r.scouterId, r.entryCount]));
+    return scouters.map(s => ({
+      id: s.id,
+      displayName: s.displayName,
+      entryCount: countMap.get(s.id) ?? 0,
+    }));
+  }
+
   async getScheduleByEvent(eventId: number): Promise<ScheduleMatch[]> {
     return db.select().from(scheduleMatches).where(eq(scheduleMatches.eventId, eventId));
   }
@@ -260,9 +302,9 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(scheduleMatches.eventId, eventId), eq(scheduleMatches.matchNumber, matchNumber)));
   }
 
-  async updateEventTeamOPR(eventId: number, teamId: number, opr: number, dpr: number, ccwm: number): Promise<void> {
+  async updateEventTeamOPR(eventId: number, teamId: number, opr: number): Promise<void> {
     await db.update(eventTeams)
-      .set({ opr, dpr, ccwm })
+      .set({ opr })
       .where(and(eq(eventTeams.eventId, eventId), eq(eventTeams.teamId, teamId)));
   }
 

@@ -19,7 +19,7 @@ const Slider = React.forwardRef<
     )}
     {...props}
   >
-    <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary">
+    <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-background/50 dark:bg-background/70">
       <SliderPrimitive.Range
         className={cn("absolute h-full", !trackColor && "bg-primary")}
         style={trackColor ? { backgroundColor: trackColor } : undefined}

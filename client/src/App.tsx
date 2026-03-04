@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
-import { useEventUpdates } from "@/hooks/use-event-updates";
+import { EventUpdatesProvider } from "@/contexts/event-updates";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { PageTransition } from "@/components/page-transition";
@@ -19,6 +19,7 @@ import AdminEvents from "@/pages/admin-events";
 import AdminEventDetail from "@/pages/admin-event-detail";
 import UserManagement from "@/pages/user-management";
 import TeamProfile from "@/pages/team-profile";
+import TeamCompare from "@/pages/team-compare";
 import TeamList from "@/pages/team-list";
 import Schedule from "@/pages/schedule";
 import ScoutForm from "@/pages/scout-form";
@@ -26,9 +27,11 @@ import TeamNotes from "@/pages/team-notes";
 import FormHistory from "@/pages/form-history";
 import DataManagement from "@/pages/data-management";
 import MatchDetail from "@/pages/match-detail";
+import MatchSimulator from "@/pages/match-simulator";
 import EventSettings from "@/pages/event-settings";
 import Picklist from "@/pages/picklist";
-import PlayoffPredictor from "@/pages/playoff-predictor";
+import ScoutersList from "@/pages/scouters-list";
+import ScouterProfile from "@/pages/scouter-profile";
 import { Loader2 } from "lucide-react";
 
 function ScrollToTop({ containerRef }: { containerRef: React.RefObject<HTMLElement | null> }) {
@@ -68,9 +71,8 @@ function EventLayout() {
   const mainRef = useRef<HTMLElement>(null);
   const isAdmin = user?.role === "admin";
 
-  useEventUpdates(eventId);
-
   return (
+    <EventUpdatesProvider eventId={eventId}>
     <SidebarProvider>
       <div className="flex h-screen w-full">
         <AppSidebar eventId={eventId} />
@@ -87,14 +89,17 @@ function EventLayout() {
                 <Route path="/events/:id" component={AdminEventDetail} />
                 <Route path="/events/:id/scout" component={ScoutForm} />
                 <Route path="/events/:id/scout/history" component={FormHistory} />
+                <Route path="/events/:id/scouters" component={ScoutersList} />
+                <Route path="/events/:id/scouters/:scouterId" component={ScouterProfile} />
                 <Route path="/events/:id/data" component={DataManagement} />
                 <Route path="/events/:id/teams" component={TeamList} />
                 <Route path="/events/:id/schedule" component={Schedule} />
                 <Route path="/events/:id/schedule/:matchNumber" component={MatchDetail} />
+                <Route path="/events/:id/simulator" component={MatchSimulator} />
                 <Route path="/events/:id/settings" component={EventSettings} />
                 <Route path="/events/:id/picklist" component={Picklist} />
-                <Route path="/events/:id/playoff-predictor" component={PlayoffPredictor} />
                 <Route path="/events/:id/teams/:teamId" component={TeamProfile} />
+                <Route path="/events/:id/teams/:teamId/compare/:otherTeamId?" component={TeamCompare} />
                 <Route path="/events/:id/teams/:teamId/notes" component={TeamNotes} />
                 <Route component={NotFound} />
               </Switch>
@@ -102,6 +107,8 @@ function EventLayout() {
               <Switch>
                 <Route path="/events/:id/scout" component={ScoutForm} />
                 <Route path="/events/:id/scout/history" component={FormHistory} />
+                <Route path="/events/:id/scouters" component={ScoutersList} />
+                <Route path="/events/:id/scouters/:scouterId" component={ScouterProfile} />
                 <Route path="/events/:id" component={ScouterRedirect} />
                 <Route component={ScouterRedirect} />
               </Switch>
@@ -111,6 +118,7 @@ function EventLayout() {
         </div>
       </div>
     </SidebarProvider>
+    </EventUpdatesProvider>
   );
 }
 

@@ -164,6 +164,7 @@ export default function EventSettings() {
   const [tbaAutoSync, setTbaAutoSync] = useState(false);
   const [validationStatus, setValidationStatus] = useState<"idle" | "validating" | "valid" | "invalid">("idle");
   const [validatedName, setValidatedName] = useState("");
+  const [validationError, setValidationError] = useState("");
   const [syncingKeys, setSyncingKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -199,18 +200,21 @@ export default function EventSettings() {
       const res = await apiRequest("POST", `/api/events/${eventId}/tba/validate`, { eventKey: key });
       return res.json();
     },
-    onSuccess: (data: { valid: boolean; name?: string }) => {
+    onSuccess: (data: { valid: boolean; name?: string; error?: string }) => {
       if (data.valid) {
         setValidationStatus("valid");
         setValidatedName(data.name || "");
+        setValidationError("");
       } else {
         setValidationStatus("invalid");
         setValidatedName("");
+        setValidationError(data.error || "Invalid key — check and try again");
       }
     },
-    onError: () => {
+    onError: (err: Error) => {
       setValidationStatus("invalid");
-      toast({ title: "Invalid event key", variant: "destructive" });
+      setValidationError(err.message || "Invalid event key");
+      toast({ title: "Validation failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -369,6 +373,7 @@ export default function EventSettings() {
                 onChange={(e) => {
                   setTbaEventKey(e.target.value);
                   setValidationStatus("idle");
+                  setValidationError("");
                 }}
                 placeholder="e.g. 2025miket"
                 className="flex-1 font-mono"
@@ -392,7 +397,7 @@ export default function EventSettings() {
             {validationStatus === "invalid" && (
               <div className="flex items-center gap-2 text-sm text-red-500 bg-red-500/10 rounded-md px-3 py-2">
                 <XCircle className="h-4 w-4 shrink-0" />
-                <span>Invalid key — check and try again</span>
+                <span>{validationError || "Invalid key — check and try again"}</span>
               </div>
             )}
           </div>

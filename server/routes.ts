@@ -6,7 +6,7 @@ import { hashPassword } from "./auth";
 import { eventBroadcast, CHANNEL_ENTRIES, notifyEntriesUpdated } from "./eventBroadcast";
 import { insertEventSchema, insertTeamSchema, insertScoutingEntrySchema } from "@shared/schema";
 import { z } from "zod";
-import { fetchMatchVideos, fetchMatchResults, getVideoUrl, validateEventKey, fetchTeamAvatars, fetchEventOPRs, fetchMatchSchedule, fetchEventRankings, fetchEventTeams, isTbaConfigured } from "./tba";
+import { fetchMatchVideos, fetchMatchResults, getVideoUrl, validateEventKey, fetchTeamAvatars, fetchEventOPRs, fetchMatchSchedule, fetchEventRankings, fetchEventTeams, isTbaConfigured, isTbaRateLimitEnabled, setTbaRateLimitEnabled, getTbaCallHistory, TbaRateLimitError } from "./tba";
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (req.isAuthenticated()) return next();
@@ -84,6 +84,20 @@ export async function registerRoutes(
     res.json({ id, username, displayName, role });
   });
 
+  // --- Dev menu (admin only): TBA rate limit master switch ---
+  app.get("/api/dev/tba-rate-limit", requireAdmin, (_req, res) => {
+    res.json({ enabled: isTbaRateLimitEnabled() });
+  });
+  app.post("/api/dev/tba-rate-limit", requireAdmin, (req, res) => {
+    const enabled = !!req.body?.enabled;
+    setTbaRateLimitEnabled(enabled);
+    res.json({ enabled });
+  });
+
+  app.get("/api/dev/tba-call-history", requireAdmin, (_req, res) => {
+    res.json(getTbaCallHistory());
+  });
+
   // --- Admin user management routes (requireAuth handled by gate above) ---
   app.get("/api/users", requireAdmin, async (_req, res) => {
     try {
@@ -152,6 +166,27 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Failed to delete user:", err);
       res.status(500).json({ message: err?.message || "Failed to delete user" });
+    }
+  });
+
+  /** Scouter profiles: any authenticated user can view a user's public profile (no password). */
+  app.get("/api/users/:id/profile", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid user id" });
+      const user = await storage.getUser(id);
+      if (!user) return res.sendStatus(404);
+      const stats = await storage.getScouterStats(id);
+      const totalEntries = stats.reduce((s, r) => s + r.entryCount, 0);
+      res.json({
+        id: user.id,
+        displayName: user.displayName,
+        role: user.role,
+        totalEntries,
+        events: stats.map(s => ({ eventId: s.eventId, eventName: s.eventName, entryCount: s.entryCount })),
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err?.message || "Failed to fetch profile" });
     }
   });
 
@@ -346,6 +381,15 @@ export async function registerRoutes(
     res.json(entries);
   });
 
+  app.get("/api/events/:eventId/scouters", async (req, res) => {
+    const eventId = parseInt(req.params.eventId, 10);
+    if (!Number.isFinite(eventId) || eventId < 1) return res.status(400).json({ message: "Invalid event id" });
+    const event = await storage.getEvent(eventId);
+    if (!event) return res.sendStatus(404);
+    const scouters = await storage.getScoutersForEvent(eventId);
+    res.json(scouters);
+  });
+
   app.get("/api/events/:eventId/schedule", async (req, res) => {
     const eventId = parseInt(req.params.eventId, 10);
     if (!Number.isFinite(eventId) || eventId < 1) {
@@ -371,6 +415,7 @@ export async function registerRoutes(
       }
       res.json(result);
     } catch (err: any) {
+      if (err instanceof TbaRateLimitError) return res.status(429).json({ message: err.message, resetsAt: err.resetsAt });
       res.status(500).json({ message: err?.message ?? "TBA request failed" });
     }
   });
@@ -397,6 +442,7 @@ export async function registerRoutes(
 
       res.json({ synced, total: qualMatches.length });
     } catch (err: any) {
+      if (err instanceof TbaRateLimitError) return res.status(429).json({ message: err.message, resetsAt: err.resetsAt });
       res.status(500).json({ message: err?.message ?? "TBA sync failed" });
     }
   });
@@ -429,6 +475,7 @@ export async function registerRoutes(
       }
       res.json({ added, total: tbaTeams.length });
     } catch (err: any) {
+      if (err instanceof TbaRateLimitError) return res.status(429).json({ message: err.message, resetsAt: err.resetsAt });
       res.status(500).json({ message: err?.message ?? "TBA sync failed" });
     }
   });
@@ -460,6 +507,7 @@ export async function registerRoutes(
 
       res.json({ synced, total: teamNumbers.length });
     } catch (err: any) {
+      if (err instanceof TbaRateLimitError) return res.status(429).json({ message: err.message, resetsAt: err.resetsAt });
       res.status(500).json({ message: err?.message ?? "TBA sync failed" });
     }
   });
@@ -483,7 +531,7 @@ export async function registerRoutes(
       for (const opr of oprData) {
         const et = eventTeamsList.find(e => e.team.teamNumber === opr.teamNumber);
         if (et) {
-          await storage.updateEventTeamOPR(eventId, et.teamId, opr.opr, opr.dpr, opr.ccwm);
+          await storage.updateEventTeamOPR(eventId, et.teamId, opr.opr);
           oprsSynced++;
         }
       }
@@ -502,6 +550,7 @@ export async function registerRoutes(
         total: eventTeamsList.length,
       });
     } catch (err: any) {
+      if (err instanceof TbaRateLimitError) return res.status(429).json({ message: err.message, resetsAt: err.resetsAt });
       res.status(500).json({ message: err?.message ?? "TBA sync failed" });
     }
   });
@@ -535,6 +584,7 @@ export async function registerRoutes(
 
       res.json({ synced, total: tbaMatches.length });
     } catch (err: any) {
+      if (err instanceof TbaRateLimitError) return res.status(429).json({ message: err.message, resetsAt: err.resetsAt });
       res.status(500).json({ message: err?.message ?? "TBA sync failed" });
     }
   });
@@ -561,6 +611,7 @@ export async function registerRoutes(
 
       res.json({ synced, total: results.length });
     } catch (err: any) {
+      if (err instanceof TbaRateLimitError) return res.status(429).json({ message: err.message, resetsAt: err.resetsAt });
       res.status(500).json({ message: err?.message ?? "TBA sync failed" });
     }
   });
@@ -633,7 +684,7 @@ export async function registerRoutes(
         for (const opr of oprData) {
           const et = eventTeamsList.find(e => e.team.teamNumber === opr.teamNumber);
           if (et) {
-            await storage.updateEventTeamOPR(eventId, et.teamId, opr.opr, opr.dpr, opr.ccwm);
+            await storage.updateEventTeamOPR(eventId, et.teamId, opr.opr);
             oprsSynced++;
           }
         }
@@ -798,6 +849,7 @@ export async function registerRoutes(
     } catch (err: any) {
       const s = syncStatus.get(id)!;
       syncStatus.set(id, { ...s, syncing: false });
+      if (err instanceof TbaRateLimitError) return res.status(429).json({ message: err.message, resetsAt: err.resetsAt });
       res.status(500).json({ message: err?.message ?? "TBA sync failed" });
     }
   });

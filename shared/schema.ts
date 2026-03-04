@@ -38,8 +38,6 @@ export const eventTeams = pgTable("event_teams", {
   eventId: integer("event_id").notNull(),
   teamId: integer("team_id").notNull(),
   opr: real("opr"),
-  dpr: real("dpr"),
-  ccwm: real("ccwm"),
   rankingPoints: real("ranking_points"),
   rank: integer("rank"),
   wins: integer("wins"),
@@ -86,6 +84,7 @@ export const scoutingEntries = pgTable("scouting_entries", {
   climbPosition: text("climb_position"),
   climbLevel: text("climb_level"),
 
+  playedDefense: boolean("played_defense").notNull().default(false),
   defenseRating: integer("defense_rating").notNull().default(0),
   defenseNotes: text("defense_notes"),
 

@@ -260,7 +260,7 @@ export default function TeamList() {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <span className="inline-flex shrink-0 cursor-help">
-                                    <AlertCircle className="h-4 w-4 text-destructive" aria-hidden />
+                                    <AlertCircle className="h-4 w-4 text-blue-500 dark:text-blue-400" aria-hidden />
                                   </span>
                                 </TooltipTrigger>
                                 <TooltipContent>No Blue Alliance (TBA) data yet</TooltipContent>

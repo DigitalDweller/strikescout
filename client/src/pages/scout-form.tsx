@@ -91,7 +91,7 @@ function TeamSearchCombobox({
   return (
     <div className="relative" ref={containerRef}>
       <div
-        className={`flex items-center border rounded-md bg-background px-3 gap-2 cursor-text ${compact ? "h-11" : "h-14"} ${open ? "ring-2 ring-ring" : ""}`}
+        className={`flex items-center border rounded-md bg-background px-3 gap-2 cursor-text min-h-11 sm:min-h-0 ${compact ? "h-11 sm:h-11" : "h-12 sm:h-14"} ${open ? "ring-2 ring-ring" : ""}`}
         onClick={() => {
           setOpen(true);
           setTimeout(() => inputRef.current?.focus(), 0);
@@ -167,42 +167,55 @@ function BigCounterInput({
   label,
   testId,
   heatClass = "",
+  heatBorderColor = "",
 }: {
   value: number;
   onChange: (v: number) => void;
   label: string;
   testId: string;
   heatClass?: string;
+  /** CSS color for input border (matches cell outline / slider track) */
+  heatBorderColor?: string;
 }) {
   return (
-    <div className="space-y-2">
-      <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
-      <div className={`flex items-center gap-2 rounded-lg border-l-4 p-2 ${heatClass || "border-border"}`}>
+    <div className={`space-y-1.5 sm:space-y-2 rounded-lg border-l-4 p-2 sm:p-2 ${heatClass || "border-border"}`}>
+      <Label className="text-sm font-medium text-inherit">{label}</Label>
+      <div className="flex items-center gap-2 mt-1">
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="h-9 w-9 shrink-0"
+          className="h-11 w-11 sm:h-9 sm:w-9 shrink-0 touch-manipulation"
           onClick={() => onChange(Math.max(0, value - 1))}
           data-testid={`button-${testId}-minus`}
         >
-          <Minus className="h-4 w-4" />
+          <Minus className="h-4 w-4 sm:h-4 sm:w-4" />
         </Button>
-        <span
-          className="text-2xl font-bold flex-1 text-center tabular-nums"
+        <input
+          type="number"
+          min={0}
+          value={value}
+          onChange={(e) => {
+            const raw = e.target.value;
+            if (raw === "") onChange(0);
+            else {
+              const v = parseInt(raw, 10);
+              if (!isNaN(v)) onChange(Math.max(0, v));
+            }
+          }}
+          style={heatBorderColor ? { borderColor: heatBorderColor } : undefined}
+          className={`h-11 sm:h-9 flex-1 min-w-0 text-center text-xl sm:text-2xl font-bold tabular-nums rounded border bg-background/50 dark:bg-background/70 text-inherit placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none touch-manipulation ${!heatBorderColor ? "border-border" : ""}`}
           data-testid={`text-${testId}-value`}
-        >
-          {value}
-        </span>
+        />
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="h-9 w-9 shrink-0"
+          className="h-11 w-11 sm:h-9 sm:w-9 shrink-0 touch-manipulation"
           onClick={() => onChange(value + 1)}
           data-testid={`button-${testId}-plus`}
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-4 w-4 sm:h-4 sm:w-4" />
         </Button>
       </div>
     </div>
@@ -379,18 +392,18 @@ function ShootingHeatmap({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <Label className="text-sm font-medium">Shooting Heatmap</Label>
-        <div className="flex gap-1">
-          <Button type="button" size="sm" variant="outline" onClick={undo} data-testid="button-heatmap-undo">
+        <div className="flex gap-1.5">
+          <Button type="button" size="sm" variant="outline" className="h-10 w-10 sm:h-8 sm:w-8 p-0 touch-manipulation" onClick={undo} data-testid="button-heatmap-undo">
             <Undo2 className="h-4 w-4" />
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={clear} data-testid="button-heatmap-clear">
+          <Button type="button" size="sm" variant="outline" className="h-10 w-10 sm:h-8 sm:w-8 p-0 touch-manipulation" onClick={clear} data-testid="button-heatmap-clear">
             <Eraser className="h-4 w-4" />
           </Button>
         </div>
       </div>
-      <div className="overflow-hidden rounded-xl border border-border bg-muted/30 shadow-inner">
+      <div className="overflow-hidden rounded-xl border border-border bg-muted/30 shadow-inner max-h-[200px] sm:max-h-none">
         <canvas
           ref={canvasRef}
           width={400}
@@ -427,8 +440,8 @@ function RatingSelector({
   return (
     <div className={`space-y-2 rounded-lg border-l-4 p-2 ${heatClass || "border-border"}`}>
       <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
-        <Badge variant="secondary" className="text-base px-2 tabular-nums" data-testid={`text-${testId}-value`}>
+        <Label className="text-sm font-medium text-inherit">{label}</Label>
+        <Badge variant="secondary" className="text-base px-2 tabular-nums text-inherit bg-secondary/50" data-testid={`text-${testId}-value`}>
           {pct}%
         </Badge>
       </div>
@@ -439,7 +452,7 @@ function RatingSelector({
         max={100}
         step={1}
         trackColor={sliderColor || undefined}
-        className="py-1"
+        className="py-2 sm:py-1 touch-manipulation"
         data-testid={`slider-${testId}`}
       />
     </div>
@@ -461,6 +474,7 @@ type FormData = {
   climbSuccess: string;
   climbPosition: string;
   climbLevel: string;
+  playedDefense: boolean;
   defenseRating: number;
   defenseNotes: string;
   driverSkillNotes: string;
@@ -483,6 +497,7 @@ function getEmptyForm(): FormData {
     climbSuccess: "none",
     climbPosition: "",
     climbLevel: "",
+    playedDefense: false,
     defenseRating: 0,
     defenseNotes: "",
     driverSkillNotes: "",
@@ -517,33 +532,35 @@ function TeamFormColumn({
 }) {
   const compact = teamCount > 1 || singleScreen;
   const r = statRanges;
-  const autoHeat = getHeatClass(form.autoBallsShot, r.auto.min, r.auto.max);
-  const throughputHeat = getHeatClass(form.teleopFpsEstimate, r.throughput.min, r.throughput.max);
-  const accuracyHeat = getHeatClass(form.teleopAccuracy, r.accuracy.min, r.accuracy.max);
-  const accuracySliderColor = getHeatCssColor(form.teleopAccuracy, r.accuracy.min, r.accuracy.max);
-  const defenseHeat = getHeatClass(form.defenseRating, r.defense.min, r.defense.max);
-  const defenseSliderColor = getHeatCssColor(form.defenseRating, r.defense.min, r.defense.max);
+  /* Neutral until a value is chosen: 0 = default for auto/BPS/defense, 50 = default for accuracy */
+  const autoHeat = form.autoBallsShot === 0 ? "" : getHeatClass(form.autoBallsShot, r.auto.min, r.auto.max);
+  const autoHeatBorderColor = form.autoBallsShot === 0 ? "" : getHeatCssColor(form.autoBallsShot, r.auto.min, r.auto.max);
+  const throughputHeat = form.teleopFpsEstimate === 0 ? "" : getHeatClass(form.teleopFpsEstimate, r.throughput.min, r.throughput.max);
+  const accuracyHeat = form.teleopAccuracy === 50 ? "" : getHeatClass(form.teleopAccuracy, r.accuracy.min, r.accuracy.max);
+  const accuracySliderColor = form.teleopAccuracy === 50 ? "" : getHeatCssColor(form.teleopAccuracy, r.accuracy.min, r.accuracy.max);
+  const defenseHeat = form.defenseRating === 0 ? "" : getHeatClass(form.defenseRating, r.defense.min, r.defense.max);
+  const defenseSliderColor = form.defenseRating === 0 ? "" : getHeatCssColor(form.defenseRating, r.defense.min, r.defense.max);
 
   const noteRows = singleScreen ? 2 : 3;
   const noteMinH = singleScreen ? "min-h-[60px]" : "min-h-[80px]";
 
   return (
-    <div className={`${singleScreen ? "space-y-3 max-w-5xl mx-auto w-full" : `space-y-4 ${compact ? "min-w-[340px] flex-1" : "max-w-2xl mx-auto w-full"}`}`} data-testid={`team-column-${index}`}>
-      <Card className={singleScreen ? "py-1" : ""}>
-        <CardHeader className="pb-2">
+    <div className={`${singleScreen ? "space-y-3 sm:space-y-4 lg:space-y-5 max-w-xl sm:max-w-2xl lg:max-w-3xl mx-auto w-full px-0" : `space-y-3 sm:space-y-4 lg:space-y-5 ${compact ? "min-w-[280px] sm:min-w-[320px] lg:min-w-[340px] flex-1" : "max-w-xl sm:max-w-2xl lg:max-w-3xl mx-auto w-full"}`}`} data-testid={`team-column-${index}`}>
+      <Card className={singleScreen ? "py-0 sm:py-1" : ""}>
+        <CardHeader className="pb-2 px-3 sm:px-6 lg:px-8 pt-3 sm:pt-6 lg:pt-6">
           <CardTitle className="text-base flex items-center justify-between">
             <span className="flex items-center gap-2">
               <Bot className="h-4 w-4" />
               Robot {index + 1}
             </span>
             {canRemove && (
-              <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-destructive hover:text-destructive" onClick={onRemove} data-testid={`button-remove-robot-${index}`}>
+              <Button type="button" variant="ghost" size="sm" className="h-9 w-9 sm:h-7 sm:w-7 sm:min-w-0 shrink-0 touch-manipulation px-2 text-destructive hover:text-destructive" onClick={onRemove} data-testid={`button-remove-robot-${index}`}>
                 <Minus className="h-4 w-4" />
               </Button>
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 px-3 sm:px-6 lg:px-8 pb-4 sm:pb-6 lg:pb-6">
           <TeamSearchCombobox
             eventTeams={eventTeams}
             selectedTeamId={selectedTeamId}
@@ -556,77 +573,118 @@ function TeamFormColumn({
 
       {/* Stats — themed like team profile Teleop section */}
       <Card className="border-t-4 border-chart-2/30">
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-2 px-3 sm:px-6 lg:px-8 pt-3 sm:pt-6 lg:pt-6">
           <CardTitle className="text-sm flex items-center gap-2 text-chart-2">
             <Target className="h-4 w-4" />
             Stats
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Colors match Team List — yellow = top, green = strong, red = weak</p>
+          <p className="text-xs text-muted-foreground hidden sm:block">Colors match Team List — yellow = top, green = strong, red = weak</p>
         </CardHeader>
-        <CardContent className="space-y-3 pt-0">
+        <CardContent className="space-y-2 sm:space-y-3 pt-0 px-3 sm:px-6 lg:px-8 pb-4 sm:pb-6 lg:pb-6">
           <BigCounterInput
             value={form.autoBallsShot}
             onChange={(v) => onUpdateField("autoBallsShot", v)}
             label="Auto balls"
             testId={`auto-balls-${index}`}
             heatClass={autoHeat}
+            heatBorderColor={autoHeatBorderColor}
           />
           <div className={`rounded-lg border-l-4 p-2 ${throughputHeat || "border-border"}`}>
-            <Label className="text-sm font-medium text-muted-foreground">Throughput</Label>
-            <div className="flex items-center gap-2 mt-1">
-              <Button type="button" variant="outline" size="sm" className="h-8 w-8 shrink-0" onClick={() => onUpdateField("teleopFpsEstimate", Math.max(0, form.teleopFpsEstimate - 1))} data-testid={`button-fps-estimate-minus-${index}`}>
-                <Minus className="h-4 w-4" />
-              </Button>
-              <input
-                type="number"
-                min={0}
-                value={form.teleopFpsEstimate === 0 ? "" : form.teleopFpsEstimate}
-                placeholder="0"
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  if (raw === "") onUpdateField("teleopFpsEstimate", 0);
-                  else { const v = parseInt(raw, 10); if (!isNaN(v)) onUpdateField("teleopFpsEstimate", Math.max(0, v)); }
-                }}
-                className="h-9 flex-1 min-w-0 text-center font-bold tabular-nums rounded border bg-transparent focus:outline-none focus:ring-2 focus:ring-ring [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                data-testid={`input-fps-estimate-${index}`}
-              />
-              <Button type="button" variant="outline" size="sm" className="h-8 w-8 shrink-0" onClick={() => onUpdateField("teleopFpsEstimate", form.teleopFpsEstimate + 1)} data-testid={`button-fps-estimate-plus-${index}`}>
-                <Plus className="h-4 w-4" />
-              </Button>
+            <Label className="text-sm font-medium text-inherit">Estimated BPS</Label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1.5">
+              {([
+                { label: "1–2", value: 2 },
+                { label: "3–8", value: 6 },
+                { label: "9–16", value: 13 },
+                { label: "17+", value: 20 },
+              ] as const).map(({ label, value }) => {
+                const selected =
+                  (value === 2 && form.teleopFpsEstimate >= 1 && form.teleopFpsEstimate <= 2) ||
+                  (value === 6 && form.teleopFpsEstimate >= 3 && form.teleopFpsEstimate <= 8) ||
+                  (value === 13 && form.teleopFpsEstimate >= 9 && form.teleopFpsEstimate <= 16) ||
+                  (value === 20 && form.teleopFpsEstimate >= 17);
+                const isDefaultBps = form.teleopFpsEstimate === 0;
+                const heatClass = isDefaultBps ? "" : getHeatColorLib(value, r.throughput.min, r.throughput.max);
+                const heatBorderStyle = isDefaultBps ? "" : getHeatCssColor(value, r.throughput.min, r.throughput.max);
+                const selectedClass = selected
+                  ? heatClass
+                    ? `border-2 ${heatClass} font-semibold`
+                    : isDefaultBps
+                      ? "bg-muted text-muted-foreground border-2 border-muted-foreground/30 font-semibold"
+                      : "bg-primary text-primary-foreground border-2 border-primary"
+                  : "";
+                return (
+                  <Button
+                    key={value}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className={`h-10 sm:h-9 text-sm touch-manipulation ${selectedClass}`}
+                    style={selected && heatBorderStyle ? { borderColor: heatBorderStyle } : undefined}
+                    onClick={() => onUpdateField("teleopFpsEstimate", value)}
+                    data-testid={`button-bps-${value}-${index}`}
+                  >
+                    {label}
+                  </Button>
+                );
+              })}
             </div>
           </div>
           <RatingSelector value={form.teleopAccuracy} onChange={(v) => onUpdateField("teleopAccuracy", v)} label="Accuracy (%)" testId={`accuracy-${index}`} heatClass={accuracyHeat} sliderColor={accuracySliderColor} />
-          <RatingSelector value={form.defenseRating} onChange={(v) => onUpdateField("defenseRating", v)} label="Defense (%)" testId={`defense-${index}`} heatClass={defenseHeat} sliderColor={defenseSliderColor} />
-          <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+          <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-3 sm:py-2 min-h-11 sm:min-h-0">
             <Label className="text-sm font-medium text-muted-foreground">Moves while shooting?</Label>
-            <Switch checked={form.teleopMoveWhileShoot} onCheckedChange={(v) => onUpdateField("teleopMoveWhileShoot", v)} data-testid={`switch-move-while-shoot-${index}`} />
+            <div className="flex gap-1.5 shrink-0">
+              {([{ value: true, label: "Yes" }, { value: false, label: "No" }] as const).map(({ value, label }) => (
+                <Button key={String(value)} type="button" variant="outline" size="sm" className={`h-9 px-3 text-sm touch-manipulation ${form.teleopMoveWhileShoot === value ? (value ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:text-white dark:bg-emerald-500 dark:border-emerald-500 dark:hover:bg-emerald-600" : "bg-muted text-muted-foreground border-muted-foreground/30 hover:bg-muted/80 hover:text-muted-foreground") : ""}`} onClick={() => onUpdateField("teleopMoveWhileShoot", value)} data-testid={`button-move-while-shoot-${value}-${index}`}>{label}</Button>
+              ))}
+            </div>
           </div>
+          <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-3 sm:py-2 min-h-11 sm:min-h-0">
+            <Label className="text-sm font-medium text-muted-foreground">Played Defense?</Label>
+            <div className="flex gap-1.5 shrink-0">
+              {([{ value: true, label: "Yes" }, { value: false, label: "No" }] as const).map(({ value, label }) => (
+                <Button key={String(value)} type="button" variant="outline" size="sm" className={`h-9 px-3 text-sm touch-manipulation ${form.playedDefense === value ? (value ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:text-white dark:bg-emerald-500 dark:border-emerald-500 dark:hover:bg-emerald-600" : "bg-muted text-muted-foreground border-muted-foreground/30 hover:bg-muted/80 hover:text-muted-foreground") : ""}`} onClick={() => { onUpdateField("playedDefense", value); if (!value) { onUpdateField("defenseRating", 0); onUpdateField("defenseNotes", ""); } }} data-testid={`button-played-defense-${value}-${index}`}>{label}</Button>
+              ))}
+            </div>
+          </div>
+          {form.playedDefense && (
+            <>
+              <RatingSelector value={form.defenseRating} onChange={(v) => onUpdateField("defenseRating", v)} label="Defense (%)" testId={`defense-${index}`} heatClass={defenseHeat} sliderColor={defenseSliderColor} />
+            </>
+          )}
         </CardContent>
       </Card>
 
-      <div className={singleScreen ? "grid grid-cols-1 lg:grid-cols-3 gap-3" : "space-y-4"}>
+      <div className={singleScreen ? "grid grid-cols-1 lg:grid-cols-3 gap-3" : "space-y-3 sm:space-y-4"}>
       {/* Auto climb — primary theme like team profile Auto */}
       <Card className="border-t-4 border-primary/30">
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
           <CardTitle className="text-sm flex items-center gap-2 text-primary">
             <ArrowUp className="h-4 w-4" />
             Auto climb
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0 space-y-3">
+        <CardContent className="pt-0 space-y-3 px-3 sm:px-6 pb-4 sm:pb-6">
           <div>
             <Label className="text-sm font-medium text-muted-foreground">Climb</Label>
-            <div className="grid grid-cols-3 gap-1.5 mt-1.5">
-              {[{ value: "success", label: "Climbed" }, { value: "failed", label: "Failed" }, { value: "none", label: "Didn't try" }].map((opt) => (
-                <Button key={opt.value} type="button" variant={form.autoClimbSuccess === opt.value ? "default" : "outline"} size="sm" className="h-9 text-sm" onClick={() => { onUpdateField("autoClimbSuccess", opt.value); if (opt.value === "none") { onUpdateField("autoClimbPosition", ""); onUpdateField("autoClimbLevel", ""); } else if (opt.value === "success") { onUpdateField("autoClimbLevel", "1"); } }} data-testid={`button-auto-climb-${opt.value}-${index}`}>{opt.label}</Button>
-              ))}
+            <div className="grid grid-cols-3 gap-2 sm:gap-1.5 mt-1.5">
+              {([
+                { value: "success", label: "Climbed", selectedClass: "bg-green-600 text-white border-green-600 hover:bg-green-700 hover:text-white dark:bg-green-500 dark:border-green-500 dark:hover:bg-green-600" },
+                { value: "failed", label: "Failed", selectedClass: "bg-red-600 text-white border-red-600 hover:bg-red-700 hover:text-white dark:bg-red-500 dark:border-red-500 dark:hover:bg-red-600" },
+                { value: "none", label: "Didn't try", selectedClass: "bg-muted text-muted-foreground border-muted-foreground/30 hover:bg-muted/80 hover:text-muted-foreground" },
+              ] as const).map((opt) => {
+                const selected = form.autoClimbSuccess === opt.value;
+                return (
+                  <Button key={opt.value} type="button" variant="outline" size="sm" className={`h-10 sm:h-9 text-sm touch-manipulation w-full min-w-0 ${selected ? opt.selectedClass : ""}`} onClick={() => { onUpdateField("autoClimbSuccess", opt.value); if (opt.value === "none") { onUpdateField("autoClimbPosition", ""); onUpdateField("autoClimbLevel", ""); } else if (opt.value === "success") { onUpdateField("autoClimbLevel", "1"); } }} data-testid={`button-auto-climb-${opt.value}-${index}`}>{opt.label}</Button>
+                );
+              })}
             </div>
           </div>
           {form.autoClimbSuccess !== "none" && (
             <>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-3 gap-2 sm:gap-1.5">
                 {[{ value: "left", label: "Left" }, { value: "middle", label: "Mid" }, { value: "right", label: "Right" }].map((opt) => (
-                  <Button key={opt.value} type="button" variant={form.autoClimbPosition === opt.value ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => onUpdateField("autoClimbPosition", opt.value)} data-testid={`button-auto-climb-pos-${opt.value}-${index}`}>{opt.label}</Button>
+                  <Button key={opt.value} type="button" variant={form.autoClimbPosition === opt.value ? "default" : "outline"} size="sm" className="h-10 sm:h-8 text-xs touch-manipulation" onClick={() => onUpdateField("autoClimbPosition", opt.value)} data-testid={`button-auto-climb-pos-${opt.value}-${index}`}>{opt.label}</Button>
                 ))}
               </div>
               <div className="flex items-center gap-1.5">
@@ -640,44 +698,51 @@ function TeamFormColumn({
 
       {/* Teleop — chart-2 theme like team profile */}
       <Card className="border-t-4 border-chart-2/30">
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
           <CardTitle className="text-sm flex items-center gap-2 text-chart-2">
             <Crosshair className="h-4 w-4" />
             Teleop
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 px-3 sm:px-6 pb-4 sm:pb-6">
           <ShootingHeatmap value={form.teleopShootPosition} onChange={(v) => onUpdateField("teleopShootPosition", v)} />
         </CardContent>
       </Card>
 
       {/* Endgame — chart-5 theme like team profile */}
       <Card className="border-t-4 border-chart-5/30">
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-2 px-3 sm:px-6 lg:px-8 pt-3 sm:pt-6 lg:pt-6">
           <CardTitle className="text-sm flex items-center gap-2 text-chart-5">
             <ArrowUp className="h-4 w-4" />
             Endgame
           </CardTitle>
         </CardHeader>
-        <CardContent className="pt-0 space-y-3">
+        <CardContent className="pt-0 space-y-3 px-3 sm:px-6 lg:px-8 pb-4 sm:pb-6 lg:pb-6">
           <div>
             <Label className="text-sm font-medium text-muted-foreground">Climb</Label>
-            <div className="grid grid-cols-3 gap-1.5 mt-1.5">
-              {[{ value: "success", label: "Climbed" }, { value: "failed", label: "Failed" }, { value: "none", label: "Didn't try" }].map((opt) => (
-                <Button key={opt.value} type="button" variant={form.climbSuccess === opt.value ? "default" : "outline"} size="sm" className="h-9 text-sm" onClick={() => { onUpdateField("climbSuccess", opt.value); if (opt.value === "none") { onUpdateField("climbPosition", ""); onUpdateField("climbLevel", ""); } }} data-testid={`button-climb-${opt.value}-${index}`}>{opt.label}</Button>
-              ))}
+            <div className="grid grid-cols-3 gap-2 sm:gap-1.5 mt-1.5">
+              {([
+                { value: "success", label: "Climbed", selectedClass: "bg-green-600 text-white border-green-600 hover:bg-green-700 hover:text-white dark:bg-green-500 dark:border-green-500 dark:hover:bg-green-600" },
+                { value: "failed", label: "Failed", selectedClass: "bg-red-600 text-white border-red-600 hover:bg-red-700 hover:text-white dark:bg-red-500 dark:border-red-500 dark:hover:bg-red-600" },
+                { value: "none", label: "Didn't try", selectedClass: "bg-muted text-muted-foreground border-muted-foreground/30 hover:bg-muted/80 hover:text-muted-foreground" },
+              ] as const).map((opt) => {
+                const selected = form.climbSuccess === opt.value;
+                return (
+                  <Button key={opt.value} type="button" variant="outline" size="sm" className={`h-10 sm:h-9 text-sm touch-manipulation w-full min-w-0 ${selected ? opt.selectedClass : ""}`} onClick={() => { onUpdateField("climbSuccess", opt.value); if (opt.value === "none") { onUpdateField("climbPosition", ""); onUpdateField("climbLevel", ""); } }} data-testid={`button-climb-${opt.value}-${index}`}>{opt.label}</Button>
+                );
+              })}
             </div>
           </div>
           {form.climbSuccess !== "none" && (
             <>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-3 gap-2 sm:gap-1.5">
                 {[{ value: "left", label: "Left" }, { value: "middle", label: "Mid" }, { value: "right", label: "Right" }].map((opt) => (
-                  <Button key={opt.value} type="button" variant={form.climbPosition === opt.value ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => onUpdateField("climbPosition", opt.value)} data-testid={`button-climb-pos-${opt.value}-${index}`}>{opt.label}</Button>
+                  <Button key={opt.value} type="button" variant={form.climbPosition === opt.value ? "default" : "outline"} size="sm" className="h-10 sm:h-8 text-xs touch-manipulation" onClick={() => onUpdateField("climbPosition", opt.value)} data-testid={`button-climb-pos-${opt.value}-${index}`}>{opt.label}</Button>
                 ))}
               </div>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-3 gap-2 sm:gap-1.5">
                 {[{ value: "1", label: "L1" }, { value: "2", label: "L2" }, { value: "3", label: "L3" }].map((opt) => (
-                  <Button key={opt.value} type="button" variant={form.climbLevel === opt.value ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => onUpdateField("climbLevel", opt.value)} data-testid={`button-climb-level-${opt.value}-${index}`}>{opt.label}</Button>
+                  <Button key={opt.value} type="button" variant={form.climbLevel === opt.value ? "default" : "outline"} size="sm" className="h-10 sm:h-8 text-xs touch-manipulation" onClick={() => onUpdateField("climbLevel", opt.value)} data-testid={`button-climb-level-${opt.value}-${index}`}>{opt.label}</Button>
                 ))}
               </div>
             </>
@@ -688,43 +753,45 @@ function TeamFormColumn({
 
       {/* Notes & observations — at bottom, themed like team profile Scout Notes */}
       <Card className="border-t-4 border-primary/30 bg-primary/[0.02]">
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-2 px-3 sm:px-6 lg:px-8 pt-3 sm:pt-6 lg:pt-6">
           <CardTitle className="text-base flex items-center gap-2 text-primary">
             <MessageSquare className="h-4 w-4" />
             Notes & observations
           </CardTitle>
-          <p className="text-xs text-muted-foreground">What you saw — this is what matters most for picks</p>
+          <p className="text-xs text-muted-foreground hidden sm:block">What you saw — this is what matters most for picks</p>
         </CardHeader>
-        <CardContent className="space-y-4 pt-0">
+        <CardContent className="space-y-3 sm:space-y-4 pt-0 px-3 sm:px-6 lg:px-8 pb-4 sm:pb-6 lg:pb-6">
           <div>
             <Label className="text-sm font-medium text-muted-foreground">Auto</Label>
             <Textarea
               value={form.autoNotes}
               onChange={(e) => onUpdateField("autoNotes", e.target.value)}
               placeholder="What did the robot do in auto?"
-              className={`resize-none mt-1.5 ${noteMinH}`}
+              className={`resize-none mt-1.5 min-h-[4rem] sm:min-h-[5rem] ${noteMinH}`}
               rows={noteRows}
               data-testid={`textarea-auto-notes-${index}`}
             />
           </div>
-          <div>
-            <Label className="text-sm font-medium text-muted-foreground">Defense</Label>
-            <Textarea
-              value={form.defenseNotes}
-              onChange={(e) => onUpdateField("defenseNotes", e.target.value)}
-              placeholder="How did they play defense?"
-              className={`resize-none mt-1.5 ${noteMinH}`}
-              rows={noteRows}
-              data-testid={`textarea-defense-notes-${index}`}
-            />
-          </div>
+          {form.playedDefense && (
+            <div>
+              <Label className="text-sm font-medium text-muted-foreground">Defense</Label>
+              <Textarea
+                value={form.defenseNotes}
+                onChange={(e) => onUpdateField("defenseNotes", e.target.value)}
+                placeholder="How did they play defense?"
+                className={`resize-none mt-1.5 min-h-[4rem] sm:min-h-[5rem] ${noteMinH}`}
+                rows={noteRows}
+                data-testid={`textarea-defense-notes-${index}`}
+              />
+            </div>
+          )}
           <div>
             <Label className="text-sm font-medium text-muted-foreground">Driver skill</Label>
             <Textarea
               value={form.driverSkillNotes}
               onChange={(e) => onUpdateField("driverSkillNotes", e.target.value)}
               placeholder="Driver awareness, gear shifts, movement patterns..."
-              className={`resize-none mt-1.5 ${noteMinH}`}
+              className={`resize-none mt-1.5 min-h-[4rem] sm:min-h-[5rem] ${noteMinH}`}
               rows={noteRows}
               data-testid={`textarea-driver-notes-${index}`}
             />
@@ -735,7 +802,7 @@ function TeamFormColumn({
               value={form.notes}
               onChange={(e) => onUpdateField("notes", e.target.value)}
               placeholder="Any other observations..."
-              className={`resize-none mt-1.5 ${noteMinH}`}
+              className={`resize-none mt-1.5 min-h-[4rem] sm:min-h-[5rem] ${noteMinH}`}
               rows={noteRows}
               data-testid={`textarea-notes-${index}`}
             />
@@ -916,26 +983,26 @@ export default function ScoutForm() {
   }
 
   return (
-    <div className="pb-24">
-      <div className="sticky top-0 z-30 bg-background border-b shadow-sm px-4 py-3" data-testid="master-bar">
-        <div className="flex items-center justify-between gap-4 flex-wrap max-w-[1800px] mx-auto">
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold tracking-tight" data-testid="text-page-title">Scout</h1>
-            <Badge variant="secondary" className="text-xs">
+    <div className="pb-20 sm:pb-24">
+      <div className="sticky top-0 z-30 bg-background border-b shadow-sm px-3 py-3 sm:px-4" data-testid="master-bar">
+        <div className="flex items-center justify-between gap-3 sm:gap-4 flex-wrap max-w-[1800px] mx-auto">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight truncate" data-testid="text-page-title">Scout</h1>
+            <Badge variant="secondary" className="text-xs shrink-0">
               <Radio className="h-3 w-3 mr-1 text-chart-2" />
-              {activeEvent.name}
+              <span className="truncate max-w-[120px] sm:max-w-none">{activeEvent.name}</span>
             </Badge>
           </div>
 
-          <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Match</span>
+              <span className="text-sm font-medium text-muted-foreground hidden sm:inline">Match</span>
               <div className="flex items-center gap-1">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-8 w-8 p-0"
+                  className="h-10 w-10 sm:h-8 sm:w-8 p-0 touch-manipulation"
                   onClick={() => setMatchNumber((prev) => Math.max(1, (prev || 1) - 1))}
                   disabled={matchNumber <= 1}
                   data-testid="button-match-minus"
@@ -951,14 +1018,14 @@ export default function ScoutForm() {
                     if (!isNaN(v) && v >= 1) setMatchNumber(v);
                     else if (e.target.value === "") setMatchNumber(1);
                   }}
-                  className="h-8 w-14 text-center text-base font-bold tabular-nums bg-primary text-primary-foreground rounded-md border-0 focus:outline-none focus:ring-2 focus:ring-ring [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  className="h-10 w-14 sm:h-8 sm:w-14 text-center text-base font-bold tabular-nums bg-primary text-primary-foreground rounded-md border-0 focus:outline-none focus:ring-2 focus:ring-ring touch-manipulation [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   data-testid="input-match-number"
                 />
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-8 w-8 p-0"
+                  className="h-10 w-10 sm:h-8 sm:w-8 p-0 touch-manipulation"
                   onClick={() => setMatchNumber((prev) => (prev || 1) + 1)}
                   data-testid="button-match-plus"
                 >
@@ -967,16 +1034,16 @@ export default function ScoutForm() {
               </div>
             </div>
 
-            <div className="h-6 w-px bg-border" />
+            <div className="h-6 w-px bg-border hidden sm:block" />
 
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Mode</span>
+              <span className="text-sm font-medium text-muted-foreground sr-only sm:not-sr-only">Mode</span>
               <div className="flex rounded-md border border-input overflow-hidden" role="group" aria-label="Scout mode">
                 <Button
                   type="button"
                   variant={isSingleScout ? "default" : "ghost"}
                   size="sm"
-                  className="h-8 rounded-none border-0 px-3 gap-1.5"
+                  className="h-10 sm:h-8 rounded-none border-0 px-3 gap-1.5 touch-manipulation"
                   onClick={() => setScoutMode("single")}
                   data-testid="button-scout-mode-single"
                 >
@@ -987,7 +1054,7 @@ export default function ScoutForm() {
                   type="button"
                   variant={!isSingleScout ? "default" : "ghost"}
                   size="sm"
-                  className="h-8 rounded-none border-0 px-3 gap-1.5"
+                  className="h-10 sm:h-8 rounded-none border-0 px-3 gap-1.5 touch-manipulation"
                   onClick={() => {
                     setScoutMode("multi");
                     if (teamCount < 1) changeTeamCount(1);
@@ -1002,29 +1069,29 @@ export default function ScoutForm() {
 
             {!isSingleScout && (
               <>
-                <div className="h-6 w-px bg-border" />
+                <div className="h-6 w-px bg-border hidden sm:block" />
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-muted-foreground">Teams</span>
+                  <span className="text-sm font-medium text-muted-foreground sr-only sm:not-sr-only">Teams</span>
                   <div className="flex items-center gap-1">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-8 w-8 p-0"
+                      className="h-10 w-10 sm:h-8 sm:w-8 p-0 touch-manipulation"
                       onClick={() => changeTeamCount(teamCount - 1)}
                       disabled={teamCount <= 1}
                       data-testid="button-team-count-minus"
                     >
                       <Minus className="h-4 w-4" />
                     </Button>
-                    <Badge variant="secondary" className="text-base px-3 py-1 tabular-nums min-w-[2rem] text-center" data-testid="text-team-count">
+                    <Badge variant="secondary" className="text-base px-3 py-1.5 sm:py-1 tabular-nums min-w-[2.5rem] sm:min-w-[2rem] text-center" data-testid="text-team-count">
                       {teamCount}
                     </Badge>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-8 w-8 p-0"
+                      className="h-10 w-10 sm:h-8 sm:w-8 p-0 touch-manipulation"
                       onClick={() => changeTeamCount(teamCount + 1)}
                       disabled={teamCount >= 6}
                       data-testid="button-team-count-plus"
@@ -1039,8 +1106,8 @@ export default function ScoutForm() {
         </div>
       </div>
 
-      <div className={`p-4 ${effectiveTeamCount > 1 ? "overflow-x-auto" : ""}`}>
-        <div className={`flex gap-4 ${effectiveTeamCount > 1 ? "items-start" : "justify-center"}`}>
+      <div className={`px-3 py-4 sm:p-4 md:p-6 lg:p-8 ${effectiveTeamCount > 1 ? "overflow-x-auto" : ""}`}>
+        <div className={`flex gap-3 sm:gap-4 lg:gap-6 ${effectiveTeamCount > 1 ? "items-start" : "justify-center"}`}>
           {Array.from({ length: effectiveTeamCount }).map((_, idx) => (
             <TeamFormColumn
               key={idx}
@@ -1060,11 +1127,11 @@ export default function ScoutForm() {
         </div>
       </div>
 
-      <div className={`px-4 mt-4 ${effectiveTeamCount === 1 ? "max-w-2xl mx-auto" : ""}`}>
+      <div className={`sticky bottom-0 left-0 right-0 z-20 px-3 py-3 sm:py-0 sm:pt-4 sm:static sm:mt-4 md:mt-6 lg:mt-8 bg-background/95 sm:bg-transparent backdrop-blur-sm border-t sm:border-t-0 ${effectiveTeamCount === 1 ? "sm:max-w-2xl lg:max-w-3xl sm:mx-auto sm:px-0" : ""}`}>
         <Button
           type="button"
           size="lg"
-          className="w-full h-16 text-xl font-bold"
+          className="w-full min-h-12 h-12 sm:h-14 text-lg sm:text-xl font-bold touch-manipulation"
           disabled={submitMutation.isPending}
           onClick={handleSubmitAll}
           data-testid="button-submit-entry"

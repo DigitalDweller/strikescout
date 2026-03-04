@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ArrowLeft, MessageSquare, AlertCircle, AlertTriangle } from "lucide-react";
+import { ArrowLeft, MessageSquare, AlertCircle, AlertTriangle, BarChart2 } from "lucide-react";
 import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
 import { toPct, getHeatColor, computeTeamStats, computeStatRanges, computeTbaRanges } from "@/lib/team-colors";
 import heatmapFieldPath from "@assets/hehehehe_1771897335677.png";
@@ -320,8 +320,10 @@ function AutoClimbChart({ entries }: { entries: ScoutingEntry[] }) {
 
 export default function TeamProfile() {
   const { id: eid, teamId: tid } = useParams<{ id: string; teamId: string }>();
+  const [, setLocation] = useLocation();
   const eventId = parseInt(eid!);
   const teamId = parseInt(tid!);
+  const returnTo = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("returnTo") : null;
 
   const { data: event } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
@@ -474,12 +476,20 @@ export default function TeamProfile() {
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
       <div>
-        <Link href={`/events/${eventId}/teams`}>
-          <Button variant="ghost" size="sm" className="mb-2" data-testid="button-back-event">
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Back to Teams
-          </Button>
-        </Link>
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <Link href={returnTo ?? `/events/${eventId}/teams`}>
+            <Button variant="ghost" size="sm" data-testid="button-back-event">
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              {returnTo ? "Back to Match" : "Back to Teams"}
+            </Button>
+          </Link>
+          <Link href={`/events/${eventId}/teams/${teamId}/compare`}>
+            <Button variant="outline" size="sm" data-testid="button-compare-stats">
+              <BarChart2 className="h-4 w-4 mr-1" />
+              Compare Stats
+            </Button>
+          </Link>
+        </div>
         <div className="flex items-center gap-4">
           {team ? (
             <img src={team.avatar || placeholderAvatar} alt={`Team ${team.teamNumber}`} className="w-12 h-12 rounded-lg border border-border object-cover bg-white" data-testid="img-team-avatar" />
@@ -491,7 +501,7 @@ export default function TeamProfile() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="inline-flex shrink-0 cursor-help">
-                      <AlertCircle className="h-6 w-6 text-destructive" aria-hidden />
+                      <AlertCircle className="h-6 w-6 text-blue-500 dark:text-blue-400" aria-hidden />
                     </span>
                   </TooltipTrigger>
                   <TooltipContent>No Blue Alliance (TBA) data yet</TooltipContent>

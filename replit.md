@@ -43,7 +43,7 @@ A FIRST Robotics Competition scouting web application for the 2026 "Rebuilt" sea
 ## Data Model
 - **events** - id, name, location, startDate, isActive (legacy), currentMatchNumber (legacy), tbaEventKey, tbaAutoSync
 - **teams** - id, teamNumber, teamName, city, stateProv, country, avatar
-- **event_teams** - id, eventId, teamId, opr, dpr, ccwm, rankingPoints, rank, wins, losses, ties
+- **event_teams** - id, eventId, teamId, opr, rankingPoints, rank, wins, losses, ties
 - **picklist_entries** - id, eventId, teamId, rank, tier
 - **scouting_entries** - id, scouterId (always 0), eventId, teamId, matchNumber, autoBallsShot, autoNotes, autoDrawing, autoClimbSuccess, autoClimbPosition, autoClimbLevel, teleopBallsShot, teleopShootPosition, teleopMoveWhileShoot, teleopFpsEstimate, teleopAccuracy, climbSuccess, climbPosition, climbLevel, defenseRating, defenseNotes, driverSkillNotes, notes, createdAt
 - **schedule_matches** - id, eventId, matchNumber, red1, red2, red3, blue1, blue2, blue3, time, videoUrl, redScore, blueScore, winningAlliance

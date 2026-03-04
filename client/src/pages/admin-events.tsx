@@ -42,22 +42,11 @@ import {
   Moon,
   Sun,
   ChevronDown,
-  Tag,
-  Wrench,
-  Bug,
-  Sparkles,
   LogOut,
   Shield,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import type { Event } from "@shared/schema";
-import { VERSION_HISTORY } from "@/config/version-history";
-
-const changeTypeConfig = {
-  feature: { icon: Sparkles, label: "New", className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" },
-  improvement: { icon: Wrench, label: "Improved", className: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" },
-  fix: { icon: Bug, label: "Fix", className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" },
-};
 
 const createEventSchema = z.object({
   name: z.string().min(1, "Event name is required"),
@@ -69,6 +58,8 @@ const editEventSchema = z.object({
   name: z.string().min(1, "Event name is required"),
   location: z.string().optional(),
 });
+
+const DELETE_EVENT_CODE = "DEL3TEM3!";
 
 function DeleteConfirmDialog({
   event,
@@ -83,6 +74,7 @@ function DeleteConfirmDialog({
 }) {
   const { toast } = useToast();
   const [step, setStep] = useState(0);
+  const [deleteCode, setDeleteCode] = useState("");
   const totalSteps = 5;
 
   const deleteMutation = useMutation({
@@ -97,7 +89,10 @@ function DeleteConfirmDialog({
   });
 
   useEffect(() => {
-    if (!open) setStep(0);
+    if (!open) {
+      setStep(0);
+      setDeleteCode("");
+    }
   }, [open]);
 
   const messages = [
@@ -126,6 +121,21 @@ function DeleteConfirmDialog({
             />
           ))}
         </div>
+        {step === totalSteps - 1 && (
+          <div className="space-y-2">
+            <Label htmlFor="delete-code">Enter code to confirm deletion</Label>
+            <Input
+              id="delete-code"
+              type="text"
+              value={deleteCode}
+              onChange={(e) => setDeleteCode(e.target.value)}
+              placeholder="Confirmation code"
+              className="font-mono"
+              data-testid="input-delete-event-code"
+              autoComplete="off"
+            />
+          </div>
+        )}
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-delete-cancel">
             Cancel
@@ -142,7 +152,7 @@ function DeleteConfirmDialog({
             <Button
               variant="destructive"
               onClick={() => deleteMutation.mutate()}
-              disabled={deleteMutation.isPending}
+              disabled={deleteMutation.isPending || deleteCode !== DELETE_EVENT_CODE}
               data-testid="button-delete-final"
             >
               {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
@@ -561,66 +571,6 @@ export default function AdminEvents() {
           />
         )}
 
-        <div className="border-t mt-10 pt-10 pb-12">
-          {/* Version History - edit client/src/config/version-history.ts */}
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.4 }}
-          >
-            <div className="flex items-center gap-2 mb-5">
-              <Tag className="h-5 w-5 text-muted-foreground" />
-              <h2 className="text-xl font-bold">Version History</h2>
-            </div>
-
-            <div className="relative space-y-0">
-              <div className="absolute left-[15px] top-2 bottom-2 w-px bg-border" />
-
-              {VERSION_HISTORY.map((release, idx) => (
-                <motion.div
-                  key={release.version}
-                  initial={{ opacity: 0, x: -10 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true, margin: "-20px" }}
-                  transition={{ duration: 0.3, delay: idx * 0.05 }}
-                  className="relative pl-10 pb-6 last:pb-0"
-                >
-                  <div className="absolute left-[10px] top-1.5 h-[11px] w-[11px] rounded-full border-2 border-primary bg-background" />
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-base">v{release.version}</span>
-                    <span className="text-xs text-muted-foreground">{release.date}</span>
-                    {release.tag && (
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                        {release.tag}
-                      </Badge>
-                    )}
-                  </div>
-
-                  <ul className="mt-2 space-y-1.5">
-                    {release.changes.map((change, cIdx) => {
-                      const config = changeTypeConfig[change.type];
-                      const Icon = config.icon;
-                      return (
-                        <li key={cIdx} className="flex items-start gap-2 text-sm">
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] px-1.5 py-0 shrink-0 mt-0.5 font-medium ${config.className}`}
-                          >
-                            <Icon className="h-2.5 w-2.5 mr-0.5" />
-                            {config.label}
-                          </Badge>
-                          <span className="text-muted-foreground">{change.text}</span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </motion.div>
-              ))}
-            </div>
-          </motion.section>
-        </div>
       </div>
     </div>
   );

@@ -17,7 +17,6 @@ import {
   ArrowRight,
   AlertCircle,
   Activity,
-  Target,
   CheckCircle2,
   Circle,
 } from "lucide-react";
@@ -137,7 +136,7 @@ export default function AdminEventDetail() {
   const quickActions = [
     { title: "Scout", href: `/events/${eventId}/scout`, icon: ClipboardList, color: "text-emerald-500", desc: "Record match data" },
     { title: "Teams", href: `/events/${eventId}/teams`, icon: Users, color: "text-blue-500", desc: "View & sort teams" },
-    { title: "Schedule", href: `/events/${eventId}/schedule`, icon: CalendarDays, color: "text-sky-500", desc: "Matches & results" },
+    { title: "Matches", href: `/events/${eventId}/schedule`, icon: CalendarDays, color: "text-sky-500", desc: "Match schedule & results" },
     { title: "Picklist", href: `/events/${eventId}/picklist`, icon: ListOrdered, color: "text-teal-500", desc: "Build draft order" },
     { title: "Data", href: `/events/${eventId}/data`, icon: Database, color: "text-slate-400", desc: "Export CSV" },
     { title: "Settings", href: `/events/${eventId}/settings`, icon: Settings, color: "text-slate-400", desc: "TBA & sync" },
@@ -173,7 +172,7 @@ export default function AdminEventDetail() {
           </Badge>
           {stats.scheduleCount > 0 && (
             <Badge variant="outline" className="text-sm font-medium px-3 py-1">
-              {stats.scheduleCount} on schedule
+              {stats.scheduleCount} matches
             </Badge>
           )}
           {stats.totalEntries > 0 && (
@@ -248,7 +247,7 @@ export default function AdminEventDetail() {
             <Card>
               <CardContent className="p-6 text-center">
                 <CalendarDays className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">No schedule yet</p>
+                <p className="text-sm text-muted-foreground">No matches yet</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Sync from TBA in <Link href={`/events/${eventId}/settings`} className="text-primary underline">Settings</Link>
                 </p>
@@ -259,7 +258,7 @@ export default function AdminEventDetail() {
               <CardContent className="p-6 text-center">
                 <p className="text-sm text-muted-foreground">All matches are over</p>
                 <Link href={`/events/${eventId}/schedule`} className="text-xs text-primary hover:underline mt-1 inline-block">
-                  View schedule →
+                  View matches →
                 </Link>
               </CardContent>
             </Card>
@@ -267,7 +266,7 @@ export default function AdminEventDetail() {
             <Card>
               <CardContent className="p-0">
                 <ul className="divide-y divide-border max-h-[50vh] overflow-y-auto custom-scrollbar">
-                  {upcomingMatches.map((m, idx) => {
+                  {upcomingMatches.slice(0, 3).map((m, idx) => {
                     const dayTime = formatScheduleTime(m.time);
                     const redTeams = [m.red1, m.red2, m.red3].filter((n): n is number => n != null && n > 0);
                     const blueTeams = [m.blue1, m.blue2, m.blue3].filter((n): n is number => n != null && n > 0);
@@ -277,7 +276,6 @@ export default function AdminEventDetail() {
                         <Link href={`/events/${eventId}/schedule/${m.matchNumber}`}>
                           <div className={`px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-2 hover:bg-muted/50 transition-colors ${isFirstUpcoming ? "ring-inset ring-1 ring-primary/20 bg-primary/5" : ""}`}>
                             <div className="flex items-center gap-2 shrink-0">
-                              <Target className="h-4 w-4 text-muted-foreground" />
                               <span className="font-semibold">{formatMatchLabel(m.matchNumber)}</span>
                               {dayTime && <span className="text-sm text-muted-foreground">{dayTime}</span>}
                             </div>
@@ -303,7 +301,7 @@ export default function AdminEventDetail() {
                 </ul>
                 <div className="px-4 py-2 border-t border-border bg-muted/30">
                   <Link href={`/events/${eventId}/schedule`} className="text-sm text-primary hover:underline font-medium">
-                    View full schedule →
+                    View all matches →
                   </Link>
                 </div>
               </CardContent>

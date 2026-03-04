@@ -127,7 +127,7 @@ export default function Schedule() {
   return (
     <div className="p-4 sm:p-6 space-y-4 max-w-6xl mx-auto">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">Schedule</h1>
+        <h1 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">Matches</h1>
         <p className="text-muted-foreground text-base mt-1">
           {event?.name || "Loading..."} — {sortedSchedule.length} matches
         </p>

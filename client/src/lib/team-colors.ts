@@ -36,6 +36,18 @@ export function getHeatColor(value: number, min: number, max: number) {
   return "bg-red-500/20 text-red-700 dark:text-red-300";
 }
 
+/** Like getHeatColor but best/higher value = green (for team compare view). */
+export function getCompareHeatColor(value: number, min: number, max: number) {
+  if (max === min) return "";
+  const norm = (value - min) / (max - min);
+
+  if (norm >= 0.85) return "bg-green-500/20 text-green-700 dark:text-green-300";
+  if (norm >= 0.55) return "bg-green-500/10 text-green-600 dark:text-green-400";
+  if (norm >= 0.4) return "";
+  if (norm >= 0.2) return "bg-red-500/10 text-red-600 dark:text-red-400";
+  return "bg-red-500/20 text-red-700 dark:text-red-300";
+}
+
 /** Returns a CSS color string (not Tailwind class) for use in inline styles like slider tracks. */
 export function getHeatCssColor(value: number, min: number, max: number): string {
   if (max === min) return "";

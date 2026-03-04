@@ -1,5 +1,79 @@
 const TBA_BASE = "https://www.thebluealliance.com/api/v3";
 
+/** Server-wide: max 3 TBA API requests per 5 minutes (only when enabled via dev menu). */
+const TBA_RATE_WINDOW_MS = 5 * 60 * 1000;
+const TBA_RATE_LIMIT = 3;
+const tbaRequestTimestamps: number[] = [];
+
+/** Only applied when enabled by the secret master button in the dev menu. Default: off. */
+let tbaRateLimitEnabled = false;
+
+/** Rolling history of TBA API calls for dev graph (path + timestamp). Max 500 entries, ~1 hour. */
+const TBA_CALL_HISTORY_MAX = 500;
+const tbaCallHistory: { path: string; timestamp: number }[] = [];
+
+function recordTbaCall(path: string): void {
+  tbaCallHistory.push({ path, timestamp: Date.now() });
+  while (tbaCallHistory.length > TBA_CALL_HISTORY_MAX) tbaCallHistory.shift();
+}
+
+/** Returns bucketed API call counts for the dev graph (last 60 min, 1-min buckets). */
+export function getTbaCallHistory(): { minute: string; calls: number }[] {
+  const now = Date.now();
+  const WINDOW_MS = 60 * 60 * 1000;
+  const BUCKET_MS = 60 * 1000;
+  const buckets: Record<string, number> = {};
+  for (let t = now - WINDOW_MS; t <= now; t += BUCKET_MS) {
+    const key = new Date(t).toISOString().slice(0, 16);
+    buckets[key] = 0;
+  }
+  const cutoff = now - WINDOW_MS;
+  for (const { timestamp } of tbaCallHistory) {
+    if (timestamp >= cutoff) {
+      const key = new Date(Math.floor(timestamp / BUCKET_MS) * BUCKET_MS).toISOString().slice(0, 16);
+      if (key in buckets) buckets[key]++;
+    }
+  }
+  return Object.entries(buckets)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([minute, calls]) => ({ minute, calls }));
+}
+
+export function isTbaRateLimitEnabled(): boolean {
+  return tbaRateLimitEnabled;
+}
+
+export function setTbaRateLimitEnabled(enabled: boolean): void {
+  tbaRateLimitEnabled = enabled;
+}
+
+export class TbaRateLimitError extends Error {
+  constructor(
+    message: string,
+    public resetsAt: number
+  ) {
+    super(message);
+    this.name = "TbaRateLimitError";
+  }
+}
+
+function acquireTbaSlot(): void {
+  if (!tbaRateLimitEnabled) return;
+  const now = Date.now();
+  const cutoff = now - TBA_RATE_WINDOW_MS;
+  while (tbaRequestTimestamps.length > 0 && tbaRequestTimestamps[0] < cutoff) {
+    tbaRequestTimestamps.shift();
+  }
+  if (tbaRequestTimestamps.length >= TBA_RATE_LIMIT) {
+    const resetsAt = tbaRequestTimestamps[0] + TBA_RATE_WINDOW_MS;
+    throw new TbaRateLimitError(
+      `TBA rate limit reached (${TBA_RATE_LIMIT} per 5 min). Try again later.`,
+      resetsAt
+    );
+  }
+  tbaRequestTimestamps.push(now);
+}
+
 /** Whether TBA_API_KEY is set (so TBA features can be used). */
 export function isTbaConfigured(): boolean {
   return !!process.env.TBA_API_KEY?.trim();
@@ -12,9 +86,11 @@ function getApiKey(): string {
 }
 
 async function tbaFetch(path: string): Promise<any> {
+  acquireTbaSlot();
   const res = await fetch(`${TBA_BASE}${path}`, {
     headers: { "X-TBA-Auth-Key": getApiKey() },
   });
+  recordTbaCall(path);
   if (!res.ok) {
     const text = await res.text();
     let message = `TBA API error ${res.status}`;
@@ -138,15 +214,11 @@ export async function fetchEventTeams(eventKey: string): Promise<TBAEventTeam[]>
 export interface TBAOprData {
   teamNumber: number;
   opr: number;
-  dpr: number;
-  ccwm: number;
 }
 
 export async function fetchEventOPRs(eventKey: string): Promise<TBAOprData[]> {
   const data: any = await tbaFetch(`/event/${eventKey}/oprs`);
   const oprs = data?.oprs && typeof data.oprs === "object" ? data.oprs : {};
-  const dprs = data?.dprs && typeof data.dprs === "object" ? data.dprs : {};
-  const ccwms = data?.ccwms && typeof data.ccwms === "object" ? data.ccwms : {};
 
   const results: TBAOprData[] = [];
   for (const [teamKey, opr] of Object.entries(oprs)) {
@@ -155,8 +227,6 @@ export async function fetchEventOPRs(eventKey: string): Promise<TBAOprData[]> {
     results.push({
       teamNumber,
       opr: Number(opr) || 0,
-      dpr: Number(dprs[teamKey]) || 0,
-      ccwm: Number(ccwms[teamKey]) || 0,
     });
   }
   return results;
@@ -238,11 +308,14 @@ export async function fetchEventRankings(eventKey: string): Promise<TBARankingDa
     .filter((r: TBARankingData) => r.teamNumber > 0);
 }
 
-export async function validateEventKey(eventKey: string): Promise<{ valid: boolean; name?: string }> {
+export async function validateEventKey(
+  eventKey: string
+): Promise<{ valid: boolean; name?: string; error?: string }> {
   try {
     const event: any = await tbaFetch(`/event/${eventKey}/simple`);
     return { valid: true, name: event.name };
-  } catch {
-    return { valid: false };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { valid: false, error: message };
   }
 }

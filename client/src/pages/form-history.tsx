@@ -200,7 +200,7 @@ export default function FormHistory() {
                         <TableCell className="text-center font-semibold">{entry.autoBallsShot}</TableCell>
                         <TableCell className="text-center font-semibold">{entry.teleopFpsEstimate}</TableCell>
                         <TableCell className="text-center font-semibold">{toPct(entry.teleopAccuracy ?? 0)}%</TableCell>
-                        <TableCell className="text-center font-semibold">{toPct(entry.defenseRating ?? 0)}%</TableCell>
+                        <TableCell className="text-center font-semibold">{entry.playedDefense ? `${toPct(entry.defenseRating ?? 0)}%` : "—"}</TableCell>
                         <TableCell className="text-center">
                           <Badge
                             variant={entry.climbSuccess === "success" ? "default" : "secondary"}
@@ -291,7 +291,15 @@ export default function FormHistory() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <Label className="text-sm font-medium">Played Defense?</Label>
+              <div className="flex gap-1.5 shrink-0">
+                {([{ value: true, label: "Yes" }, { value: false, label: "No" }] as const).map(({ value, label }) => (
+                  <Button key={String(value)} type="button" variant="outline" size="sm" className={`h-9 px-3 text-sm ${editForm.playedDefense === value ? (value ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:text-white dark:bg-emerald-500 dark:border-emerald-500 dark:hover:bg-emerald-600" : "bg-muted text-muted-foreground border-muted-foreground/30 hover:bg-muted/80 hover:text-muted-foreground") : ""}`} onClick={() => setEditForm(f => ({ ...f, playedDefense: value, ...(value ? {} : { defenseRating: 0, defenseNotes: "" }) }))} data-testid={`button-edit-played-defense-${value}`}>{label}</Button>
+                ))}
+              </div>
+            </div>
+            {(editForm.playedDefense ?? false) && (
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Defense (0-10)</Label>
                 <Input
@@ -303,6 +311,8 @@ export default function FormHistory() {
                   data-testid="input-edit-defense"
                 />
               </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Climb</Label>
                 <Select
@@ -372,15 +382,17 @@ export default function FormHistory() {
                 data-testid="input-edit-driver-notes"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Defense Notes</Label>
-              <Textarea
-                value={editForm.defenseNotes || ""}
-                onChange={e => setEditForm(f => ({ ...f, defenseNotes: e.target.value }))}
-                rows={2}
-                data-testid="input-edit-defense-notes"
-              />
-            </div>
+            {(editForm.playedDefense ?? false) && (
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Defense Notes</Label>
+                <Textarea
+                  value={editForm.defenseNotes || ""}
+                  onChange={e => setEditForm(f => ({ ...f, defenseNotes: e.target.value }))}
+                  rows={2}
+                  data-testid="input-edit-defense-notes"
+                />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Misc.</Label>
               <Textarea
