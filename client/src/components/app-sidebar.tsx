@@ -20,6 +20,7 @@ import {
   SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -193,6 +194,18 @@ export function AppSidebar({ eventId }: { eventId: number }) {
     ...(isAdmin ? [{ title: "Picklist", url: `/events/${eventId}/picklist`, icon: ListOrdered, iconClass: "text-teal-500" }] : []),
   ];
 
+  const navHints: Record<string, string> = {
+    "Overview": "Event dashboard and quick actions",
+    "Teams": "View and sort all teams",
+    "Matches": "Schedule and results",
+    "Match Simulator": "Predict match outcomes",
+    "Scouting Form": "Enter match data",
+    "Form History": "Past scouting entries",
+    "Picklist": "Rank teams for alliance selection",
+    "Data Management": "Export data to CSV",
+    "Settings": "TBA sync and event setup",
+  };
+
   const sections = isAdmin
     ? [
         {
@@ -252,26 +265,54 @@ export function AppSidebar({ eventId }: { eventId: number }) {
                   const isActive = location === item.url;
                   const hasChildren = "children" in item && (item as any).children;
                   const isChildActive = hasChildren && (item as any).children!.some((c: any) => location === c.url);
+                  const hint = navHints[item.title];
+                  const navLink = (
+                    <SidebarMenuButton asChild data-active={isActive || isChildActive || undefined}>
+                      <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`} className="min-h-[2.5rem] py-2">
+                        <item.icon className={`h-4 w-4 ${(item as any).iconClass || ""}`} />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  );
                   return (
                     <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild data-active={isActive || isChildActive || undefined}>
-                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                          <item.icon className={`h-4 w-4 ${(item as any).iconClass || ""}`} />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
+                      {hint ? (
+                        <Tooltip delayDuration={400}>
+                          <TooltipTrigger asChild>{navLink}</TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-[200px] text-sm">
+                            {hint}
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        navLink
+                      )}
                       {hasChildren && (
                         <SidebarMenuSub>
-                          {(item as any).children!.map((child: any) => (
-                            <SidebarMenuSubItem key={child.title}>
+                          {(item as any).children!.map((child: any) => {
+                            const childHint = navHints[child.title];
+                            const childLink = (
                               <SidebarMenuSubButton asChild data-active={location === child.url || undefined}>
-                                <Link href={child.url} data-testid={`nav-${child.title.toLowerCase().replace(/\s+/g, "-")}`}>
+                                <Link href={child.url} data-testid={`nav-${child.title.toLowerCase().replace(/\s+/g, "-")}`} className="min-h-[2.25rem] py-1.5">
                                   <child.icon className={`h-3.5 w-3.5 ${child.iconClass || ""}`} />
                                   <span>{child.title}</span>
                                 </Link>
                               </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
+                            );
+                            return (
+                              <SidebarMenuSubItem key={child.title}>
+                                {childHint ? (
+                                  <Tooltip delayDuration={400}>
+                                    <TooltipTrigger asChild>{childLink}</TooltipTrigger>
+                                    <TooltipContent side="right" className="max-w-[200px] text-sm">
+                                      {childHint}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : (
+                                  childLink
+                                )}
+                              </SidebarMenuSubItem>
+                            );
+                          })}
                         </SidebarMenuSub>
                       )}
                     </SidebarMenuItem>

@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ArrowLeft, BarChart2 } from "lucide-react";
+import { RankingColorKey } from "@/components/ranking-color-key";
 import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
 import { TeamSearchInput } from "@/components/team-search-input";
 import {
@@ -179,13 +180,14 @@ export default function TeamCompare() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-6xl mx-auto">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 justify-between">
         <Link href={`/events/${eventId}/teams/${leftTeamId}`}>
           <Button variant="ghost" size="sm" data-testid="button-back-team">
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to Team
           </Button>
         </Link>
+        <RankingColorKey />
       </div>
 
       {/* Single contiguous block: selector row, team row, then table — all rows/columns touching */}

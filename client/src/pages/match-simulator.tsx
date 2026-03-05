@@ -19,10 +19,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ArrowLeft, Swords, Trophy, TrendingUp, AlertTriangle } from "lucide-react";
+import { useHelp } from "@/contexts/help-context";
 import type { Event, Team, EventTeam, ScoutingEntry } from "@shared/schema";
 import { toPct } from "@/lib/team-colors";
 import { TeamSearchInput } from "@/components/team-search-input";
-import { computeTeamStats, computeStatRanges, computeTbaRanges } from "@/lib/team-colors";
+import { computeTeamStats, computeStatRanges, computeTbaRanges, computeSzrMap, parseSzrWeights } from "@/lib/team-colors";
 import placeholderAvatar from "@assets/images_1772071870956.png";
 
 type TeamStatsSlice = {
@@ -78,6 +79,7 @@ export default function MatchSimulator() {
   const [blue1Id, setBlue1Id] = useState<number | null>(null);
   const [blue2Id, setBlue2Id] = useState<number | null>(null);
   const [blue3Id, setBlue3Id] = useState<number | null>(null);
+  const help = useHelp();
 
   const { data: event } = useQuery<Event>({ queryKey: ["/api/events", eventId] });
   const { data: eventTeams } = useQuery<(EventTeam & { team: Team })[]>({
@@ -103,6 +105,8 @@ export default function MatchSimulator() {
   }, [allEntries, eventTeams]);
   const statRanges = useMemo(() => computeStatRanges(rawTeamStats), [rawTeamStats]);
   const tbaRanges = useMemo(() => computeTbaRanges(eventTeams || []), [eventTeams]);
+  const szrWeights = useMemo(() => parseSzrWeights(event?.szrWeights), [event?.szrWeights]);
+  const szrMap = useMemo(() => computeSzrMap(eventTeamList, allEntries || [], statRanges, szrWeights), [eventTeamList, allEntries, statRanges, szrWeights]);
 
   const teamNumToId = useMemo(() => {
     const m = new Map<number, number>();
@@ -124,6 +128,38 @@ export default function MatchSimulator() {
         .filter((n): n is number => n != null),
     [blue1Id, blue2Id, blue3Id, eventTeams]
   );
+
+  const redSzrSum = useMemo(() => {
+    let sum = 0;
+    let count = 0;
+    for (const n of redTeamNums) {
+      const et = eventTeams?.find((e) => e.team.teamNumber === n);
+      if (et) {
+        const szr = szrMap.get(et.teamId);
+        if (szr != null) {
+          sum += szr;
+          count++;
+        }
+      }
+    }
+    return count > 0 ? sum : null;
+  }, [eventTeams, redTeamNums, szrMap]);
+
+  const blueSzrSum = useMemo(() => {
+    let sum = 0;
+    let count = 0;
+    for (const n of blueTeamNums) {
+      const et = eventTeams?.find((e) => e.team.teamNumber === n);
+      if (et) {
+        const szr = szrMap.get(et.teamId);
+        if (szr != null) {
+          sum += szr;
+          count++;
+        }
+      }
+    }
+    return count > 0 ? sum : null;
+  }, [eventTeams, blueTeamNums, szrMap]);
 
   const redStatsCorrect = useMemo(() => {
     const ids = [red1Id, red2Id, red3Id].filter((x): x is number => x != null);
@@ -223,13 +259,20 @@ export default function MatchSimulator() {
 
     if (redOprSum != null && blueOprSum != null) {
       const totalOpr = redOprSum + blueOprSum;
-      result.winProbability = totalOpr > 0 ? Math.round((redOprSum / totalOpr) * 100) : 50;
+      const oprProb = totalOpr > 0 ? (redOprSum / totalOpr) * 100 : 50;
+      let blendedProb = oprProb;
+      if (redSzrSum != null && blueSzrSum != null) {
+        const totalSzr = redSzrSum + blueSzrSum;
+        const szrProb = totalSzr > 0 ? (redSzrSum / totalSzr) * 100 : 50;
+        blendedProb = 0.5 * oprProb + 0.5 * szrProb;
+      }
+      result.winProbability = Math.round(blendedProb);
       result.winner = result.winProbability > 55 ? "red" : result.winProbability < 45 ? "blue" : "tossup";
       const pctDiff = totalOpr > 0 ? (Math.abs(redOprSum - blueOprSum) / totalOpr) * 100 : 0;
       result.confidence = pctDiff > 20 ? "High" : pctDiff > 10 ? "Medium" : "Low";
       result.breakdown.push({
         factor: "OPR sum",
-        weight: 3,
+        weight: 2,
         redVal: redOprSum,
         blueVal: blueOprSum,
         redContrib: redOprSum,
@@ -238,6 +281,21 @@ export default function MatchSimulator() {
       });
       if (redOprSum > blueOprSum) result.redAdvantages.push(`OPR +${(redOprSum - blueOprSum).toFixed(1)}`);
       else if (blueOprSum > redOprSum) result.blueAdvantages.push(`OPR +${(blueOprSum - redOprSum).toFixed(1)}`);
+    }
+    if (redSzrSum != null && blueSzrSum != null) {
+      const redSzr = redSzrSum;
+      const blueSzr = blueSzrSum;
+      result.breakdown.push({
+        factor: "SZR sum",
+        weight: 3,
+        redVal: redSzr,
+        blueVal: blueSzr,
+        redContrib: redSzr,
+        blueContrib: blueSzr,
+        edge: redSzr > blueSzr ? "red" : blueSzr > redSzr ? "blue" : "tie",
+      });
+      if (redSzr > blueSzr) result.redAdvantages.push(`SZR +${(redSzr - blueSzr).toFixed(0)}`);
+      else if (blueSzr > redSzr) result.blueAdvantages.push(`SZR +${(blueSzr - redSzr).toFixed(0)}`);
     }
     if (redAllianceStats && blueAllianceStats) {
       const factors: { key: keyof TeamStatsSlice; label: string; weight: number }[] = [
@@ -279,8 +337,16 @@ export default function MatchSimulator() {
         (blueAllianceStats.autoClimbRate / 100) * compositeWeights.autoClimb;
 
       if (redOprSum == null || blueOprSum == null) {
-        const total = result.compositeScoreRed + result.compositeScoreBlue;
-        result.winProbability = total > 0 ? Math.round((result.compositeScoreRed / total) * 100) : 50;
+        let fallbackProb = 50;
+        if (result.compositeScoreRed + result.compositeScoreBlue > 0) {
+          fallbackProb = (result.compositeScoreRed / (result.compositeScoreRed + result.compositeScoreBlue)) * 100;
+        }
+        if (redSzrSum != null && blueSzrSum != null) {
+          const totalSzr = redSzrSum + blueSzrSum;
+          const szrProb = totalSzr > 0 ? (redSzrSum / totalSzr) * 100 : 50;
+          fallbackProb = 0.4 * fallbackProb + 0.6 * szrProb;
+        }
+        result.winProbability = Math.round(fallbackProb);
         result.winner = result.winProbability > 55 ? "red" : result.winProbability < 45 ? "blue" : "tossup";
         const diff = Math.abs(result.compositeScoreRed - result.compositeScoreBlue);
         result.confidence = diff > 2 ? "Medium" : diff > 0.5 ? "Low" : "N/A";
@@ -295,11 +361,16 @@ export default function MatchSimulator() {
     if (redOprSum != null && blueOprSum != null && result.breakdown.length > 1) {
       result.keyFactors.push("TBA OPR provides statistical baseline; scouting adds game-specific nuance.");
     }
+    if (redSzrSum != null && blueSzrSum != null) {
+      result.keyFactors.push("SZR (scouting) is weighted more than OPR in the win probability.");
+    }
 
     return result;
   }, [
     redOprSum,
     blueOprSum,
+    redSzrSum,
+    blueSzrSum,
     redAllianceStats,
     blueAllianceStats,
     redStatsCorrect,
@@ -334,8 +405,14 @@ export default function MatchSimulator() {
             Back to Matches
           </Button>
         </Link>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground" data-testid="text-simulator-title">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2" data-testid="text-simulator-title">
           Match Simulator
+          {help?.HelpTrigger?.({
+            content: {
+              title: "Match Simulator",
+              body: <p>Pick red and blue alliances, then compare stats to predict outcomes. Uses your scouting data for averages.</p>,
+            },
+          })}
         </h1>
         <p className="text-sm text-muted-foreground">
           {event?.name} · Pick teams to simulate a match prediction
@@ -615,7 +692,7 @@ export default function MatchSimulator() {
             </Card>
 
             {/* Overall Alliance Stats */}
-            {(redAllianceStats || blueAllianceStats || redOprSum != null || blueOprSum != null) && (
+            {(redAllianceStats || blueAllianceStats || redOprSum != null || blueOprSum != null || redSzrSum != null || blueSzrSum != null) && (
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-semibold text-foreground">Overall Alliance Stats</CardTitle>
@@ -627,6 +704,12 @@ export default function MatchSimulator() {
                       <TableHeader>
                         <TableRow className="border-b-2 border-border bg-muted/60 hover:bg-muted/60">
                           <TableHead className="w-24 text-sm font-bold text-foreground h-11">Alliance</TableHead>
+                          <TableHead className="text-right text-sm font-bold text-foreground">
+                            <Tooltip>
+                              <TooltipTrigger asChild><span className="cursor-help">SZR</span></TooltipTrigger>
+                              <TooltipContent>Strike Zone Rating sum (scouting)</TooltipContent>
+                            </Tooltip>
+                          </TableHead>
                           <TableHead className="text-right text-sm font-bold text-foreground">
                             <Tooltip>
                               <TooltipTrigger asChild><span className="cursor-help">OPR</span></TooltipTrigger>
@@ -649,6 +732,7 @@ export default function MatchSimulator() {
                       <TableBody>
                         <TableRow className={`h-12 border-b border-border bg-red-500/5 hover:bg-red-500/10 transition-colors ${predictionAnalysis.winner === "red" ? "ring-2 ring-red-500/60 ring-inset" : ""}`}>
                           <TableCell className="font-medium font-mono font-bold text-base text-red-500 dark:text-red-400">Red</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-red-500 dark:text-red-400">{redSzrSum != null ? redSzrSum : <span className="text-red-500/70 dark:text-red-400/70">—</span>}</TableCell>
                           <TableCell className="text-right tabular-nums font-medium text-red-500 dark:text-red-400">{redOprSum != null ? redOprSum.toFixed(1) : <span className="text-red-500/70 dark:text-red-400/70">—</span>}</TableCell>
                           <TableCell className="text-right tabular-nums font-medium text-red-500 dark:text-red-400">{redAllianceStats ? redAllianceStats.avgAuto.toFixed(1) : <span className="text-red-500/70 dark:text-red-400/70">—</span>}</TableCell>
                           <TableCell className="text-right tabular-nums font-medium text-red-500 dark:text-red-400">{redAllianceStats ? redAllianceStats.avgThroughput.toFixed(1) : <span className="text-red-500/70 dark:text-red-400/70">—</span>}</TableCell>
@@ -659,6 +743,7 @@ export default function MatchSimulator() {
                         </TableRow>
                         <TableRow className={`h-12 border-b border-border bg-blue-500/5 hover:bg-blue-500/10 transition-colors ${predictionAnalysis.winner === "blue" ? "ring-2 ring-blue-500/60 ring-inset" : ""}`}>
                           <TableCell className="font-medium font-mono font-bold text-base text-blue-500 dark:text-blue-400">Blue</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-blue-500 dark:text-blue-400">{blueSzrSum != null ? blueSzrSum : <span className="text-blue-500/70 dark:text-blue-400/70">—</span>}</TableCell>
                           <TableCell className="text-right tabular-nums font-medium text-blue-500 dark:text-blue-400">{blueOprSum != null ? blueOprSum.toFixed(1) : <span className="text-blue-500/70 dark:text-blue-400/70">—</span>}</TableCell>
                           <TableCell className="text-right tabular-nums font-medium text-blue-500 dark:text-blue-400">{blueAllianceStats ? blueAllianceStats.avgAuto.toFixed(1) : <span className="text-blue-500/70 dark:text-blue-400/70">—</span>}</TableCell>
                           <TableCell className="text-right tabular-nums font-medium text-blue-500 dark:text-blue-400">{blueAllianceStats ? blueAllianceStats.avgThroughput.toFixed(1) : <span className="text-blue-500/70 dark:text-blue-400/70">—</span>}</TableCell>
@@ -698,6 +783,12 @@ export default function MatchSimulator() {
                         <TableHead className="text-right text-sm font-bold text-foreground">Climb %</TableHead>
                         <TableHead className="text-right text-sm font-bold text-foreground">
                           <Tooltip>
+                            <TooltipTrigger asChild><span className="cursor-help">SZR</span></TooltipTrigger>
+                            <TooltipContent>Strike Zone Rating (scouting)</TooltipContent>
+                          </Tooltip>
+                        </TableHead>
+                        <TableHead className="text-right text-sm font-bold text-foreground">
+                          <Tooltip>
                             <TooltipTrigger asChild><span className="cursor-help">OPR</span></TooltipTrigger>
                             <TooltipContent>Offensive Power Rating (TBA)</TooltipContent>
                           </Tooltip>
@@ -716,27 +807,28 @@ export default function MatchSimulator() {
                         const mutedCls = isRed ? "text-red-500/70 dark:text-red-400/70" : "text-blue-500/70 dark:text-blue-400/70";
                         const isPredictedWinner = predictionAnalysis.winner !== "tossup" && ((isRed && predictionAnalysis.winner === "red") || (!isRed && predictionAnalysis.winner === "blue"));
                         const posInAlliance = isRed ? idx : idx - redTeamNums.length;
-                        const isFirstInAlliance = posInAlliance === 0;
-                        const isLastInAlliance = isRed ? posInAlliance === redTeamNums.length - 1 : posInAlliance === blueTeamNums.length - 1;
-                        const winnerBlockBorder = isPredictedWinner
-                          ? (isRed
-                            ? `${isFirstInAlliance ? "border-t-2 " : ""}border-l-2 border-r-2 border-red-500/60${isLastInAlliance ? " border-b-2" : ""}`
-                            : `${isFirstInAlliance ? "border-t-2 " : ""}border-l-2 border-r-2 border-blue-500/60${isLastInAlliance ? " border-b-2" : ""}`)
-                          : "";
+                        const isFirstInBlock = isPredictedWinner && posInAlliance === 0;
+                        const isLastInBlock = isPredictedWinner && (isRed ? posInAlliance === redTeamNums.length - 1 : posInAlliance === blueTeamNums.length - 1);
+                        const borderClr = isRed ? "border-red-500/60" : "border-blue-500/60";
+                        const firstCellBorder = isPredictedWinner ? `border-l-2 ${borderClr} ${isFirstInBlock ? `border-t-2 ${borderClr}` : ""} ${isLastInBlock ? `border-b-2 ${borderClr}` : ""}` : "";
+                        const lastCellBorder = isPredictedWinner ? `border-r-2 ${borderClr} ${isFirstInBlock ? `border-t-2 ${borderClr}` : ""} ${isLastInBlock ? `border-b-2 ${borderClr}` : ""}` : "";
+                        const midCellBorder = isPredictedWinner ? `${isFirstInBlock ? `border-t-2 ${borderClr}` : ""} ${isLastInBlock ? `border-b-2 ${borderClr}` : ""}` : "";
+                        const rowBorder = isPredictedWinner && !isLastInBlock ? "border-b-0" : "";
                         return (
-                          <TableRow key={`${num}-${isRed ? "r" : "b"}`} className={`h-12 cursor-pointer border-b border-border transition-colors ${rowBg} ${winnerBlockBorder}`} onClick={() => et && navigate(teamLink(et.team.id))}>
-                            <TableCell className={`font-medium ${textCls}`}>
+                          <TableRow key={`${num}-${isRed ? "r" : "b"}`} className={`h-12 cursor-pointer border-b border-border transition-colors ${rowBg} ${rowBorder}`} onClick={() => et && navigate(teamLink(et.team.id))}>
+                            <TableCell className={`font-medium ${textCls} ${firstCellBorder}`}>
                               <Link href={et ? teamLink(et.team.id) : "#"} className={`font-mono font-bold text-base hover:underline ${isRed ? "text-red-500 dark:text-red-400" : "text-blue-500 dark:text-blue-400"}`} onClick={(e) => e.stopPropagation()}>
                                 {num}
                               </Link>
                             </TableCell>
-                            <TableCell className={`text-right tabular-nums font-medium ${textCls}`}>{stats ? stats.avgAuto.toFixed(1) : <span className={mutedCls}>—</span>}</TableCell>
-                            <TableCell className={`text-right tabular-nums font-medium ${textCls}`}>{stats ? stats.avgThroughput.toFixed(1) : <span className={mutedCls}>—</span>}</TableCell>
-                            <TableCell className={`text-right tabular-nums font-medium ${textCls}`}>{stats ? `${Math.round(stats.avgAccuracy)}%` : <span className={mutedCls}>—</span>}</TableCell>
-                            <TableCell className={`text-right tabular-nums font-medium ${textCls}`}>{stats ? `${Math.round(stats.avgDefense)}%` : <span className={mutedCls}>—</span>}</TableCell>
-                            <TableCell className={`text-right tabular-nums font-medium ${textCls}`}>{stats ? `${Math.round(stats.climbRate)}%` : <span className={mutedCls}>—</span>}</TableCell>
-                            <TableCell className={`text-right tabular-nums font-medium ${textCls}`}>{opr != null ? opr.toFixed(1) : <span className={mutedCls}>—</span>}</TableCell>
-                            <TableCell className={`text-right tabular-nums font-medium ${textCls}`}>{stats ? stats.entries : <span className={mutedCls}>0</span>}</TableCell>
+                            <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{stats ? stats.avgAuto.toFixed(1) : <span className={mutedCls}>—</span>}</TableCell>
+                            <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{stats ? stats.avgThroughput.toFixed(1) : <span className={mutedCls}>—</span>}</TableCell>
+                            <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{stats ? `${Math.round(stats.avgAccuracy)}%` : <span className={mutedCls}>—</span>}</TableCell>
+                            <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{stats ? `${Math.round(stats.avgDefense)}%` : <span className={mutedCls}>—</span>}</TableCell>
+                            <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{stats ? `${Math.round(stats.climbRate)}%` : <span className={mutedCls}>—</span>}</TableCell>
+                            <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{et != null ? (szrMap.get(et.teamId) ?? 0) : <span className={mutedCls}>—</span>}</TableCell>
+                            <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{opr != null ? opr.toFixed(1) : <span className={mutedCls}>—</span>}</TableCell>
+                            <TableCell className={`text-right tabular-nums font-medium ${textCls} ${lastCellBorder}`}>{stats ? stats.entries : <span className={mutedCls}>0</span>}</TableCell>
                           </TableRow>
                         );
                       })}

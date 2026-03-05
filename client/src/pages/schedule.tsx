@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CalendarDays, Search, Video, Trophy, Medal } from "lucide-react";
+import { useHelp } from "@/contexts/help-context";
 import {
   Tooltip,
   TooltipContent,
@@ -25,6 +26,7 @@ export default function Schedule() {
   const eventId = parseInt(id || "0");
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
+  const help = useHelp();
 
   const { data: event } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
@@ -127,7 +129,15 @@ export default function Schedule() {
   return (
     <div className="p-4 sm:p-6 space-y-4 max-w-6xl mx-auto">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">Matches</h1>
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2" data-testid="text-page-title">
+          Matches
+          {help?.HelpTrigger?.({
+            content: {
+              title: "Matches",
+              body: <p>Match schedule and results. Click a match to see details. Trophy icons mark top-scoring matches. Search by match or team number.</p>,
+            },
+          })}
+        </h1>
         <p className="text-muted-foreground text-base mt-1">
           {event?.name || "Loading..."} — {sortedSchedule.length} matches
         </p>

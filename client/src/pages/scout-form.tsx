@@ -33,6 +33,7 @@ import {
 import type { Event, Team, EventTeam, ScoutingEntry } from "@shared/schema";
 import heatmapFieldPath from "@assets/hehehehe_1771897335677.png";
 import { getHeatColor as getHeatColorLib, getHeatCssColor, getRowBorderColor, computeTeamStats, computeStatRanges } from "@/lib/team-colors";
+import { useHelp } from "@/contexts/help-context";
 
 /** Heat class for form inputs: combines bg/text and left border from team-colors so colors match Team List. */
 function getHeatClass(value: number, min: number, max: number): string {
@@ -817,6 +818,7 @@ type ScoutMode = "single" | "multi";
 
 export default function ScoutForm() {
   const { toast } = useToast();
+  const help = useHelp();
 
   const [scoutMode, setScoutMode] = useState<ScoutMode>("single");
   const [teamCount, setTeamCount] = useState(1);
@@ -968,7 +970,15 @@ export default function ScoutForm() {
   if (!activeEvent) {
     return (
       <div className="p-4 sm:p-6 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold tracking-tight mb-6" data-testid="text-page-title">Scout</h1>
+        <h1 className="text-2xl font-bold tracking-tight mb-6 flex items-center gap-2" data-testid="text-page-title">
+          Scout
+          {help?.HelpTrigger?.({
+            content: {
+              title: "Scouting form",
+              body: <p>Record match data: pick team and match, then enter auto, teleop (throughput, accuracy), climb, defense, and notes. Submit when done.</p>,
+            },
+          })}
+        </h1>
         <Card>
           <CardContent className="p-8 text-center">
             <Calendar className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "wouter";
-import { toPct } from "@/lib/team-colors";
+import { toPct, getHeatColor, getRowBorderColor, computeTeamStats, computeStatRanges, computeSzrMap, parseSzrWeights } from "@/lib/team-colors";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,7 +14,9 @@ import {
   Users,
   CalendarDays,
   FileDown,
+  HelpCircle,
 } from "lucide-react";
+import { useHelp } from "@/contexts/help-context";
 import { useToast } from "@/hooks/use-toast";
 import type { Event, Team, ScoutingEntry, EventTeam, ScheduleMatch } from "@shared/schema";
 
@@ -37,10 +39,24 @@ function downloadCSV(filename: string, csv: string) {
   URL.revokeObjectURL(url);
 }
 
+const DATA_MANAGEMENT_HELP = {
+  title: "Data Management",
+  body: (
+    <>
+      <p>Export your scouting data to CSV files (spreadsheets) for backup or analysis.</p>
+      <p><strong>Scouting data</strong> — Every match you&apos;ve scouted: team, match number, scores, notes. Use this for backups or to analyze in Excel.</p>
+      <p><strong>Team summary</strong> — One row per team with averages (throughput, accuracy, etc.). Good for quick comparisons.</p>
+      <p><strong>Schedule</strong> — Match list with red/blue alliances. Useful if you need the schedule outside the app.</p>
+      <p><strong>Export all</strong> — Downloads all three files at once.</p>
+    </>
+  ),
+};
+
 export default function DataManagement() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id || "0");
   const { toast } = useToast();
+  const help = useHelp();
 
   const { data: event } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
@@ -61,6 +77,18 @@ export default function DataManagement() {
   const isLoading = entriesLoading || teamsLoading || scheduleLoading;
   const teamMap = new Map<number, Team>();
   eventTeams?.forEach(et => teamMap.set(et.teamId, et.team));
+
+  const entriesCount = entries?.length ?? 0;
+  const teamsCount = eventTeams?.length ?? 0;
+  const scheduleCount = schedule?.length ?? 0;
+  const statMin = Math.min(entriesCount, teamsCount, scheduleCount);
+  const statMax = Math.max(entriesCount, teamsCount, scheduleCount);
+  const entriesHeat = getHeatColor(entriesCount, statMin, statMax || 1);
+  const teamsHeat = getHeatColor(teamsCount, statMin, statMax || 1);
+  const scheduleHeat = getHeatColor(scheduleCount, statMin, statMax || 1);
+  const entriesBorder = getRowBorderColor(entriesCount, statMin, statMax || 1);
+  const teamsBorder = getRowBorderColor(teamsCount, statMin, statMax || 1);
+  const scheduleBorder = getRowBorderColor(scheduleCount, statMin, statMax || 1);
 
   const exportScoutingData = () => {
     if (!entries || !eventTeams) return;
@@ -110,12 +138,18 @@ export default function DataManagement() {
   };
 
   const exportTeamSummary = () => {
-    if (!entries || !eventTeams) return;
+    if (!entries || !eventTeams || !event) return;
+
+    const teams = eventTeams.map(et => et.team);
+    const teamStats = computeTeamStats(teams, entries);
+    const statRanges = computeStatRanges(teamStats);
+    const szrWeights = parseSzrWeights(event.szrWeights);
+    const szrMap = computeSzrMap(teams, entries, statRanges, szrWeights);
 
     const headers = [
       "Team Number", "Team Name", "City", "State",
       "Entries", "Avg Auto Balls", "Avg Throughput",
-      "Avg Accuracy %", "Avg Defense %", "Climb Rate %", "Avg Climb Level"
+      "Avg Accuracy %", "Avg Defense %", "Climb Rate %", "Avg Climb Level", "SZR"
     ];
 
     const rows = eventTeams
@@ -123,10 +157,11 @@ export default function DataManagement() {
       .map(et => {
         const te = entries.filter(e => e.teamId === et.teamId);
         const count = te.length;
+        const szr = szrMap.get(et.teamId);
         if (count === 0) {
           return [
             et.team.teamNumber, et.team.teamName, et.team.city || "", et.team.stateProv || "",
-            0, 0, 0, 0, 0, 0, 0
+            0, 0, 0, 0, 0, 0, 0, szr ?? 0
           ].map(escapeCSV).join(",");
         }
         const climbs = te.filter(e => e.climbSuccess === "success");
@@ -147,6 +182,7 @@ export default function DataManagement() {
           Math.round(avgDefense),
           Math.round(climbRate),
           parseFloat(avgClimbLevel.toFixed(1)),
+          szr ?? 0,
         ].map(escapeCSV).join(",");
       });
 
@@ -193,8 +229,9 @@ export default function DataManagement() {
                 <Database className="h-5 w-5" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold tracking-tight sm:text-2xl" data-testid="text-data-title">
+                <h1 className="text-xl font-semibold tracking-tight sm:text-2xl flex items-center gap-2" data-testid="text-data-title">
                   Data Management
+                  {help?.HelpTrigger?.({ content: DATA_MANAGEMENT_HELP, className: "ml-1" })}
                 </h1>
                 {event && (
                   <p className="mt-0.5 text-sm text-muted-foreground">{event.name}</p>
@@ -222,35 +259,35 @@ export default function DataManagement() {
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-3">
-              <Card className="overflow-hidden border-0 bg-gradient-to-br from-primary/8 to-primary/4 dark:from-primary/12 dark:to-primary/6">
+              <Card className={`overflow-hidden border-0 rounded-xl ${entriesHeat ? `border-l-4 ${entriesHeat} ${entriesBorder}` : "bg-gradient-to-br from-primary/8 to-primary/4 dark:from-primary/12 dark:to-primary/6"}`}>
                 <CardContent className="flex items-center gap-4 p-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
-                    <ClipboardList className="h-6 w-6" />
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${entriesHeat || "bg-primary/15 text-primary"}`}>
+                    <ClipboardList className={`h-6 w-6 ${entriesHeat ? "" : "text-primary"}`} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-2xl font-bold tabular-nums">{entries?.length ?? 0}</p>
+                    <p className={`text-2xl font-bold tabular-nums ${entriesHeat || ""}`}>{entriesCount}</p>
                     <p className="text-sm text-muted-foreground">Scouting entries</p>
                   </div>
                 </CardContent>
               </Card>
-              <Card className="overflow-hidden border-0 bg-gradient-to-br from-[hsl(var(--chart-2))]/10 to-[hsl(var(--chart-2))]/5 dark:from-[hsl(var(--chart-2))]/15 dark:to-[hsl(var(--chart-2))]/8">
+              <Card className={`overflow-hidden border-0 rounded-xl ${teamsHeat ? `border-l-4 ${teamsHeat} ${teamsBorder}` : "bg-gradient-to-br from-[hsl(var(--chart-2))]/10 to-[hsl(var(--chart-2))]/5 dark:from-[hsl(var(--chart-2))]/15 dark:to-[hsl(var(--chart-2))]/8"}`}>
                 <CardContent className="flex items-center gap-4 p-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--chart-2))]">
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${teamsHeat || "bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--chart-2))]"}`}>
                     <Users className="h-6 w-6" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-2xl font-bold tabular-nums">{eventTeams?.length ?? 0}</p>
+                    <p className={`text-2xl font-bold tabular-nums ${teamsHeat || ""}`}>{teamsCount}</p>
                     <p className="text-sm text-muted-foreground">Teams</p>
                   </div>
                 </CardContent>
               </Card>
-              <Card className="overflow-hidden border-0 bg-gradient-to-br from-[hsl(var(--chart-5))]/10 to-[hsl(var(--chart-5))]/5 dark:from-[hsl(var(--chart-5))]/15 dark:to-[hsl(var(--chart-5))]/8">
+              <Card className={`overflow-hidden border-0 rounded-xl ${scheduleHeat ? `border-l-4 ${scheduleHeat} ${scheduleBorder}` : "bg-gradient-to-br from-[hsl(var(--chart-5))]/10 to-[hsl(var(--chart-5))]/5 dark:from-[hsl(var(--chart-5))]/15 dark:to-[hsl(var(--chart-5))]/8"}`}>
                 <CardContent className="flex items-center gap-4 p-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--chart-5))]/20 text-[hsl(var(--chart-5))]">
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${scheduleHeat || "bg-[hsl(var(--chart-5))]/20 text-[hsl(var(--chart-5))]"}`}>
                     <CalendarDays className="h-6 w-6" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-2xl font-bold tabular-nums">{schedule?.length ?? 0}</p>
+                    <p className={`text-2xl font-bold tabular-nums ${scheduleHeat || ""}`}>{scheduleCount}</p>
                     <p className="text-sm text-muted-foreground">Scheduled matches</p>
                   </div>
                 </CardContent>
@@ -263,7 +300,15 @@ export default function DataManagement() {
 
         {/* Export options */}
         <section>
-          <h2 className="text-sm font-medium text-muted-foreground mb-3">Export to CSV</h2>
+          <h2 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-1.5">
+            Export to CSV
+            {help?.HelpTrigger?.({
+              content: {
+                title: "Export to CSV",
+                body: <p>Download your data as spreadsheets. Scouting data = every entry. Team summary = averages per team. Schedule = match list.</p>,
+              },
+            })}
+          </h2>
           {isLoading ? (
             <div className="space-y-3">
               <Skeleton className="h-20 w-full rounded-xl" />
@@ -281,7 +326,12 @@ export default function DataManagement() {
                           <FileSpreadsheet className="h-5 w-5" />
                         </div>
                         <div>
-                          <CardTitle className="text-base font-medium">Scouting data</CardTitle>
+                          <CardTitle className="text-base font-medium flex items-center gap-1.5">
+                            Scouting data
+                            {help?.HelpTrigger?.({
+                              content: { title: "Scouting data", body: <p>Every match you scouted: team, match number, auto balls, throughput, accuracy, climb, defense, notes. One row per entry.</p> },
+                            })}
+                          </CardTitle>
                           <CardDescription className="mt-0.5 text-sm">
                             All scouting entries — auto, teleop, endgame, defense, notes. One row per entry.
                           </CardDescription>
@@ -310,7 +360,12 @@ export default function DataManagement() {
                           <FileSpreadsheet className="h-5 w-5" />
                         </div>
                         <div>
-                          <CardTitle className="text-base font-medium">Team summary</CardTitle>
+                          <CardTitle className="text-base font-medium flex items-center gap-1.5">
+                            Team summary
+                            {help?.HelpTrigger?.({
+                              content: { title: "Team summary", body: <p>Averaged stats per team — auto, throughput, accuracy, defense, climb rate. One row per team. Good for quick comparisons.</p> },
+                            })}
+                          </CardTitle>
                           <CardDescription className="mt-0.5 text-sm">
                             Averaged stats per team — auto, throughput, accuracy, defense, climb rate. One row per team.
                           </CardDescription>
@@ -339,7 +394,12 @@ export default function DataManagement() {
                           <FileSpreadsheet className="h-5 w-5" />
                         </div>
                         <div>
-                          <CardTitle className="text-base font-medium">Match schedule</CardTitle>
+                          <CardTitle className="text-base font-medium flex items-center gap-1.5">
+                            Match schedule
+                            {help?.HelpTrigger?.({
+                              content: { title: "Match schedule", body: <p>Match list with red/blue alliance team numbers. Useful if you need the schedule outside the app.</p> },
+                            })}
+                          </CardTitle>
                           <CardDescription className="mt-0.5 text-sm">
                             Full match schedule with alliance assignments. One row per match.
                           </CardDescription>
@@ -368,7 +428,12 @@ export default function DataManagement() {
                       <FileDown className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="font-medium">Export everything</p>
+                      <p className="font-medium flex items-center gap-1.5">
+                        Export everything
+                        {help?.HelpTrigger?.({
+                          content: { title: "Export all", body: <p>Downloads scouting data, team summary, and schedule as three CSV files at once. Use for backup or to share with others.</p> },
+                        })}
+                      </p>
                       <p className="text-sm text-muted-foreground">
                         Download all three CSVs at once — scouting data, team summary, and schedule.
                       </p>

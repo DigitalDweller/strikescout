@@ -1,14 +1,7 @@
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { queryClient, API_BASE } from "@/lib/queryClient";
+import { createContext, useContext } from "react";
+import { useEventUpdatesIndicator as useAppEventUpdatesIndicator } from "./app-updates";
 
-const CHANNEL_ENTRIES = "entries";
-
-interface EventUpdatesContextValue {
-  hasUnseenUpdates: boolean;
-  markSynced: () => void;
-}
-
-const EventUpdatesContext = createContext<EventUpdatesContextValue | null>(null);
+const EventUpdatesContext = createContext<ReturnType<typeof useAppEventUpdatesIndicator> | null>(null);
 
 export function useEventUpdatesIndicator() {
   const ctx = useContext(EventUpdatesContext);
@@ -24,40 +17,11 @@ interface EventUpdatesProviderProps {
 }
 
 /**
- * Subscribe to server-sent events for an event. When scouting entries or DB data changes,
- * we invalidate queries and set hasUnseenUpdates so the UI can show a "sync needed" indicator.
+ * Provides sync indicator for the current event. Consumes from AppUpdatesProvider.
+ * Must be mounted inside AppUpdatesProvider.
  */
 export function EventUpdatesProvider({ eventId, children }: EventUpdatesProviderProps) {
-  const [hasUnseenUpdates, setHasUnseenUpdates] = useState(false);
-  const markSynced = useCallback(() => setHasUnseenUpdates(false), []);
-
-  useEffect(() => {
-    if (!eventId || !Number.isFinite(eventId)) return;
-
-    const url = `${API_BASE}/api/events/${eventId}/updates`;
-    const es = new EventSource(url);
-
-    const onMessage = (e: MessageEvent) => {
-      if (e.data === CHANNEL_ENTRIES) {
-        setHasUnseenUpdates(true);
-        queryClient.invalidateQueries({ queryKey: ["/api/events", eventId] });
-        queryClient.invalidateQueries({
-          predicate: (query) =>
-            query.queryKey.some((k) =>
-              typeof k === "string" && k.includes(`/events/${eventId}`)
-            ),
-        });
-      }
-    };
-
-    es.addEventListener("message", onMessage);
-    return () => {
-      es.removeEventListener("message", onMessage);
-      es.close();
-    };
-  }, [eventId]);
-
-  const value: EventUpdatesContextValue = { hasUnseenUpdates, markSynced };
+  const value = useAppEventUpdatesIndicator(eventId);
 
   return (
     <EventUpdatesContext.Provider value={value}>

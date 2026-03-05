@@ -31,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Plus, X, GripVertical, Search, ListOrdered, MoreHorizontal, Pencil, Trash2, Users, ArrowRight } from "lucide-react";
+import { useHelp } from "@/contexts/help-context";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -42,7 +43,8 @@ import {
 } from "@/components/ui/select";
 import type { Event, Team, EventTeam, PicklistEntry, Picklist, ScoutingEntry } from "@shared/schema";
 import placeholderAvatar from "@assets/images_1772071870956.png";
-import { getTeamDominantColor, computeTeamStats, computeStatRanges, computeTbaRanges } from "@/lib/team-colors";
+import { getTeamDominantColor, computeTeamStats, computeStatRanges, computeTbaRanges, computeSzrMap, parseSzrWeights } from "@/lib/team-colors";
+import { RankingColorKey } from "@/components/ranking-color-key";
 
 type PicklistWithTeam = PicklistEntry & { team: Team };
 type EventTeamWithTeam = EventTeam & { team: Team };
@@ -62,10 +64,24 @@ function DragPreview({ team, avatar, mousePos }: { team: { teamNumber: number; t
   );
 }
 
+const PICKLIST_HELP = {
+  title: "How to use the Picklist",
+  body: (
+    <>
+      <p>The picklist helps you rank teams for alliance selection at the end of qualifications.</p>
+      <p><strong>Create lists</strong> — Click &quot;New picklist&quot; to make a new ranking list. You can have multiple lists (e.g. one per mentor).</p>
+      <p><strong>Add teams</strong> — Click the + button on a team in the &quot;Available&quot; panel to add it to your picklist.</p>
+      <p><strong>Reorder</strong> — Drag teams by the grip handle (⋮⋮) to change the order. Top teams are your preferred picks.</p>
+      <p><strong>Remove</strong> — Click the X on a team in the picklist to remove it.</p>
+    </>
+  ),
+};
+
 export default function Picklist() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id!);
   const { toast } = useToast();
+  const help = useHelp();
   const [search, setSearch] = useState("");
   const [selectedPicklistId, setSelectedPicklistId] = useState<number | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -134,6 +150,8 @@ export default function Picklist() {
   const teamStats = useMemo(() => computeTeamStats(teams, scoutingEntries), [teams, scoutingEntries]);
   const statRanges = useMemo(() => computeStatRanges(teamStats), [teamStats]);
   const tbaRanges = useMemo(() => computeTbaRanges(eventTeams || []), [eventTeams]);
+  const szrWeights = useMemo(() => parseSzrWeights(event?.szrWeights), [event?.szrWeights]);
+  const szrMap = useMemo(() => computeSzrMap(teams, scoutingEntries, statRanges, szrWeights), [teams, scoutingEntries, statRanges, szrWeights]);
 
   const { data: picklistEntries = [], isLoading: entriesLoading } = useQuery<PicklistWithTeam[]>({
     queryKey: ["/api/events", eventId, "picklists", selectedPicklistId, "entries"],
@@ -195,38 +213,51 @@ export default function Picklist() {
   const availableTeams = useMemo(() => {
     if (!eventTeams) return [];
     const available = eventTeams.filter((et) => !picklistTeamIds.has(et.teamId));
-    if (!search.trim()) return available.sort((a, b) => (b.opr ?? 0) - (a.opr ?? 0));
+    const sortBySzrOrOpr = (a: EventTeamWithTeam, b: EventTeamWithTeam) => {
+      const szrA = szrMap.get(a.teamId) ?? -1;
+      const szrB = szrMap.get(b.teamId) ?? -1;
+      if (szrA >= 0 || szrB >= 0) return szrB - szrA;
+      return (b.opr ?? 0) - (a.opr ?? 0);
+    };
+    if (!search.trim()) return available.sort(sortBySzrOrOpr);
     const q = search.toLowerCase();
     return available
       .filter((et) => et.team.teamNumber.toString().includes(q) || et.team.teamName.toLowerCase().includes(q))
-      .sort((a, b) => (b.opr ?? 0) - (a.opr ?? 0));
-  }, [eventTeams, picklistTeamIds, search]);
+      .sort(sortBySzrOrOpr);
+  }, [eventTeams, picklistTeamIds, search, szrMap]);
 
   const updatePicklistEntries = useCallback(
     async (teamIds: number[]) => {
       if (!selectedPicklistId) return;
-      queryClient.setQueryData(
-        ["/api/events", eventId, "picklists", selectedPicklistId, "entries"],
-        (old: PicklistWithTeam[] | undefined) => {
-          return teamIds.map((tid, i) => {
-            const existing = old?.find((p) => p.teamId === tid);
-            if (existing) return { ...existing, rank: i + 1 };
-            const et = eventTeams?.find((e) => e.teamId === tid);
-            return {
-              id: -1,
-              picklistId: selectedPicklistId,
-              teamId: tid,
-              rank: i + 1,
-              tier: "pick",
-              team: et?.team || { id: tid, teamNumber: 0, teamName: "", city: null, stateProv: null, country: null, avatar: null },
-            } as PicklistWithTeam;
-          });
-        }
-      );
-      await apiRequest("PUT", `/api/events/${eventId}/picklists/${selectedPicklistId}/entries`, { teamIds });
-      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "picklists", selectedPicklistId, "entries"] });
+      const queryKey = ["/api/events", eventId, "picklists", selectedPicklistId, "entries"];
+      const previousData = queryClient.getQueryData<PicklistWithTeam[]>(queryKey);
+
+      queryClient.setQueryData(queryKey, (old: PicklistWithTeam[] | undefined) => {
+        return teamIds.map((tid, i) => {
+          const existing = old?.find((p) => p.teamId === tid);
+          if (existing) return { ...existing, rank: i + 1 };
+          const et = eventTeams?.find((e) => e.teamId === tid);
+          return {
+            id: -1,
+            picklistId: selectedPicklistId,
+            teamId: tid,
+            rank: i + 1,
+            tier: "pick",
+            team: et?.team || { id: tid, teamNumber: 0, teamName: "", city: null, stateProv: null, country: null, avatar: null },
+          } as PicklistWithTeam;
+        });
+      });
+
+      try {
+        await apiRequest("PUT", `/api/events/${eventId}/picklists/${selectedPicklistId}/entries`, { teamIds });
+        queryClient.invalidateQueries({ queryKey });
+      } catch {
+        queryClient.setQueryData(queryKey, previousData);
+        queryClient.invalidateQueries({ queryKey });
+        toast({ title: "Picklist update failed", description: "Changes were reverted. Try again.", variant: "destructive" });
+      }
     },
-    [eventId, selectedPicklistId, eventTeams]
+    [eventId, selectedPicklistId, eventTeams, toast]
   );
 
   const addTeam = useCallback(
@@ -385,8 +416,9 @@ export default function Picklist() {
                 <ListOrdered className="h-5 w-5" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold tracking-tight sm:text-2xl" data-testid="text-picklist-title">
+                <h1 className="text-xl font-semibold tracking-tight sm:text-2xl flex items-center gap-2" data-testid="text-picklist-title">
                   Picklist
+                  {help?.HelpTrigger?.({ content: PICKLIST_HELP, className: "ml-1" })}
                 </h1>
                 {event && (
                   <p className="mt-0.5 text-sm text-muted-foreground">{event.name}</p>
@@ -470,10 +502,13 @@ export default function Picklist() {
           </Card>
         ) : selectedPicklistId && (
           <>
-            <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-              <ArrowRight className="h-4 w-4" />
-              Add teams from the left, then drag to reorder. Drag a team back to the left to remove it.
-            </p>
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <ArrowRight className="h-4 w-4" />
+                Add teams from the left, then drag to reorder. Drag a team back to the left to remove it.
+              </p>
+              <RankingColorKey />
+            </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
             <Card
@@ -494,7 +529,12 @@ export default function Picklist() {
                     <Users className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <CardTitle className="text-base font-semibold">Available teams</CardTitle>
+                    <CardTitle className="text-base font-semibold flex items-center gap-1.5">
+                      Available teams
+                      {help?.HelpTrigger?.({
+                        content: { title: "Available teams", body: <p>Teams not yet in your picklist. Click + or drag to add. Search to filter. Sorted by OPR when empty.</p> },
+                      })}
+                    </CardTitle>
                     <p className="text-xs text-muted-foreground mt-0.5">Click + or drag to add</p>
                   </div>
                 </div>
@@ -536,6 +576,7 @@ export default function Picklist() {
                         <div className="flex-1 min-w-0">
                           <div className="font-semibold text-sm truncate">{et.team.teamNumber} — {et.team.teamName}</div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            <span>SZR <span className="font-medium text-foreground/90">{szrMap.get(et.teamId) ?? 0}</span></span>
                             {et.opr != null && <span>OPR <span className="font-medium text-foreground/90">{et.opr.toFixed(1)}</span></span>}
                             {rank != null && <span>Rank #{rank}</span>}
                           </div>
@@ -571,7 +612,12 @@ export default function Picklist() {
                     <ListOrdered className="h-4 w-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <CardTitle className="text-base font-semibold">{selectedPicklist?.name ?? "Picklist"}</CardTitle>
+                    <CardTitle className="text-base font-semibold flex items-center gap-1.5">
+                      {selectedPicklist?.name ?? "Picklist"}
+                      {help?.HelpTrigger?.({
+                        content: { title: "Your picklist", body: <p>Teams you&apos;ve ranked. Drag by the handle to reorder. Top = preferred. Drop here from Available to remove.</p> },
+                      })}
+                    </CardTitle>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {picklistEntries?.length ?? 0} of {eventTeams?.length ?? 0} teams · drag to reorder
                     </p>
@@ -621,6 +667,7 @@ export default function Picklist() {
                         <div className="flex-1 min-w-0">
                           <div className="font-semibold text-sm truncate">{entry.team.teamNumber} — {entry.team.teamName}</div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            <span>SZR <span className="font-medium text-foreground/90">{szrMap.get(entry.teamId) ?? 0}</span></span>
                             {et?.opr != null && <span>OPR <span className="font-medium text-foreground/90">{et.opr.toFixed(1)}</span></span>}
                             {tbaRank != null && <span>Rank #{tbaRank}</span>}
                           </div>

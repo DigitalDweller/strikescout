@@ -6,7 +6,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { AppUpdatesProvider } from "@/contexts/app-updates";
 import { EventUpdatesProvider } from "@/contexts/event-updates";
+import { HelpProvider } from "@/contexts/help-context";
+import { PageBreadcrumbs } from "@/components/page-breadcrumbs";
+import { HeaderHelpButton } from "@/components/header-help-button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { PageTransition } from "@/components/page-transition";
@@ -78,9 +82,14 @@ function EventLayout() {
           <header className="flex items-center gap-2 px-3 py-1.5 border-b shrink-0 overflow-hidden">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <RotatingBanner />
+            <div className="flex-1 min-w-0" />
+            <HeaderHelpButton />
           </header>
           <main ref={mainRef} className="flex-1 overflow-x-hidden overflow-y-auto">
             <ScrollToTop containerRef={mainRef} />
+            <div className="px-4 sm:px-6 pt-4 sm:pt-6">
+              <PageBreadcrumbs />
+            </div>
             <PageTransition key={location} className="h-full">
             {isAdmin ? (
               <Switch>
@@ -133,20 +142,22 @@ function AppContent() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        transform: flipped ? "rotate(180deg)" : undefined,
-        transition: "transform 0.6s ease",
-      }}
-    >
-      <Switch>
-        <Route path="/" component={AdminEvents} />
-        <Route path="/admin/users" component={UserManagement} />
-        <Route path="/events/:id/*?" component={EventLayout} />
-        <Route component={NotFound} />
-      </Switch>
-    </div>
+    <AppUpdatesProvider>
+      <div
+        style={{
+          minHeight: "100vh",
+          transform: flipped ? "rotate(180deg)" : undefined,
+          transition: "transform 0.6s ease",
+        }}
+      >
+        <Switch>
+          <Route path="/" component={AdminEvents} />
+          <Route path="/admin/users" component={UserManagement} />
+          <Route path="/events/:id/*?" component={EventLayout} />
+          <Route component={NotFound} />
+        </Switch>
+      </div>
+    </AppUpdatesProvider>
   );
 }
 
@@ -156,6 +167,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <TooltipProvider>
+            <HelpProvider>
             <SiteFlipProvider>
               <RufflesProvider>
                 <Toaster />
@@ -163,6 +175,7 @@ function App() {
                 <DraggableRuffles />
               </RufflesProvider>
             </SiteFlipProvider>
+            </HelpProvider>
           </TooltipProvider>
         </AuthProvider>
       </QueryClientProvider>

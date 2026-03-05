@@ -21,6 +21,7 @@ export const events = pgTable("events", {
   tbaEventKey: text("tba_event_key"),
   tbaEventKeyValidated: boolean("tba_event_key_validated").notNull().default(false),
   tbaAutoSync: boolean("tba_auto_sync").notNull().default(false),
+  szrWeights: text("szr_weights"),
 });
 
 export const teams = pgTable("teams", {

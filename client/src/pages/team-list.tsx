@@ -27,12 +27,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Search, ArrowUpDown, List, AlertCircle, AlertTriangle } from "lucide-react";
+import { useHelp } from "@/contexts/help-context";
 import { Button } from "@/components/ui/button";
+import { RankingColorKey } from "@/components/ranking-color-key";
 import { useRuffles } from "@/contexts/ruffles";
 import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
-import { getHeatColor, getDominantColor, computeTeamStats, computeStatRanges, computeTbaRanges } from "@/lib/team-colors";
+import { getHeatColor, getDominantColor, computeTeamStats, computeStatRanges, computeTbaRanges, computeSzrMap, parseSzrWeights } from "@/lib/team-colors";
 
-type SortField = "teamNumber" | "teamName" | "opr" | "rankingPoints" | "rank" | "avgAuto" | "avgThroughput" | "avgAccuracy" | "avgDefense" | "climbRate" | "entries";
+type SortField = "teamNumber" | "teamName" | "opr" | "szr" | "rankingPoints" | "rank" | "avgAuto" | "avgThroughput" | "avgAccuracy" | "avgDefense" | "climbRate" | "entries";
 type SortDir = "asc" | "desc";
 
 const TEAM_SEARCH_EASTER_EGG = "5460";
@@ -42,6 +44,7 @@ export default function TeamList() {
   const eventId = parseInt(id || "0");
   const [, navigate] = useLocation();
   const { triggerSpawn } = useRuffles();
+  const help = useHelp();
   const [search, _setSearch] = useState(() => sessionStorage.getItem(`teams-search-${eventId}`) || "");
   const [sortField, _setSortField] = useState<SortField>(() => (sessionStorage.getItem(`teams-sort-${eventId}`) as SortField) || "teamNumber");
   const [sortDir, _setSortDir] = useState<SortDir>(() => (sessionStorage.getItem(`teams-dir-${eventId}`) as SortDir) || "asc");
@@ -86,6 +89,8 @@ export default function TeamList() {
   const teamStats = useMemo(() => computeTeamStats(teams, entries || []), [teams, entries]);
   const statRanges = useMemo(() => computeStatRanges(teamStats), [teamStats]);
   const tbaRanges = useMemo(() => computeTbaRanges(eventTeams || []), [eventTeams]);
+  const szrWeights = useMemo(() => parseSzrWeights(event?.szrWeights), [event?.szrWeights]);
+  const szrMap = useMemo(() => computeSzrMap(teams, entries || [], statRanges, szrWeights), [teams, entries, statRanges, szrWeights]);
 
   const filteredTeams = useMemo(() => {
     let list = teams.filter(t => {
@@ -103,6 +108,7 @@ export default function TeamList() {
         case "teamNumber": valA = a.teamNumber; valB = b.teamNumber; break;
         case "teamName": valA = a.teamName.toLowerCase(); valB = b.teamName.toLowerCase(); break;
         case "opr": valA = (eventTeamMap.get(a.id) as any)?.opr || 0; valB = (eventTeamMap.get(b.id) as any)?.opr || 0; break;
+        case "szr": valA = szrMap.get(a.id) ?? 0; valB = szrMap.get(b.id) ?? 0; break;
         case "rankingPoints": valA = (eventTeamMap.get(a.id) as any)?.rankingPoints || 0; valB = (eventTeamMap.get(b.id) as any)?.rankingPoints || 0; break;
         case "rank": valA = (eventTeamMap.get(a.id) as any)?.rank || 999; valB = (eventTeamMap.get(b.id) as any)?.rank || 999; break;
         case "avgAuto": valA = teamStats.get(a.id)?.avgAuto || 0; valB = teamStats.get(b.id)?.avgAuto || 0; break;
@@ -120,7 +126,7 @@ export default function TeamList() {
     });
 
     return list;
-  }, [teams, search, sortField, sortDir, teamStats, eventTeamMap]);
+  }, [teams, search, sortField, sortDir, teamStats, eventTeamMap, szrMap]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -148,10 +154,19 @@ export default function TeamList() {
   return (
     <div className="p-4 sm:p-6 space-y-4 max-w-6xl mx-auto overflow-x-hidden">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">Team List</h1>
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2" data-testid="text-page-title">
+          Team List
+          {help?.HelpTrigger?.({
+            content: {
+              title: "Team list",
+              body: <p>All teams at this event. Sort by any column (click header). Use search to find teams by number or name. Colors show performance: green = strong, red = weak.</p>,
+            },
+          })}
+        </h1>
         <p className="text-muted-foreground text-base mt-1">
           {event ? `Teams at ${event.name}` : "Loading..."} — {filteredTeams.length} teams
         </p>
+        <RankingColorKey className="mt-2" />
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -165,6 +180,7 @@ export default function TeamList() {
             data-testid="input-team-search"
           />
         </div>
+        <div className="flex items-center gap-1.5">
         <Select value={sortField} onValueChange={(v) => setSortField(v as SortField)}>
           <SelectTrigger className="w-[180px]" data-testid="select-sort-field">
             <SelectValue placeholder="Sort by..." />
@@ -172,6 +188,7 @@ export default function TeamList() {
           <SelectContent>
             <SelectItem value="teamNumber">Team Number</SelectItem>
             <SelectItem value="teamName">Team Name</SelectItem>
+            <SelectItem value="szr">SZR</SelectItem>
             {hasTbaData && <SelectItem value="opr">OPR</SelectItem>}
             {hasTbaData && <SelectItem value="rankingPoints">Ranking Points</SelectItem>}
             {hasTbaData && <SelectItem value="rank">Seed</SelectItem>}
@@ -182,6 +199,13 @@ export default function TeamList() {
             <SelectItem value="climbRate">Climb Rate</SelectItem>
           </SelectContent>
         </Select>
+        {help?.HelpTrigger?.({
+          content: {
+            title: "Sort by",
+            body: <p>Choose how to sort the team list. Click column headers to reverse order. OPR, Rank, and Seed come from TBA. SZR is from your scouting data.</p>,
+          },
+        })}
+      </div>
       </div>
 
       {isLoading ? (
@@ -212,6 +236,12 @@ export default function TeamList() {
                   <TableRow>
                     <SortableHeader field="teamNumber">#</SortableHeader>
                     <SortableHeader field="teamName">Name</SortableHeader>
+                    <SortableHeader field="szr">
+                      <Tooltip>
+                        <TooltipTrigger asChild><span className="cursor-help">SZR</span></TooltipTrigger>
+                        <TooltipContent>Strike Zone Rating — scouting-derived team strength (0–100)</TooltipContent>
+                      </Tooltip>
+                    </SortableHeader>
                     {hasTbaData && <SortableHeader field="opr">OPR</SortableHeader>}
                     {hasTbaData && <SortableHeader field="rankingPoints">RP</SortableHeader>}
                     {hasTbaData && <SortableHeader field="rank">Seed</SortableHeader>}
@@ -243,9 +273,11 @@ export default function TeamList() {
                     const climbColor = hasData && statRanges ? getHeatColor(stats!.climbRate, statRanges.climb.min, statRanges.climb.max) : "";
 
                     const oprColorVal = opr != null && tbaRanges?.opr ? getHeatColor(opr, tbaRanges.opr.min, tbaRanges.opr.max) : "";
+                    const szrVal = szrMap.get(team.id) ?? 0;
+                    const szrColorVal = szrVal > 0 ? getHeatColor(szrVal, 0, 100) : "";
                     const rpColorVal = rp != null && tbaRanges?.rp ? getHeatColor(rp, tbaRanges.rp.min, tbaRanges.rp.max) : "";
                     const seedColorVal = seed != null && tbaRanges?.seed ? getHeatColor(tbaRanges.seed.max - seed + tbaRanges.seed.min, tbaRanges.seed.min, tbaRanges.seed.max) : "";
-                    const dominant = getDominantColor([oprColorVal, rpColorVal, seedColorVal, autoColor, throughputColor, accuracyColor, defenseColor, climbColor]);
+                    const dominant = getDominantColor([szrColorVal, oprColorVal, rpColorVal, seedColorVal, autoColor, throughputColor, accuracyColor, defenseColor, climbColor]);
 
                     const hasTbaForTeam = opr != null || rp != null || seed != null;
                     const hasScoutingForTeam = (stats?.entries || 0) > 0;
@@ -283,6 +315,9 @@ export default function TeamList() {
                           </div>
                         </TableCell>
                         <TableCell className={`font-semibold text-base ${dominant}`}>{team.teamName}</TableCell>
+                        <TableCell className={`text-center font-bold text-base ${szrColorVal}`} data-testid={`stat-szr-${team.id}`}>
+                          {szrVal}
+                        </TableCell>
                         {hasTbaData && (
                           <TableCell className={`text-center font-bold text-base ${oprColorVal}`} data-testid={`stat-opr-${team.id}`}>
                             {opr != null ? opr.toFixed(1) : <span className="text-muted-foreground/40">-</span>}

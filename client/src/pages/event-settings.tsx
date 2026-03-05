@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -36,7 +37,13 @@ import {
   Clock,
   Timer,
   ListOrdered,
+  HelpCircle,
+  CircleHelp,
+  Gauge,
+  RotateCcw,
 } from "lucide-react";
+import { useHelp } from "@/contexts/help-context";
+import { DEFAULT_SZR_WEIGHTS_PERCENT, normalizeWeightsToPercent, parseSzrWeights, type SzrWeights } from "@/lib/team-colors";
 import type { Event } from "@shared/schema";
 
 function AutoSyncTimer({ expiresAt }: { expiresAt: number | null }) {
@@ -132,10 +139,24 @@ const SYNC_ACTIONS = [
   },
 ] as const;
 
+const SETTINGS_HELP = {
+  title: "Settings overview",
+  body: (
+    <>
+      <p><strong>Event details</strong> — Your event name, location, and date. This is for display only.</p>
+      <p><strong>SZR (Strike Zone Rating)</strong> — A team strength score (0–100) from your scouting data. Adjust weights to emphasize auto, throughput, accuracy, defense, or climb.</p>
+      <p><strong>The Blue Alliance (TBA)</strong> — TBA provides official match schedules and team lists. Enter your event key (e.g. <code>2026txhou</code>) from thebluealliance.com, then sync to load teams and matches.</p>
+      <p><strong>Sync options</strong> — Click each button to pull data from TBA: Schedule (matches), Teams (team list), Results (scores), Videos (match video links), Avatars (team photos), OPR & rankings (stats). Start with Schedule and Teams.</p>
+      <p><strong>Auto-sync</strong> — Keeps results and schedule updated during the event. Requires a TBA API key.</p>
+    </>
+  ),
+};
+
 export default function EventSettings() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id || "0");
   const { toast } = useToast();
+  const help = useHelp();
 
   const { data: event, isLoading } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
@@ -166,6 +187,7 @@ export default function EventSettings() {
   const [validatedName, setValidatedName] = useState("");
   const [validationError, setValidationError] = useState("");
   const [syncingKeys, setSyncingKeys] = useState<Set<string>>(new Set());
+  const [szrWeights, setSzrWeights] = useState<SzrWeights>(DEFAULT_SZR_WEIGHTS_PERCENT);
 
   useEffect(() => {
     if (event) {
@@ -174,6 +196,7 @@ export default function EventSettings() {
       setStartDate(event.startDate || "");
       setTbaEventKey(event.tbaEventKey || "");
       setTbaAutoSync(event.tbaAutoSync);
+      setSzrWeights(normalizeWeightsToPercent(parseSzrWeights(event.szrWeights)));
     }
   }, [event]);
 
@@ -215,6 +238,20 @@ export default function EventSettings() {
       setValidationStatus("invalid");
       setValidationError(err.message || "Invalid event key");
       toast({ title: "Validation failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const saveSzrMutation = useMutation({
+    mutationFn: async (weights: SzrWeights) => {
+      const res = await apiRequest("PATCH", `/api/events/${eventId}/settings`, { szrWeights: weights });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId] });
+      toast({ title: "SZR weights saved" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to save SZR weights", description: err.message, variant: "destructive" });
     },
   });
 
@@ -277,6 +314,45 @@ export default function EventSettings() {
       tbaAutoSync !== event.tbaAutoSync ||
       (validationStatus === "valid" && !event.tbaEventKeyValidated));
 
+  const szrWeightsChanged = (() => {
+    const current = normalizeWeightsToPercent(parseSzrWeights(event?.szrWeights));
+    return szrWeights.auto !== current.auto || szrWeights.throughput !== current.throughput || szrWeights.accuracy !== current.accuracy || szrWeights.defense !== current.defense || szrWeights.climb !== current.climb;
+  })();
+
+  const handleSzrWeightChange = (key: keyof SzrWeights, value: number) => {
+    setSzrWeights((prev) => {
+      const clamped = Math.max(0, Math.min(100, value));
+      const others = (["auto", "throughput", "accuracy", "defense", "climb"] as const).filter((k) => k !== key);
+      const otherSum = others.reduce((s, k) => s + prev[k], 0);
+      const remaining = 100 - clamped;
+
+      const next: SzrWeights = { ...prev, [key]: clamped };
+
+      if (otherSum > 0 && remaining > 0) {
+        for (const k of others) {
+          next[k] = Math.round((remaining / otherSum) * prev[k] * 100) / 100;
+        }
+      } else if (otherSum === 0 && remaining > 0) {
+        const perOther = remaining / others.length;
+        for (const k of others) {
+          next[k] = Math.round(perOther * 100) / 100;
+        }
+      } else {
+        for (const k of others) {
+          next[k] = 0;
+        }
+      }
+
+      const sum = (["auto", "throughput", "accuracy", "defense", "climb"] as const).reduce((s, k) => s + next[k], 0);
+      const diff = 100 - sum;
+      if (Math.abs(diff) > 0.01) {
+        const largestOther = others.reduce((best, k) => (prev[k] > (prev[best] ?? 0) ? k : best), others[0]);
+        next[largestOther] = Math.round((next[largestOther] + diff) * 100) / 100;
+      }
+      return next;
+    });
+  };
+
   const manualRemaining = syncStatusData?.manualSyncsRemaining ?? 0;
 
   if (isLoading) return <Skeleton className="h-96 w-full m-6" />;
@@ -287,11 +363,99 @@ export default function EventSettings() {
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2" data-testid="text-settings-title">
           <Settings className="h-6 w-6" />
           Settings
+          {help?.HelpTrigger?.({ content: SETTINGS_HELP, className: "ml-1 p-1.5" })}
         </h1>
         {event && (
           <p className="text-sm text-muted-foreground mt-1">{event.name}</p>
         )}
       </header>
+
+      {/* Help tips toggle */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <CircleHelp className="h-4 w-4 text-muted-foreground" />
+            Help tips
+          </CardTitle>
+          <CardDescription>
+            Show <strong>?</strong> icons next to features with short descriptions. Turn off to reduce clutter.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="help-tips-toggle" className="cursor-pointer text-sm font-normal">
+              Show help tips (?)
+            </Label>
+            <Switch
+              id="help-tips-toggle"
+              checked={help?.helpTipsEnabled ?? true}
+              onCheckedChange={(checked) => help?.setHelpTipsEnabled(checked)}
+              data-testid="switch-help-tips"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* SZR (Strike Zone Rating) weights */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Gauge className="h-4 w-4 text-primary" />
+            SZR (Strike Zone Rating)
+            {help?.HelpTrigger?.({
+              content: {
+                title: "SZR weights",
+                body: <p>SZR is a single number from your scouting data (auto, throughput, accuracy, defense, climb). Adjust weights to emphasize what matters most for your strategy. Weights always sum to 100%.</p>,
+              },
+            })}
+          </CardTitle>
+          <CardDescription>
+            Adjust weights to emphasize what matters most. Total is always 100%.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {(["auto", "throughput", "accuracy", "defense", "climb"] as const).map((key) => (
+            <div key={key} className="space-y-2">
+              <div className="flex justify-between">
+                <Label className="capitalize">{key === "throughput" ? "Throughput" : key}</Label>
+                <span className="text-sm tabular-nums text-muted-foreground">{Math.round(szrWeights[key])}%</span>
+              </div>
+              <Slider
+                value={[szrWeights[key]]}
+                onValueChange={([v]) => handleSzrWeightChange(key, v)}
+                min={0}
+                max={100}
+                step={1}
+                className="w-full"
+                data-testid={`slider-szr-${key}`}
+              />
+            </div>
+          ))}
+          <p className="text-xs text-muted-foreground">
+            Total: {Math.round((["auto", "throughput", "accuracy", "defense", "climb"] as const).reduce((s, k) => s + szrWeights[k], 0))}%
+          </p>
+          <div className="flex gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSzrWeights(DEFAULT_SZR_WEIGHTS_PERCENT)}
+              data-testid="button-szr-reset"
+            >
+              <RotateCcw className="h-4 w-4 mr-1.5" />
+              Reset to defaults
+            </Button>
+            <Button
+              onClick={() => saveSzrMutation.mutate(szrWeights)}
+              disabled={saveSzrMutation.isPending || !szrWeightsChanged}
+              size="sm"
+              data-testid="button-save-szr"
+            >
+              {saveSzrMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
+              Save SZR weights
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Event details */}
       <Card>
@@ -299,6 +463,9 @@ export default function EventSettings() {
           <CardTitle className="text-base flex items-center gap-2">
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
             Event details
+            {help?.HelpTrigger?.({
+              content: { title: "Event details", body: <p>Display name, location, and date shown in the app. Edit these anytime.</p> },
+            })}
           </CardTitle>
           <CardDescription>Name, location, and date for this event.</CardDescription>
         </CardHeader>
@@ -350,6 +517,12 @@ export default function EventSettings() {
           <CardTitle className="text-base flex items-center gap-2">
             <Zap className="h-4 w-4 text-blue-500" />
             The Blue Alliance
+            {help?.HelpTrigger?.({
+              content: {
+                title: "The Blue Alliance (TBA)",
+                body: <p>Free service with official FRC data. Enter your event key and sync to load teams, matches, and results automatically.</p>,
+              },
+            })}
           </CardTitle>
           <CardDescription>
             Connect TBA to sync schedule, teams, results, videos, and stats. Event keys are on thebluealliance.com (e.g.{" "}
@@ -404,8 +577,14 @@ export default function EventSettings() {
 
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">
-              <Label htmlFor="auto-sync" className="cursor-pointer font-medium">
+              <Label htmlFor="auto-sync" className="cursor-pointer font-medium flex items-center gap-1.5">
                 Auto-sync
+                {help?.HelpTrigger?.({
+                  content: {
+                    title: "Auto-sync",
+                    body: <p>Keeps match results and schedule updated every 5 minutes during the event. Runs for 3 hours after you turn it on. Requires a TBA API key.</p>,
+                  },
+                })}
               </Label>
               <p className="text-xs text-muted-foreground">
                 {isKeyValidated
@@ -444,6 +623,12 @@ export default function EventSettings() {
             <CardTitle className="text-base flex items-center gap-2">
               <RefreshCw className="h-4 w-4 text-primary" />
               Manual sync
+              {help?.HelpTrigger?.({
+                content: {
+                  title: "Manual sync",
+                  body: <p>Pull data from TBA on demand. Schedule and Teams load matches and team list. Results, Videos, Avatars, and OPR update scores and stats. Limit: 3 syncs per 15 minutes.</p>,
+                },
+              })}
             </CardTitle>
             <CardDescription>
               Pull specific data from TBA now. Limit: 3 syncs per 15 minutes.

@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ArrowLeft, Swords, Video, Trophy, BarChart2, TrendingUp, AlertTriangle } from "lucide-react";
+import { useHelp } from "@/contexts/help-context";
 import type { Event, Team, ScheduleMatch, EventTeam, ScoutingEntry } from "@shared/schema";
 import { toPct } from "@/lib/team-colors";
 import placeholderAvatar from "@assets/images_1772071870956.png";
@@ -73,6 +74,7 @@ export default function MatchDetail() {
   const matchNum = parseInt(matchNumber || "0");
   const matchReturnTo = `/events/${eventId}/schedule/${matchNum}`;
   const teamLink = (teamId: number) => `/events/${eventId}/teams/${teamId}?returnTo=${encodeURIComponent(matchReturnTo)}`;
+  const help = useHelp();
 
   const { data: event } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
@@ -336,8 +338,14 @@ export default function MatchDetail() {
             Back to Matches
           </Button>
         </Link>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground" data-testid="text-match-title">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2" data-testid="text-match-title">
           Match {matchNum}
+          {help?.HelpTrigger?.({
+            content: {
+              title: "Match detail",
+              body: <p>Red vs blue alliances, scores, and prediction based on your scouting data. Click a team to view their profile. Watch the video if available.</p>,
+            },
+          })}
         </h1>
         <p className="text-sm text-muted-foreground">
           {event?.name}{match?.time ? ` · ${formatTime(match.time)}` : ""}
@@ -698,29 +706,31 @@ export default function MatchDetail() {
                       const rowBg = isRed ? "bg-red-500/5 hover:bg-red-500/10" : "bg-blue-500/5 hover:bg-blue-500/10";
                       const textCls = isRed ? "text-red-500 dark:text-red-400" : "text-blue-500 dark:text-blue-400";
                       const mutedCls = isRed ? "text-red-500/70 dark:text-red-400/70" : "text-blue-500/70 dark:text-blue-400/70";
-                      const isPredictedWinner = predictionAnalysis.winner !== "tossup" && ((isRed && predictionAnalysis.winner === "red") || (!isRed && predictionAnalysis.winner === "blue"));
+                      const isWinner = hasScores
+                        ? (isRed && redWon) || (!isRed && blueWon)
+                        : predictionAnalysis.winner !== "tossup" && ((isRed && predictionAnalysis.winner === "red") || (!isRed && predictionAnalysis.winner === "blue"));
                       const posInAlliance = isRed ? idx : idx - redTeamNums.length;
-                      const isFirstInAlliance = posInAlliance === 0;
-                      const isLastInAlliance = isRed ? posInAlliance === redTeamNums.length - 1 : posInAlliance === blueTeamNums.length - 1;
-                      const winnerBlockBorder = isPredictedWinner
-                        ? (isRed
-                          ? `${isFirstInAlliance ? "border-t-2 " : ""}border-l-2 border-r-2 border-red-500/60${isLastInAlliance ? " border-b-2" : ""}`
-                          : `${isFirstInAlliance ? "border-t-2 " : ""}border-l-2 border-r-2 border-blue-500/60${isLastInAlliance ? " border-b-2" : ""}`)
-                        : "";
+                      const isFirstInBlock = isWinner && posInAlliance === 0;
+                      const isLastInBlock = isWinner && (isRed ? posInAlliance === redTeamNums.length - 1 : posInAlliance === blueTeamNums.length - 1);
+                      const borderClr = isRed ? "border-red-500/60" : "border-blue-500/60";
+                      const firstCellBorder = isWinner ? `border-l-2 ${borderClr} ${isFirstInBlock ? `border-t-2 ${borderClr}` : ""} ${isLastInBlock ? `border-b-2 ${borderClr}` : ""}` : "";
+                      const lastCellBorder = isWinner ? `border-r-2 ${borderClr} ${isFirstInBlock ? `border-t-2 ${borderClr}` : ""} ${isLastInBlock ? `border-b-2 ${borderClr}` : ""}` : "";
+                      const midCellBorder = isWinner ? `${isFirstInBlock ? `border-t-2 ${borderClr}` : ""} ${isLastInBlock ? `border-b-2 ${borderClr}` : ""}` : "";
+                      const rowBorder = isWinner && !isLastInBlock ? "border-b-0" : "";
                       return (
-                        <TableRow key={`${num}-${isRed ? "r" : "b"}`} className={`h-12 cursor-pointer border-b border-border transition-colors ${rowBg} ${winnerBlockBorder}`} onClick={() => et && navigate(teamLink(et.team.id))}>
-                          <TableCell className={`font-medium ${textCls}`}>
+                        <TableRow key={`${num}-${isRed ? "r" : "b"}`} className={`h-12 cursor-pointer border-b border-border transition-colors ${rowBg} ${rowBorder}`} onClick={() => et && navigate(teamLink(et.team.id))}>
+                          <TableCell className={`font-medium ${textCls} ${firstCellBorder}`}>
                             <Link href={et ? teamLink(et.team.id) : "#"} className={`font-mono font-bold text-base hover:underline ${isRed ? "text-red-500 dark:text-red-400" : "text-blue-500 dark:text-blue-400"}`} onClick={(e) => e.stopPropagation()}>
                               {num}
                             </Link>
                           </TableCell>
-                          <TableCell className={`text-right tabular-nums font-medium ${textCls}`}>{stats ? stats.avgAuto.toFixed(1) : <span className={mutedCls}>—</span>}</TableCell>
-                          <TableCell className={`text-right tabular-nums font-medium ${textCls}`}>{stats ? stats.avgThroughput.toFixed(1) : <span className={mutedCls}>—</span>}</TableCell>
-                          <TableCell className={`text-right tabular-nums font-medium ${textCls}`}>{stats ? `${Math.round(stats.avgAccuracy)}%` : <span className={mutedCls}>—</span>}</TableCell>
-                          <TableCell className={`text-right tabular-nums font-medium ${textCls}`}>{stats ? `${Math.round(stats.avgDefense)}%` : <span className={mutedCls}>—</span>}</TableCell>
-                          <TableCell className={`text-right tabular-nums font-medium ${textCls}`}>{stats ? `${Math.round(stats.climbRate)}%` : <span className={mutedCls}>—</span>}</TableCell>
-                          <TableCell className={`text-right tabular-nums font-medium ${textCls}`}>{opr != null ? opr.toFixed(1) : <span className={mutedCls}>—</span>}</TableCell>
-                          <TableCell className={`text-right tabular-nums font-medium ${textCls}`}>{stats ? stats.entries : <span className={mutedCls}>0</span>}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{stats ? stats.avgAuto.toFixed(1) : <span className={mutedCls}>—</span>}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{stats ? stats.avgThroughput.toFixed(1) : <span className={mutedCls}>—</span>}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{stats ? `${Math.round(stats.avgAccuracy)}%` : <span className={mutedCls}>—</span>}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{stats ? `${Math.round(stats.avgDefense)}%` : <span className={mutedCls}>—</span>}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{stats ? `${Math.round(stats.climbRate)}%` : <span className={mutedCls}>—</span>}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{opr != null ? opr.toFixed(1) : <span className={mutedCls}>—</span>}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-medium ${textCls} ${lastCellBorder}`}>{stats ? stats.entries : <span className={mutedCls}>0</span>}</TableCell>
                         </TableRow>
                       );
                     })}

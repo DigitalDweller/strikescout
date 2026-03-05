@@ -19,8 +19,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ArrowLeft, MessageSquare, AlertCircle, AlertTriangle, BarChart2 } from "lucide-react";
+import { RankingColorKey } from "@/components/ranking-color-key";
+import { useHelp } from "@/contexts/help-context";
 import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
-import { toPct, getHeatColor, computeTeamStats, computeStatRanges, computeTbaRanges } from "@/lib/team-colors";
+import { toPct, getHeatColor, getHeatBgOnly, getHeatTextOnly, getHeatBorderOnly, computeTeamStats, computeStatRanges, computeTbaRanges, computeSZR, parseSzrWeights } from "@/lib/team-colors";
 import heatmapFieldPath from "@assets/hehehehe_1771897335677.png";
 import placeholderAvatar from "@assets/images_1772071870956.png";
 
@@ -324,6 +326,7 @@ export default function TeamProfile() {
   const eventId = parseInt(eid!);
   const teamId = parseInt(tid!);
   const returnTo = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("returnTo") : null;
+  const help = useHelp();
 
   const { data: event } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
@@ -375,6 +378,17 @@ export default function TeamProfile() {
   const autoClimbRate = entries?.length
     ? Math.round((entries.filter((e) => e.autoClimbSuccess === "success").length / entries.length) * 100)
     : 0;
+
+  const teamsList = useMemo(() => (eventTeams || []).map(et => et.team), [eventTeams]);
+  const teamStatsMap = useMemo(() => computeTeamStats(teamsList, allEntries || []), [teamsList, allEntries]);
+  const szrStatRanges = useMemo(() => computeStatRanges(teamStatsMap), [teamStatsMap]);
+  const szrWeights = useMemo(() => parseSzrWeights(event?.szrWeights), [event?.szrWeights]);
+  const szr = useMemo(() => {
+    if (!teamId) return 0;
+    const stats = teamStatsMap.get(teamId);
+    const computed = stats ? computeSZR(stats, szrStatRanges, szrWeights) : null;
+    return computed ?? 0;
+  }, [teamId, teamStatsMap, szrStatRanges, szrWeights]);
 
   const rankings = useMemo(() => {
     if (!allEntries || !eventTeams) return null;
@@ -455,6 +469,37 @@ export default function TeamProfile() {
   const tbaRanges = useMemo(() => computeTbaRanges(eventTeams || []), [eventTeams]);
   const thisTeamStats = allTeamStats.get(teamId);
 
+  const tbaStatHeat = useMemo(() => {
+    const wins = (eventTeam as any)?.wins ?? 0;
+    const losses = (eventTeam as any)?.losses ?? 0;
+    const ties = (eventTeam as any)?.ties ?? 0;
+    const total = wins + losses + ties;
+    const winRate = total > 0 ? (wins / total) * 100 : 0;
+
+    const winRates = (eventTeams || []).map(et => {
+      const w = (et as any)?.wins ?? 0;
+      const l = (et as any)?.losses ?? 0;
+      const t = (et as any)?.ties ?? 0;
+      const tot = w + l + t;
+      return tot > 0 ? (w / tot) * 100 : 0;
+    });
+    const winRateMin = winRates.length > 0 ? Math.min(...winRates) : 0;
+    const winRateMax = winRates.length > 0 ? Math.max(...winRates) : 100;
+
+    const heatInv = (fn: (v: number, a: number, b: number) => string) =>
+      (value: number, min: number, max: number) => fn(max - value + min, min, max);
+
+    return {
+      szr: szr > 0 ? { bg: getHeatBgOnly(szr, 0, 100), text: getHeatTextOnly(szr, 0, 100), border: getHeatBorderOnly(szr, 0, 100) } : { bg: "", text: "", border: "" },
+      seed: tbaSeed != null && tbaRanges?.seed
+        ? { bg: heatInv(getHeatBgOnly)(tbaSeed, tbaRanges.seed.min, tbaRanges.seed.max), text: heatInv(getHeatTextOnly)(tbaSeed, tbaRanges.seed.min, tbaRanges.seed.max), border: heatInv(getHeatBorderOnly)(tbaSeed, tbaRanges.seed.min, tbaRanges.seed.max) }
+        : { bg: "", text: "", border: "" },
+      rp: tbaRp != null && tbaRanges?.rp ? { bg: getHeatBgOnly(tbaRp, tbaRanges.rp.min, tbaRanges.rp.max), text: getHeatTextOnly(tbaRp, tbaRanges.rp.min, tbaRanges.rp.max), border: getHeatBorderOnly(tbaRp, tbaRanges.rp.min, tbaRanges.rp.max) } : { bg: "", text: "", border: "" },
+      opr: tbaOpr != null && tbaRanges?.opr ? { bg: getHeatBgOnly(tbaOpr, tbaRanges.opr.min, tbaRanges.opr.max), text: getHeatTextOnly(tbaOpr, tbaRanges.opr.min, tbaRanges.opr.max), border: getHeatBorderOnly(tbaOpr, tbaRanges.opr.min, tbaRanges.opr.max) } : { bg: "", text: "", border: "" },
+      record: total > 0 ? { bg: getHeatBgOnly(winRate, winRateMin, winRateMax || 1), text: getHeatTextOnly(winRate, winRateMin, winRateMax || 1), border: getHeatBorderOnly(winRate, winRateMin, winRateMax || 1) } : { bg: "", text: "", border: "" },
+    };
+  }, [eventTeam, eventTeams, tbaOpr, tbaRp, tbaSeed, tbaRanges, szr]);
+
   const heatColors = useMemo(() => {
     if (!thisTeamStats || !statRanges) return { auto: "", throughput: "", accuracy: "", defense: "", climb: "" };
     const s = thisTeamStats;
@@ -497,6 +542,12 @@ export default function TeamProfile() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2" data-testid="text-team-name">
               {team ? `${team.teamNumber} - ${team.teamName}` : <Skeleton className="h-9 w-56 inline-block" />}
+              {help?.HelpTrigger?.({
+                content: {
+                  title: "Team profile",
+                  body: <p>Stats from your scouting data: auto, throughput, accuracy, defense, climb. Compare with other teams or view notes.</p>,
+                },
+              })}
               {showNoTbaIcon && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -521,36 +572,44 @@ export default function TeamProfile() {
             {event && (
               <p className="text-base text-muted-foreground mt-1">{event.name}</p>
             )}
+            <RankingColorKey className="mt-2" />
           </div>
         </div>
-        {(tbaOpr != null || tbaRp != null || tbaSeed != null) && (
-          <div className="flex flex-wrap gap-3 mt-3" data-testid="tba-stats-bar">
+        <div className="flex flex-wrap gap-3 mt-3" data-testid="tba-stats-bar">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 cursor-help ${tbaStatHeat.szr.border || "border-border"} ${tbaStatHeat.szr.bg || "bg-card"}`} data-testid="szr-badge">
+                  <span className={`text-xs font-medium uppercase ${tbaStatHeat.szr.text || "text-muted-foreground"}`}>SZR</span>
+                  <span className={`text-lg font-extrabold ${tbaStatHeat.szr.text || "text-foreground"}`}>{szr}</span>
+                </div>
+              </TooltipTrigger>
+                <TooltipContent>Strike Zone Rating — scouting-derived team strength (0–100)</TooltipContent>
+              </Tooltip>
             {tbaSeed != null && (
-              <div className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 bg-card">
-                <span className="text-xs font-medium text-muted-foreground uppercase">Seed</span>
-                <span className="text-lg font-extrabold">#{tbaSeed}</span>
+              <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 ${tbaStatHeat.seed.border || "border-border"} ${tbaStatHeat.seed.bg || "bg-card"}`}>
+                <span className={`text-xs font-medium uppercase ${tbaStatHeat.seed.text || "text-muted-foreground"}`}>Seed</span>
+                <span className={`text-lg font-extrabold ${tbaStatHeat.seed.text || "text-foreground"}`}>#{tbaSeed}</span>
               </div>
             )}
             {tbaRp != null && (
-              <div className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 bg-card">
-                <span className="text-xs font-medium text-muted-foreground uppercase">RP</span>
-                <span className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{tbaRp.toFixed(2)}</span>
+              <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 ${tbaStatHeat.rp.border || "border-border"} ${tbaStatHeat.rp.bg || "bg-card"}`}>
+                <span className={`text-xs font-medium uppercase ${tbaStatHeat.rp.text || "text-muted-foreground"}`}>RP</span>
+                <span className={`text-lg font-extrabold ${tbaStatHeat.rp.text || "text-foreground"}`}>{tbaRp.toFixed(2)}</span>
               </div>
             )}
             {tbaOpr != null && (
-              <div className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 bg-card">
-                <span className="text-xs font-medium text-muted-foreground uppercase">OPR</span>
-                <span className="text-lg font-extrabold text-yellow-600 dark:text-yellow-400">{tbaOpr.toFixed(1)}</span>
+              <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 ${tbaStatHeat.opr.border || "border-border"} ${tbaStatHeat.opr.bg || "bg-card"}`}>
+                <span className={`text-xs font-medium uppercase ${tbaStatHeat.opr.text || "text-muted-foreground"}`}>OPR</span>
+                <span className={`text-lg font-extrabold ${tbaStatHeat.opr.text || "text-foreground"}`}>{tbaOpr.toFixed(1)}</span>
               </div>
             )}
             {tbaRecord && tbaRecord !== "0-0-0" && (
-              <div className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 bg-card">
-                <span className="text-xs font-medium text-muted-foreground uppercase">Record</span>
-                <span className="text-lg font-extrabold">{tbaRecord}</span>
+              <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 ${tbaStatHeat.record.border || "border-border"} ${tbaStatHeat.record.bg || "bg-card"}`}>
+                <span className={`text-xs font-medium uppercase ${tbaStatHeat.record.text || "text-muted-foreground"}`}>Record</span>
+                <span className={`text-lg font-extrabold ${tbaStatHeat.record.text || "text-foreground"}`}>{tbaRecord}</span>
               </div>
             )}
           </div>
-        )}
       </div>
 
       {entries && entries.length > 0 && (() => {

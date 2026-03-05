@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Pencil, Trash2, Search, History } from "lucide-react";
+import { useHelp } from "@/contexts/help-context";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
@@ -57,6 +58,7 @@ export default function FormHistory() {
   const [editEntry, setEditEntry] = useState<ScoutingEntry | null>(null);
   const [deleteEntry, setDeleteEntry] = useState<ScoutingEntry | null>(null);
   const [editForm, setEditForm] = useState<Partial<ScoutingEntry>>({});
+  const help = useHelp();
 
   const { data: event } = useQuery<Event>({
     queryKey: ["/api/events", eventId],
@@ -79,7 +81,7 @@ export default function FormHistory() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<ScoutingEntry> }) => {
-      await apiRequest("PATCH", `/api/entries/${id}`, data);
+      await apiRequest("PATCH", `/api/entries/${id}`, data, { eventId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [entriesUrl] });
@@ -90,7 +92,7 @@ export default function FormHistory() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/entries/${id}`);
+      await apiRequest("DELETE", `/api/entries/${id}`, undefined, { eventId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [entriesUrl] });
@@ -143,6 +145,12 @@ export default function FormHistory() {
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2" data-testid="text-form-history-title">
           <History className="h-6 w-6" />
           {isAdmin ? "Form History" : "My Form History"}
+          {help?.HelpTrigger?.({
+            content: {
+              title: "Form history",
+              body: <p>All scouting entries. Search by match or team. Admins can edit or delete. Scouters see only their own entries.</p>,
+            },
+          })}
         </h1>
         {event && (
           <p className="text-sm text-muted-foreground mt-1">{event.name} &middot; {filtered.length} entries</p>

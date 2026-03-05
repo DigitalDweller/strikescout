@@ -3,8 +3,8 @@ import { type Server } from "http";
 import passport from "passport";
 import { storage } from "./storage";
 import { hashPassword } from "./auth";
-import { eventBroadcast, CHANNEL_ENTRIES, notifyEntriesUpdated } from "./eventBroadcast";
-import { insertEventSchema, insertTeamSchema, insertScoutingEntrySchema } from "@shared/schema";
+import { eventBroadcast, CHANNEL_EVENT_DATA, CHANNEL_EVENTS_LIST, notifyEventDataUpdated, notifyEventsListUpdated } from "./eventBroadcast";
+import { insertEventSchema, insertTeamSchema, insertScoutingEntrySchema, type Event } from "@shared/schema";
 import { z } from "zod";
 import { fetchMatchVideos, fetchMatchResults, getVideoUrl, validateEventKey, fetchTeamAvatars, fetchEventOPRs, fetchMatchSchedule, fetchEventRankings, fetchEventTeams, isTbaConfigured, isTbaRateLimitEnabled, setTbaRateLimitEnabled, getTbaCallHistory, TbaRateLimitError } from "./tba";
 
@@ -200,6 +200,7 @@ export async function registerRoutes(
     const parsed = insertEventSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const event = await storage.createEvent(parsed.data);
+    notifyEventsListUpdated();
     res.status(201).json(event);
   });
 
@@ -214,11 +215,14 @@ export async function registerRoutes(
     if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid event id" });
     const event = await storage.updateEvent(id, req.body);
     if (!event) return res.sendStatus(404);
+    notifyEventDataUpdated(id);
     res.json(event);
   });
 
   app.delete("/api/events/:id", requireAdmin, async (req, res) => {
-    await storage.deleteEvent(parseInt(req.params.id));
+    const id = parseInt(req.params.id);
+    await storage.deleteEvent(id);
+    notifyEventsListUpdated();
     res.sendStatus(204);
   });
 
@@ -229,6 +233,7 @@ export async function registerRoutes(
     if (!event) return res.sendStatus(404);
     await storage.setActiveEvent(id);
     const updated = await storage.getEvent(id);
+    notifyEventsListUpdated();
     res.json(updated!);
   });
 
@@ -272,6 +277,7 @@ export async function registerRoutes(
       }
       results.push(team);
     }
+    if (eventId) notifyEventDataUpdated(eventId);
     res.status(201).json(results);
   });
 
@@ -295,14 +301,14 @@ export async function registerRoutes(
     if (!Number.isFinite(eventId) || eventId < 1) return res.status(400).json({ message: "Invalid event id" });
     if (!Number.isFinite(teamId) || teamId < 1) return res.status(400).json({ message: "teamId required and must be a positive number" });
     const eventTeam = await storage.addTeamToEvent({ eventId, teamId });
+    notifyEventDataUpdated(eventId);
     res.status(201).json(eventTeam);
   });
 
   app.delete("/api/events/:eventId/teams/:teamId", async (req, res) => {
-    await storage.removeTeamFromEvent(
-      parseInt(req.params.eventId),
-      parseInt(req.params.teamId)
-    );
+    const eventId = parseInt(req.params.eventId);
+    await storage.removeTeamFromEvent(eventId, parseInt(req.params.teamId));
+    notifyEventDataUpdated(eventId);
     res.sendStatus(204);
   });
 
@@ -313,7 +319,7 @@ export async function registerRoutes(
     });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const entry = await storage.createScoutingEntry(parsed.data);
-    notifyEntriesUpdated(entry.eventId);
+    notifyEventDataUpdated(entry.eventId);
     res.status(201).json(entry);
   });
 
@@ -322,7 +328,7 @@ export async function registerRoutes(
     if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid entry id" });
     const updated = await storage.updateScoutingEntry(id, req.body);
     if (!updated) return res.sendStatus(404);
-    notifyEntriesUpdated(updated.eventId);
+    notifyEventDataUpdated(updated.eventId);
     res.json(updated);
   });
 
@@ -331,27 +337,27 @@ export async function registerRoutes(
     if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid entry id" });
     const entry = await storage.getScoutingEntry(id);
     await storage.deleteScoutingEntry(id);
-    if (entry) notifyEntriesUpdated(entry.eventId);
+    if (entry) notifyEventDataUpdated(entry.eventId);
     res.sendStatus(204);
   });
 
-  /** SSE: stream "entries" when scouting data for this event changes (so admin tabs can refetch). */
-  app.get("/api/events/:eventId/updates", (req, res) => {
-    const eventId = parseInt(req.params.eventId, 10);
-    if (!Number.isFinite(eventId) || eventId < 1) {
-      return res.status(400).json({ message: "Invalid event id" });
-    }
+  /** SSE: app-level stream for all data updates. Sends "event:{eventId}" or "events". */
+  app.get("/api/updates", (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders?.();
-    const listener = (emittedEventId: number) => {
-      if (emittedEventId === eventId) res.write(`data: ${CHANNEL_ENTRIES}\n\n`);
-    };
-    eventBroadcast.on(CHANNEL_ENTRIES, listener);
+
+    const onEventData = (eventId: number) => res.write(`data: event:${eventId}\n\n`);
+    const onEventsList = () => res.write(`data: events\n\n`);
+
+    eventBroadcast.on(CHANNEL_EVENT_DATA, onEventData);
+    eventBroadcast.on(CHANNEL_EVENTS_LIST, onEventsList);
+
     req.on("close", () => {
-      eventBroadcast.off(CHANNEL_ENTRIES, listener);
+      eventBroadcast.off(CHANNEL_EVENT_DATA, onEventData);
+      eventBroadcast.off(CHANNEL_EVENTS_LIST, onEventsList);
     });
   });
 
@@ -411,6 +417,7 @@ export async function registerRoutes(
         const event = await storage.getEvent(eventId);
         if (event && (event.tbaEventKey ?? "") === (eventKey ?? "")) {
           await storage.updateEvent(eventId, { tbaEventKeyValidated: true });
+          notifyEventDataUpdated(eventId);
         }
       }
       res.json(result);
@@ -440,6 +447,7 @@ export async function registerRoutes(
         }
       }
 
+      notifyEventDataUpdated(eventId);
       res.json({ synced, total: qualMatches.length });
     } catch (err: any) {
       if (err instanceof TbaRateLimitError) return res.status(429).json({ message: err.message, resetsAt: err.resetsAt });
@@ -473,6 +481,7 @@ export async function registerRoutes(
           added++;
         }
       }
+      notifyEventDataUpdated(eventId);
       res.json({ added, total: tbaTeams.length });
     } catch (err: any) {
       if (err instanceof TbaRateLimitError) return res.status(429).json({ message: err.message, resetsAt: err.resetsAt });
@@ -505,6 +514,7 @@ export async function registerRoutes(
         synced++;
       }
 
+      notifyEventDataUpdated(eventId);
       res.json({ synced, total: teamNumbers.length });
     } catch (err: any) {
       if (err instanceof TbaRateLimitError) return res.status(429).json({ message: err.message, resetsAt: err.resetsAt });
@@ -544,6 +554,7 @@ export async function registerRoutes(
         }
       }
 
+      notifyEventDataUpdated(eventId);
       res.json({
         oprsSynced,
         rankingsSynced,
@@ -582,6 +593,7 @@ export async function registerRoutes(
         synced++;
       }
 
+      notifyEventDataUpdated(eventId);
       res.json({ synced, total: tbaMatches.length });
     } catch (err: any) {
       if (err instanceof TbaRateLimitError) return res.status(429).json({ message: err.message, resetsAt: err.resetsAt });
@@ -609,6 +621,7 @@ export async function registerRoutes(
         synced++;
       }
 
+      notifyEventDataUpdated(eventId);
       res.json({ synced, total: results.length });
     } catch (err: any) {
       if (err instanceof TbaRateLimitError) return res.status(429).json({ message: err.message, resetsAt: err.resetsAt });
@@ -708,6 +721,7 @@ export async function registerRoutes(
 
       const prev = syncStatus.get(eventId)!;
       syncStatus.set(eventId, { ...prev, lastSyncTime: Date.now(), syncing: false });
+      notifyEventDataUpdated(eventId);
       console.log(`[TBA Auto-Sync] Event ${eventId}: ${scheduleSynced} schedule, ${resultsSynced} results, ${videosSynced} videos, ${oprsSynced} OPRs, ${rankingsSynced} rankings synced`);
       return true;
     } catch (err) {
@@ -795,12 +809,20 @@ export async function registerRoutes(
     return { allowed: remaining > 0, remaining: Math.max(remaining, 0), resetsAt };
   }
 
+  const szrWeightsSchema = z.object({
+    auto: z.number().min(0),
+    throughput: z.number().min(0),
+    accuracy: z.number().min(0),
+    defense: z.number().min(0),
+    climb: z.number().min(0),
+  });
+
   app.patch("/api/events/:id/settings", async (req, res) => {
     const id = parseInt(req.params.id);
     const event = await storage.getEvent(id);
     if (!event) return res.sendStatus(404);
-    const { tbaEventKey, tbaAutoSync, tbaEventKeyValidated } = req.body;
-    const updates: { tbaEventKey?: string | null; tbaEventKeyValidated?: boolean; tbaAutoSync?: boolean } = {};
+    const { tbaEventKey, tbaAutoSync, tbaEventKeyValidated, szrWeights } = req.body;
+    const updates: Record<string, unknown> = {};
     if (tbaEventKey !== undefined) {
       updates.tbaEventKey = tbaEventKey || null;
       if ((tbaEventKey || null) !== (event.tbaEventKey || null)) {
@@ -815,13 +837,21 @@ export async function registerRoutes(
       }
       updates.tbaAutoSync = !!tbaAutoSync;
     }
-    const updated = await storage.updateEvent(id, updates);
+    if (szrWeights !== undefined) {
+      const parsed = szrWeightsSchema.safeParse(szrWeights);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid SZR weights: all values must be non-negative numbers." });
+      }
+      updates.szrWeights = JSON.stringify(parsed.data);
+    }
+    const updated = await storage.updateEvent(id, updates as Partial<Event>);
     if (!updated) return res.sendStatus(404);
     if (updated.tbaAutoSync && updated.tbaEventKey) {
       startAutoSync(updated.id);
     } else {
       stopAutoSync(updated.id);
     }
+    notifyEventDataUpdated(id);
     res.json(updated);
   });
 
@@ -844,6 +874,7 @@ export async function registerRoutes(
       const s = syncStatus.get(id) || { lastSyncTime: null, syncing: false, startedAt: null, expiresAt: null };
       syncStatus.set(id, { ...s, syncing: true });
       await runSync(id);
+      notifyEventDataUpdated(id);
       const updated = getManualSyncRemaining(id);
       res.json({ success: true, remaining: updated.remaining, resetsAt: updated.resetsAt });
     } catch (err: any) {
@@ -888,6 +919,7 @@ export async function registerRoutes(
       const event = await storage.getEvent(eventId);
       if (!event) return res.sendStatus(404);
       const picklist = await storage.createPicklist(eventId, name);
+      notifyEventDataUpdated(eventId);
       res.status(201).json(picklist);
     } catch (err: any) {
       const msg = err?.message ?? "Failed to create picklist";
@@ -905,6 +937,7 @@ export async function registerRoutes(
     const list = await storage.getPicklists(eventId);
     if (!list.some((p) => p.id === picklistId)) return res.sendStatus(404);
     const updated = await storage.updatePicklist(picklistId, { name });
+    notifyEventDataUpdated(eventId);
     res.json(updated);
   });
 
@@ -915,6 +948,7 @@ export async function registerRoutes(
     const list = await storage.getPicklists(eventId);
     if (!list.some((p) => p.id === picklistId)) return res.sendStatus(404);
     await storage.deletePicklist(picklistId);
+    notifyEventDataUpdated(eventId);
     res.sendStatus(204);
   });
 
@@ -938,6 +972,7 @@ export async function registerRoutes(
     if (!list.some((p) => p.id === picklistId)) return res.sendStatus(404);
     await storage.setPicklistEntries(picklistId, teamIds);
     const entries = await storage.getPicklistEntries(picklistId);
+    notifyEventDataUpdated(eventId);
     res.json(entries);
   });
 
@@ -950,6 +985,7 @@ export async function registerRoutes(
     if (!list.some((p) => p.id === picklistId)) return res.sendStatus(404);
     await storage.removeFromPicklistEntries(picklistId, teamId);
     const entries = await storage.getPicklistEntries(picklistId);
+    notifyEventDataUpdated(eventId);
     res.json(entries);
   });
 
