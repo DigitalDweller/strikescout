@@ -27,12 +27,22 @@ import placeholderAvatar from "@assets/images_1772071870956.png";
 
 type TeamStatsSlice = {
   avgAuto: number;
+  avgAutoAccuracy: number;
   avgThroughput: number;
   avgAccuracy: number;
   avgDefense: number;
+  avgDriverSkill: number;
   climbRate: number;
+  climbL1Rate: number;
+  climbL2Rate: number;
+  climbL3Rate: number;
   autoClimbRate: number;
   entries: number;
+  hasThroughput: boolean;
+  hasDefense: boolean;
+  hasDriverSkill: boolean;
+  hasClimbAttempted: boolean;
+  hasAutoClimbAttempted: boolean;
 };
 
 /** Heat background (green/red) based only on these two teams' values. Better = green. */
@@ -61,21 +71,28 @@ function CompareTableRow({
   rightFormat = (v: number) => String(v),
 }: {
   label: string;
-  leftVal: number;
-  rightVal: number | undefined;
+  leftVal: number | null;
+  rightVal: number | null | undefined;
   invertBetter?: boolean;
   leftFormat?: (v: number) => string;
   rightFormat?: (v: number) => string;
 }) {
-  const r = rightVal ?? leftVal;
-  const min = Math.min(leftVal, r);
-  const max = Math.max(leftVal, r);
-  const leftHeat = invertBetter
-    ? (max === min ? "" : getCompareHeatColor(max - leftVal, 0, max - min))
-    : (max === min ? "" : getCompareHeatColor(leftVal, min, max));
-  const rightHeat = rightVal == null ? "bg-muted/20" : invertBetter
-    ? (max === min ? "" : getCompareHeatColor(max - rightVal, 0, max - min))
-    : (max === min ? "" : getCompareHeatColor(rightVal, min, max));
+  const leftEmpty = leftVal == null;
+  const rightEmpty = rightVal == null;
+  const r = rightEmpty ? leftVal : rightVal;
+  const canCompare = !leftEmpty && !rightEmpty && leftVal != null && r != null;
+  const min = canCompare ? Math.min(leftVal, r) : 0;
+  const max = canCompare ? Math.max(leftVal, r) : 0;
+  const leftHeat = canCompare && !leftEmpty
+    ? (invertBetter
+        ? (max === min ? "" : getCompareHeatColor(max - leftVal!, 0, max - min))
+        : (max === min ? "" : getCompareHeatColor(leftVal!, min, max)))
+    : "";
+  const rightHeat = rightEmpty ? "bg-muted/20" : canCompare
+    ? (invertBetter
+        ? (max === min ? "" : getCompareHeatColor(max - rightVal!, 0, max - min))
+        : (max === min ? "" : getCompareHeatColor(rightVal!, min, max)))
+    : "bg-muted/20";
 
   return (
     <TableRow className="border-b border-border hover:bg-transparent">
@@ -83,10 +100,10 @@ function CompareTableRow({
         {label}
       </TableCell>
       <TableCell className={`px-3 py-2 text-right border-r border-border ${leftHeat || "bg-muted/20"}`}>
-        {leftFormat(leftVal)}
+        {leftEmpty ? <span className="text-muted-foreground/50">—</span> : leftFormat(leftVal!)}
       </TableCell>
       <TableCell className={`px-3 py-2 text-left ${rightHeat}`}>
-        {rightVal != null ? rightFormat(rightVal) : "—"}
+        {rightEmpty ? <span className="text-muted-foreground/50">—</span> : rightFormat(rightVal!)}
       </TableCell>
     </TableRow>
   );
@@ -124,16 +141,30 @@ export default function TeamCompare() {
   const leftStats = useMemo((): TeamStatsSlice | null => {
     const entries = (allEntries || []).filter((e) => e.teamId === leftTeamId);
     if (entries.length === 0) return null;
-    const climbSuccess = entries.filter((e) => e.climbSuccess === "success").length;
+    const climbSuccess = entries.filter((e) => e.climbSuccess === "success");
     const autoClimbSuccess = entries.filter((e) => e.autoClimbSuccess === "success").length;
+    const autoAccEntries = entries.filter((e) => (e.autoBallsShot ?? 0) >= 1);
+    const avgAutoAcc = autoAccEntries.length > 0
+      ? autoAccEntries.reduce((s, e) => s + toPct(e.autoAccuracy ?? 0), 0) / autoAccEntries.length
+      : 0;
     return {
       avgAuto: entries.reduce((s, e) => s + e.autoBallsShot, 0) / entries.length,
+      avgAutoAccuracy: avgAutoAcc,
       avgThroughput: entries.reduce((s, e) => s + e.teleopFpsEstimate, 0) / entries.length,
       avgAccuracy: entries.reduce((s, e) => s + toPct(e.teleopAccuracy ?? 0), 0) / entries.length,
       avgDefense: entries.reduce((s, e) => s + toPct(e.defenseRating ?? 0), 0) / entries.length,
-      climbRate: (climbSuccess / entries.length) * 100,
+      avgDriverSkill: entries.reduce((s, e) => s + toPct(e.driverSkill ?? 0), 0) / entries.length,
+      climbRate: (climbSuccess.length / entries.length) * 100,
+      climbL1Rate: (climbSuccess.filter((e) => e.climbLevel === "1").length / entries.length) * 100,
+      climbL2Rate: (climbSuccess.filter((e) => e.climbLevel === "2").length / entries.length) * 100,
+      climbL3Rate: (climbSuccess.filter((e) => e.climbLevel === "3").length / entries.length) * 100,
       autoClimbRate: (autoClimbSuccess / entries.length) * 100,
       entries: entries.length,
+      hasThroughput: entries.some((e) => (e.teleopFpsEstimate ?? 0) > 0),
+      hasDefense: entries.some((e) => e.playedDefense),
+      hasDriverSkill: entries.some((e) => e.driverSkill != null),
+      hasClimbAttempted: entries.some((e) => e.climbSuccess === "success" || e.climbSuccess === "failed"),
+      hasAutoClimbAttempted: entries.some((e) => e.autoClimbSuccess === "success" || e.autoClimbSuccess === "failed"),
     };
   }, [allEntries, leftTeamId]);
 
@@ -141,16 +172,30 @@ export default function TeamCompare() {
     if (!rightTeamId) return null;
     const entries = (allEntries || []).filter((e) => e.teamId === rightTeamId);
     if (entries.length === 0) return null;
-    const climbSuccess = entries.filter((e) => e.climbSuccess === "success").length;
+    const climbSuccess = entries.filter((e) => e.climbSuccess === "success");
     const autoClimbSuccess = entries.filter((e) => e.autoClimbSuccess === "success").length;
+    const autoAccEntries = entries.filter((e) => (e.autoBallsShot ?? 0) >= 1);
+    const avgAutoAcc = autoAccEntries.length > 0
+      ? autoAccEntries.reduce((s, e) => s + toPct(e.autoAccuracy ?? 0), 0) / autoAccEntries.length
+      : 0;
     return {
       avgAuto: entries.reduce((s, e) => s + e.autoBallsShot, 0) / entries.length,
+      avgAutoAccuracy: avgAutoAcc,
       avgThroughput: entries.reduce((s, e) => s + e.teleopFpsEstimate, 0) / entries.length,
       avgAccuracy: entries.reduce((s, e) => s + toPct(e.teleopAccuracy ?? 0), 0) / entries.length,
       avgDefense: entries.reduce((s, e) => s + toPct(e.defenseRating ?? 0), 0) / entries.length,
-      climbRate: (climbSuccess / entries.length) * 100,
+      avgDriverSkill: entries.reduce((s, e) => s + toPct(e.driverSkill ?? 0), 0) / entries.length,
+      climbRate: (climbSuccess.length / entries.length) * 100,
+      climbL1Rate: (climbSuccess.filter((e) => e.climbLevel === "1").length / entries.length) * 100,
+      climbL2Rate: (climbSuccess.filter((e) => e.climbLevel === "2").length / entries.length) * 100,
+      climbL3Rate: (climbSuccess.filter((e) => e.climbLevel === "3").length / entries.length) * 100,
       autoClimbRate: (autoClimbSuccess / entries.length) * 100,
       entries: entries.length,
+      hasThroughput: entries.some((e) => (e.teleopFpsEstimate ?? 0) > 0),
+      hasDefense: entries.some((e) => e.playedDefense),
+      hasDriverSkill: entries.some((e) => e.driverSkill != null),
+      hasClimbAttempted: entries.some((e) => e.climbSuccess === "success" || e.climbSuccess === "failed"),
+      hasAutoClimbAttempted: entries.some((e) => e.autoClimbSuccess === "success" || e.autoClimbSuccess === "failed"),
     };
   }, [allEntries, rightTeamId]);
 
@@ -289,15 +334,6 @@ export default function TeamCompare() {
                 rightFormat={(v) => `#${v}`}
               />
             )}
-            {leftEventTeam && (leftEventTeam as any).rankingPoints != null && (
-              <CompareTableRow
-                label="RP"
-                leftVal={(leftEventTeam as any).rankingPoints}
-                rightVal={(rightEventTeam as any)?.rankingPoints}
-                leftFormat={(v) => v.toFixed(2)}
-                rightFormat={(v) => v.toFixed(2)}
-              />
-            )}
             {leftEventTeam && (leftEventTeam as any).opr != null && (
               <CompareTableRow
                 label="OPR"
@@ -324,11 +360,16 @@ export default function TeamCompare() {
             {leftStats && (
               <>
                 <CompareTableRow label="Auto (avg)" leftVal={leftStats.avgAuto} rightVal={rightStats?.avgAuto} leftFormat={(v) => v.toFixed(1)} rightFormat={(v) => v.toFixed(1)} />
-                <CompareTableRow label="Auto climb %" leftVal={leftStats.autoClimbRate} rightVal={rightStats?.autoClimbRate} leftFormat={(v) => `${Math.round(v)}%`} rightFormat={(v) => `${Math.round(v)}%`} />
-                <CompareTableRow label="Throughput" leftVal={leftStats.avgThroughput} rightVal={rightStats?.avgThroughput} leftFormat={(v) => v.toFixed(1)} rightFormat={(v) => v.toFixed(1)} />
+                {leftStats.avgAutoAccuracy > 0 && <CompareTableRow label="Auto accuracy %" leftVal={leftStats.avgAutoAccuracy} rightVal={rightStats && rightStats.avgAutoAccuracy > 0 ? rightStats.avgAutoAccuracy : undefined} leftFormat={(v) => `${Math.round(v)}%`} rightFormat={(v) => `${Math.round(v)}%`} />}
+                <CompareTableRow label="Auto climb %" leftVal={leftStats.hasAutoClimbAttempted ? leftStats.autoClimbRate : null} rightVal={rightStats?.hasAutoClimbAttempted ? rightStats.autoClimbRate : undefined} leftFormat={(v) => `${Math.round(v)}%`} rightFormat={(v) => `${Math.round(v)}%`} />
+                <CompareTableRow label="Throughput" leftVal={leftStats.hasThroughput ? leftStats.avgThroughput : null} rightVal={rightStats?.hasThroughput ? rightStats.avgThroughput : undefined} leftFormat={(v) => v.toFixed(1)} rightFormat={(v) => v.toFixed(1)} />
                 <CompareTableRow label="Accuracy %" leftVal={leftStats.avgAccuracy} rightVal={rightStats?.avgAccuracy} leftFormat={(v) => `${Math.round(v)}%`} rightFormat={(v) => `${Math.round(v)}%`} />
-                <CompareTableRow label="Defense %" leftVal={leftStats.avgDefense} rightVal={rightStats?.avgDefense} leftFormat={(v) => `${Math.round(v)}%`} rightFormat={(v) => `${Math.round(v)}%`} />
-                <CompareTableRow label="Climb rate %" leftVal={leftStats.climbRate} rightVal={rightStats?.climbRate} leftFormat={(v) => `${Math.round(v)}%`} rightFormat={(v) => `${Math.round(v)}%`} />
+                <CompareTableRow label="Defense %" leftVal={leftStats.hasDefense ? leftStats.avgDefense : null} rightVal={rightStats?.hasDefense ? rightStats.avgDefense : undefined} leftFormat={(v) => `${Math.round(v)}%`} rightFormat={(v) => `${Math.round(v)}%`} />
+                <CompareTableRow label="Driver skill %" leftVal={leftStats.hasDriverSkill ? leftStats.avgDriverSkill : null} rightVal={rightStats?.hasDriverSkill ? rightStats.avgDriverSkill : undefined} leftFormat={(v) => `${Math.round(v)}%`} rightFormat={(v) => `${Math.round(v)}%`} />
+                <CompareTableRow label="Climb rate %" leftVal={leftStats.hasClimbAttempted ? leftStats.climbRate : null} rightVal={rightStats?.hasClimbAttempted ? rightStats.climbRate : undefined} leftFormat={(v) => `${Math.round(v)}%`} rightFormat={(v) => `${Math.round(v)}%`} />
+                <CompareTableRow label="Climb L1 %" leftVal={leftStats.hasClimbAttempted ? leftStats.climbL1Rate : null} rightVal={rightStats?.hasClimbAttempted ? rightStats.climbL1Rate : undefined} leftFormat={(v) => `${Math.round(v)}%`} rightFormat={(v) => `${Math.round(v)}%`} />
+                <CompareTableRow label="Climb L2 %" leftVal={leftStats.hasClimbAttempted ? leftStats.climbL2Rate : null} rightVal={rightStats?.hasClimbAttempted ? rightStats.climbL2Rate : undefined} leftFormat={(v) => `${Math.round(v)}%`} rightFormat={(v) => `${Math.round(v)}%`} />
+                <CompareTableRow label="Climb L3 %" leftVal={leftStats.hasClimbAttempted ? leftStats.climbL3Rate : null} rightVal={rightStats?.hasClimbAttempted ? rightStats.climbL3Rate : undefined} leftFormat={(v) => `${Math.round(v)}%`} rightFormat={(v) => `${Math.round(v)}%`} />
               </>
             )}
             {leftStats && (

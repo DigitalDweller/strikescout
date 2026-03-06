@@ -69,6 +69,7 @@ export const scoutingEntries = pgTable("scouting_entries", {
   matchNumber: integer("match_number").notNull(),
 
   autoBallsShot: integer("auto_balls_shot").notNull().default(0),
+  autoAccuracy: integer("auto_accuracy"),
   autoNotes: text("auto_notes"),
   autoDrawing: text("auto_drawing"),
   autoClimbSuccess: text("auto_climb_success").notNull().default("none"),
@@ -89,6 +90,7 @@ export const scoutingEntries = pgTable("scouting_entries", {
   defenseRating: integer("defense_rating").notNull().default(0),
   defenseNotes: text("defense_notes"),
 
+  driverSkill: integer("driver_skill"),
   driverSkillNotes: text("driver_skill_notes"),
 
   notes: text("notes"),

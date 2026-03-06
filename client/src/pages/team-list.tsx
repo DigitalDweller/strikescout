@@ -34,7 +34,7 @@ import { useRuffles } from "@/contexts/ruffles";
 import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
 import { getHeatColor, getDominantColor, computeTeamStats, computeStatRanges, computeTbaRanges, computeSzrMap, parseSzrWeights } from "@/lib/team-colors";
 
-type SortField = "teamNumber" | "teamName" | "opr" | "szr" | "rankingPoints" | "rank" | "avgAuto" | "avgThroughput" | "avgAccuracy" | "avgDefense" | "climbRate" | "entries";
+type SortField = "teamNumber" | "teamName" | "opr" | "szr" | "rank" | "avgAuto" | "avgThroughput" | "avgAccuracy" | "avgDefense" | "climbRate" | "entries";
 type SortDir = "asc" | "desc";
 
 const TEAM_SEARCH_EASTER_EGG = "5460";
@@ -83,7 +83,7 @@ export default function TeamList() {
 
   const hasTbaData = useMemo(() => {
     if (!eventTeams) return false;
-    return eventTeams.some(et => (et as any).opr != null || (et as any).rankingPoints != null);
+    return eventTeams.some(et => (et as any).opr != null || (et as any).rank != null);
   }, [eventTeams]);
 
   const teamStats = useMemo(() => computeTeamStats(teams, entries || []), [teams, entries]);
@@ -109,7 +109,6 @@ export default function TeamList() {
         case "teamName": valA = a.teamName.toLowerCase(); valB = b.teamName.toLowerCase(); break;
         case "opr": valA = (eventTeamMap.get(a.id) as any)?.opr || 0; valB = (eventTeamMap.get(b.id) as any)?.opr || 0; break;
         case "szr": valA = szrMap.get(a.id) ?? 0; valB = szrMap.get(b.id) ?? 0; break;
-        case "rankingPoints": valA = (eventTeamMap.get(a.id) as any)?.rankingPoints || 0; valB = (eventTeamMap.get(b.id) as any)?.rankingPoints || 0; break;
         case "rank": valA = (eventTeamMap.get(a.id) as any)?.rank || 999; valB = (eventTeamMap.get(b.id) as any)?.rank || 999; break;
         case "avgAuto": valA = teamStats.get(a.id)?.avgAuto || 0; valB = teamStats.get(b.id)?.avgAuto || 0; break;
         case "avgThroughput": valA = teamStats.get(a.id)?.avgThroughput || 0; valB = teamStats.get(b.id)?.avgThroughput || 0; break;
@@ -190,7 +189,6 @@ export default function TeamList() {
             <SelectItem value="teamName">Team Name</SelectItem>
             <SelectItem value="szr">SZR</SelectItem>
             {hasTbaData && <SelectItem value="opr">OPR</SelectItem>}
-            {hasTbaData && <SelectItem value="rankingPoints">Ranking Points</SelectItem>}
             {hasTbaData && <SelectItem value="rank">Seed</SelectItem>}
             <SelectItem value="avgAuto">Avg Auto</SelectItem>
             <SelectItem value="avgThroughput">Throughput</SelectItem>
@@ -243,7 +241,6 @@ export default function TeamList() {
                       </Tooltip>
                     </SortableHeader>
                     {hasTbaData && <SortableHeader field="opr">OPR</SortableHeader>}
-                    {hasTbaData && <SortableHeader field="rankingPoints">RP</SortableHeader>}
                     {hasTbaData && <SortableHeader field="rank">Seed</SortableHeader>}
                     <SortableHeader field="avgAuto">Auto</SortableHeader>
                     <SortableHeader field="avgThroughput">Throughput</SortableHeader>
@@ -257,7 +254,6 @@ export default function TeamList() {
                     const stats = teamStats.get(team.id);
                     const et = eventTeamMap.get(team.id);
                     const opr = (et as any)?.opr;
-                    const rp = (et as any)?.rankingPoints;
                     const seed = (et as any)?.rank;
                     const hasData = (stats?.entries || 0) > 0;
                     const autoVal = parseFloat((stats?.avgAuto || 0).toFixed(1));
@@ -275,11 +271,10 @@ export default function TeamList() {
                     const oprColorVal = opr != null && tbaRanges?.opr ? getHeatColor(opr, tbaRanges.opr.min, tbaRanges.opr.max) : "";
                     const szrVal = szrMap.get(team.id) ?? 0;
                     const szrColorVal = szrVal > 0 ? getHeatColor(szrVal, 0, 100) : "";
-                    const rpColorVal = rp != null && tbaRanges?.rp ? getHeatColor(rp, tbaRanges.rp.min, tbaRanges.rp.max) : "";
                     const seedColorVal = seed != null && tbaRanges?.seed ? getHeatColor(tbaRanges.seed.max - seed + tbaRanges.seed.min, tbaRanges.seed.min, tbaRanges.seed.max) : "";
-                    const dominant = getDominantColor([szrColorVal, oprColorVal, rpColorVal, seedColorVal, autoColor, throughputColor, accuracyColor, defenseColor, climbColor]);
+                    const dominant = getDominantColor([szrColorVal, oprColorVal, seedColorVal, autoColor, throughputColor, accuracyColor, defenseColor, climbColor]);
 
-                    const hasTbaForTeam = opr != null || rp != null || seed != null;
+                    const hasTbaForTeam = opr != null || seed != null;
                     const hasScoutingForTeam = (stats?.entries || 0) > 0;
                     const showNoTbaIcon = !hasTbaForTeam;
                     const showNoScoutingIcon = !hasScoutingForTeam;
@@ -316,16 +311,11 @@ export default function TeamList() {
                         </TableCell>
                         <TableCell className={`font-semibold text-base ${dominant}`}>{team.teamName}</TableCell>
                         <TableCell className={`text-center font-bold text-base ${szrColorVal}`} data-testid={`stat-szr-${team.id}`}>
-                          {szrVal}
+                          {hasData ? szrVal : <span className="text-muted-foreground/40">—</span>}
                         </TableCell>
                         {hasTbaData && (
                           <TableCell className={`text-center font-bold text-base ${oprColorVal}`} data-testid={`stat-opr-${team.id}`}>
                             {opr != null ? opr.toFixed(1) : <span className="text-muted-foreground/40">-</span>}
-                          </TableCell>
-                        )}
-                        {hasTbaData && (
-                          <TableCell className={`text-center font-bold text-base ${rpColorVal}`} data-testid={`stat-rp-${team.id}`}>
-                            {rp != null ? rp.toFixed(2) : <span className="text-muted-foreground/40">-</span>}
                           </TableCell>
                         )}
                         {hasTbaData && (
@@ -334,19 +324,19 @@ export default function TeamList() {
                           </TableCell>
                         )}
                         <TableCell className={`text-center font-bold text-base ${autoColor}`} data-testid={`stat-auto-${team.id}`}>
-                          {autoVal}
+                          {hasData ? autoVal : <span className="text-muted-foreground/40">—</span>}
                         </TableCell>
                         <TableCell className={`text-center font-bold text-base ${throughputColor}`} data-testid={`stat-throughput-${team.id}`}>
-                          {throughputVal}
+                          {hasData ? throughputVal : <span className="text-muted-foreground/40">—</span>}
                         </TableCell>
                         <TableCell className={`text-center font-bold text-base ${accuracyColor}`} data-testid={`stat-accuracy-${team.id}`}>
-                          {accuracyVal}<span className="text-xs text-muted-foreground">%</span>
+                          {hasData ? <>{accuracyVal}<span className="text-xs text-muted-foreground">%</span></> : <span className="text-muted-foreground/40">—</span>}
                         </TableCell>
                         <TableCell className={`text-center font-bold text-base ${defenseColor}`} data-testid={`stat-defense-${team.id}`}>
-                          {defenseVal}<span className="text-xs text-muted-foreground">%</span>
+                          {hasData ? <>{defenseVal}<span className="text-xs text-muted-foreground">%</span></> : <span className="text-muted-foreground/40">—</span>}
                         </TableCell>
                         <TableCell className={`text-center font-bold text-base ${climbColor}`} data-testid={`stat-climb-${team.id}`}>
-                          {climbVal}<span className="text-xs text-muted-foreground">%</span>
+                          {hasData ? <>{climbVal}<span className="text-xs text-muted-foreground">%</span></> : <span className="text-muted-foreground/40">—</span>}
                         </TableCell>
                       </TableRow>
                     );

@@ -2,24 +2,33 @@ import type { EventTeam, ScoutingEntry, Team } from "@shared/schema";
 
 export type TeamStats = {
   avgAuto: number;
+  avgAutoAccuracy: number;
   avgThroughput: number;
   avgAccuracy: number;
   avgDefense: number;
+  avgDriverSkill: number;
   climbRate: number;
+  climbL1Rate: number;
+  climbL2Rate: number;
+  climbL3Rate: number;
   entries: number;
 };
 
 export type StatRanges = {
   auto: { min: number; max: number };
+  autoAccuracy: { min: number; max: number };
   throughput: { min: number; max: number };
   accuracy: { min: number; max: number };
   defense: { min: number; max: number };
+  driverSkill: { min: number; max: number };
   climb: { min: number; max: number };
+  climbL1: { min: number; max: number };
+  climbL2: { min: number; max: number };
+  climbL3: { min: number; max: number };
 };
 
 export type TbaRanges = {
   opr: { min: number; max: number } | null;
-  rp: { min: number; max: number } | null;
   seed: { min: number; max: number } | null;
 };
 
@@ -232,16 +241,30 @@ export function computeTeamStats(teams: Team[], entries: ScoutingEntry[]): Map<n
     const teamEntries = entries.filter(e => e.teamId === team.id);
     const count = teamEntries.length;
     if (count === 0) {
-      map.set(team.id, { avgAuto: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, climbRate: 0, entries: 0 });
+      map.set(team.id, { avgAuto: 0, avgAutoAccuracy: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, avgDriverSkill: 0, climbRate: 0, climbL1Rate: 0, climbL2Rate: 0, climbL3Rate: 0, entries: 0 });
     } else {
       const accSum = teamEntries.reduce((s, e) => s + toPct(e.teleopAccuracy ?? 0), 0);
       const defSum = teamEntries.reduce((s, e) => s + toPct(e.defenseRating ?? 0), 0);
+      const autoAccEntries = teamEntries.filter(e => (e.autoBallsShot ?? 0) >= 1);
+      const avgAutoAcc = autoAccEntries.length > 0
+        ? autoAccEntries.reduce((s, e) => s + toPct(e.autoAccuracy ?? 0), 0) / autoAccEntries.length
+        : 0;
+      const driverSum = teamEntries.reduce((s, e) => s + toPct(e.driverSkill ?? 0), 0);
+      const climbSuccess = teamEntries.filter(e => e.climbSuccess === "success");
+      const l1Count = climbSuccess.filter(e => e.climbLevel === "1").length;
+      const l2Count = climbSuccess.filter(e => e.climbLevel === "2").length;
+      const l3Count = climbSuccess.filter(e => e.climbLevel === "3").length;
       map.set(team.id, {
         avgAuto: teamEntries.reduce((s, e) => s + e.autoBallsShot, 0) / count,
+        avgAutoAccuracy: avgAutoAcc,
         avgThroughput: teamEntries.reduce((s, e) => s + e.teleopFpsEstimate, 0) / count,
         avgAccuracy: accSum / count,
         avgDefense: defSum / count,
-        climbRate: teamEntries.filter(e => e.climbSuccess === "success").length / count * 100,
+        avgDriverSkill: driverSum / count,
+        climbRate: climbSuccess.length / count * 100,
+        climbL1Rate: l1Count / count * 100,
+        climbL2Rate: l2Count / count * 100,
+        climbL3Rate: l3Count / count * 100,
         entries: count,
       });
     }
@@ -252,12 +275,20 @@ export function computeTeamStats(teams: Team[], entries: ScoutingEntry[]): Map<n
 export function computeStatRanges(teamStats: Map<number, TeamStats>): StatRanges | null {
   const allStats = Array.from(teamStats.values()).filter(s => s.entries > 0);
   if (allStats.length === 0) return null;
+  const withAutoAcc = allStats.filter(s => s.avgAutoAccuracy > 0);
   return {
     auto: { min: Math.min(...allStats.map(s => s.avgAuto)), max: Math.max(...allStats.map(s => s.avgAuto)) },
+    autoAccuracy: withAutoAcc.length > 0
+      ? { min: Math.min(...withAutoAcc.map(s => s.avgAutoAccuracy)), max: Math.max(...withAutoAcc.map(s => s.avgAutoAccuracy)) }
+      : { min: 0, max: 100 },
     throughput: { min: Math.min(...allStats.map(s => s.avgThroughput)), max: Math.max(...allStats.map(s => s.avgThroughput)) },
     accuracy: { min: Math.min(...allStats.map(s => s.avgAccuracy)), max: Math.max(...allStats.map(s => s.avgAccuracy)) },
     defense: { min: Math.min(...allStats.map(s => s.avgDefense)), max: Math.max(...allStats.map(s => s.avgDefense)) },
+    driverSkill: { min: Math.min(...allStats.map(s => s.avgDriverSkill)), max: Math.max(...allStats.map(s => s.avgDriverSkill)) },
     climb: { min: Math.min(...allStats.map(s => s.climbRate)), max: Math.max(...allStats.map(s => s.climbRate)) },
+    climbL1: { min: Math.min(...allStats.map(s => s.climbL1Rate)), max: Math.max(...allStats.map(s => s.climbL1Rate)) },
+    climbL2: { min: Math.min(...allStats.map(s => s.climbL2Rate)), max: Math.max(...allStats.map(s => s.climbL2Rate)) },
+    climbL3: { min: Math.min(...allStats.map(s => s.climbL3Rate)), max: Math.max(...allStats.map(s => s.climbL3Rate)) },
   };
 }
 
@@ -309,12 +340,10 @@ export function computeSzrMap(
 
 export function computeTbaRanges(eventTeams: (EventTeam & { team: Team })[]): TbaRanges | null {
   const oprs = eventTeams.map(et => (et as any).opr).filter((v: any) => v != null) as number[];
-  const rps = eventTeams.map(et => (et as any).rankingPoints).filter((v: any) => v != null) as number[];
   const seeds = eventTeams.map(et => (et as any).rank).filter((v: any) => v != null) as number[];
-  if (oprs.length === 0 && rps.length === 0 && seeds.length === 0) return null;
+  if (oprs.length === 0 && seeds.length === 0) return null;
   return {
     opr: oprs.length > 0 ? { min: Math.min(...oprs), max: Math.max(...oprs) } : null,
-    rp: rps.length > 0 ? { min: Math.min(...rps), max: Math.max(...rps) } : null,
     seed: seeds.length > 0 ? { min: Math.min(...seeds), max: Math.max(...seeds) } : null,
   };
 }
@@ -334,10 +363,8 @@ export function getTeamDominantColor(
 
   if (et) {
     const opr = (et as any).opr;
-    const rp = (et as any).rankingPoints;
     const seed = (et as any).rank;
     if (opr != null && tbaRanges?.opr) colors.push(getHeatColor(opr, tbaRanges.opr.min, tbaRanges.opr.max));
-    if (rp != null && tbaRanges?.rp) colors.push(getHeatColor(rp, tbaRanges.rp.min, tbaRanges.rp.max));
     if (seed != null && tbaRanges?.seed) colors.push(getHeatColor(tbaRanges.seed.max - seed + tbaRanges.seed.min, tbaRanges.seed.min, tbaRanges.seed.max));
   }
 

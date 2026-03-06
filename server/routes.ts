@@ -33,13 +33,13 @@ async function seedDatabase() {
 }
 
 async function seedAdminUser() {
-  const existing = await storage.getUserByUsername("username123");
+  const existing = await storage.getUserByUsername("admin");
   if (!existing) {
-    const hashed = await hashPassword("supersecurepassword1");
+    const hashed = await hashPassword("admin123");
     await storage.createUser({
-      username: "username123",
+      username: "admin",
       password: hashed,
-      displayName: "username123",
+      displayName: "admin",
       role: "admin",
     });
     console.log("Admin user seeded");
@@ -137,7 +137,7 @@ export async function registerRoutes(
       if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid user id" });
       const user = await storage.getUser(id);
       if (!user) return res.sendStatus(404);
-      if (user.username === "username123") return res.status(400).json({ message: "Cannot modify the default admin account" });
+      if (user.username === "admin") return res.status(400).json({ message: "Cannot modify the default admin account" });
       const updates: any = {};
       if (req.body.username) {
         updates.username = req.body.username.trim();
@@ -160,7 +160,7 @@ export async function registerRoutes(
       if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid user id" });
       const user = await storage.getUser(id);
       if (!user) return res.sendStatus(404);
-      if (user.username === "username123") return res.status(400).json({ message: "Cannot delete the default admin account" });
+      if (user.username === "admin") return res.status(400).json({ message: "Cannot delete the default admin account" });
       await storage.deleteUser(id);
       res.sendStatus(204);
     } catch (err: any) {

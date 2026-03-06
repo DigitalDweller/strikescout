@@ -119,11 +119,14 @@ export default function FormHistory() {
     setEditForm({
       matchNumber: entry.matchNumber,
       autoBallsShot: entry.autoBallsShot,
+      autoAccuracy: ("autoAccuracy" in entry ? entry.autoAccuracy : undefined) ?? 0,
       autoNotes: entry.autoNotes,
       autoClimbSuccess: entry.autoClimbSuccess,
       teleopFpsEstimate: entry.teleopFpsEstimate,
       teleopAccuracy: entry.teleopAccuracy,
       teleopMoveWhileShoot: entry.teleopMoveWhileShoot,
+      driverSkill: ("driverSkill" in entry ? entry.driverSkill : undefined) ?? 0,
+      playedDefense: entry.playedDefense,
       climbSuccess: entry.climbSuccess,
       climbPosition: entry.climbPosition,
       climbLevel: entry.climbLevel,
@@ -276,6 +279,19 @@ export default function FormHistory() {
                   data-testid="input-edit-auto"
                 />
               </div>
+              {(editForm.autoBallsShot ?? 0) >= 1 && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Auto Accuracy (%)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={editForm.autoAccuracy ?? 0}
+                    onChange={e => setEditForm(f => ({ ...f, autoAccuracy: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) }))}
+                    data-testid="input-edit-auto-accuracy"
+                  />
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -288,14 +304,27 @@ export default function FormHistory() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Accuracy (0-10)</Label>
+                <Label className="text-sm font-medium">Accuracy (0-100%)</Label>
                 <Input
                   type="number"
                   min={0}
-                  max={10}
-                  value={editForm.teleopAccuracy || 0}
-                  onChange={e => setEditForm(f => ({ ...f, teleopAccuracy: Math.min(10, Math.max(0, parseInt(e.target.value) || 0)) }))}
+                  max={100}
+                  value={toPct(editForm.teleopAccuracy ?? 0)}
+                  onChange={e => setEditForm(f => ({ ...f, teleopAccuracy: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) }))}
                   data-testid="input-edit-accuracy"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Driver Skill (%)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={("driverSkill" in editForm ? editForm.driverSkill : undefined) ?? 0}
+                  onChange={e => setEditForm(f => ({ ...f, driverSkill: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) }))}
+                  data-testid="input-edit-driver-skill"
                 />
               </div>
             </div>

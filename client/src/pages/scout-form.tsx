@@ -30,7 +30,7 @@ import {
   User,
   Users,
 } from "lucide-react";
-import type { Event, Team, EventTeam, ScoutingEntry } from "@shared/schema";
+import type { Event, Team, EventTeam, ScoutingEntry, ScheduleMatch } from "@shared/schema";
 import heatmapFieldPath from "@assets/hehehehe_1771897335677.png";
 import { getHeatColor as getHeatColorLib, getHeatCssColor, getRowBorderColor, computeTeamStats, computeStatRanges } from "@/lib/team-colors";
 import { useHelp } from "@/contexts/help-context";
@@ -55,12 +55,16 @@ function TeamSearchCombobox({
   onSelectTeam,
   compact,
   testId,
+  matchNumber,
+  schedule,
 }: {
   eventTeams?: (EventTeam & { team: Team })[];
   selectedTeamId: number;
   onSelectTeam: (teamId: number) => void;
   compact: boolean;
   testId: string;
+  matchNumber?: number;
+  schedule?: Pick<ScheduleMatch, "matchNumber" | "red1" | "red2" | "red3" | "blue1" | "blue2" | "blue3">[];
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -69,7 +73,38 @@ function TeamSearchCombobox({
 
   const selectedTeam = eventTeams?.find((et) => et.teamId === selectedTeamId);
 
-  const filtered = (eventTeams || []).filter((et) => {
+  const { redTeamNumbers, blueTeamNumbers, matchTeamNumbers, redOrder, blueOrder } = useMemo(() => {
+    if (!matchNumber || !schedule?.length) return { redTeamNumbers: new Set<number>(), blueTeamNumbers: new Set<number>(), matchTeamNumbers: new Set<number>(), redOrder: [] as number[], blueOrder: [] as number[] };
+    const m = schedule.find((s) => s.matchNumber === matchNumber);
+    if (!m) return { redTeamNumbers: new Set<number>(), blueTeamNumbers: new Set<number>(), matchTeamNumbers: new Set<number>(), redOrder: [] as number[], blueOrder: [] as number[] };
+    const redArr = [m.red1, m.red2, m.red3].filter((n): n is number => n != null);
+    const blueArr = [m.blue1, m.blue2, m.blue3].filter((n): n is number => n != null);
+    const red = new Set(redArr);
+    const blue = new Set(blueArr);
+    const all = new Set([...redArr, ...blueArr]);
+    return { redTeamNumbers: red, blueTeamNumbers: blue, matchTeamNumbers: all, redOrder: redArr, blueOrder: blueArr };
+  }, [matchNumber, schedule]);
+
+  const eligibleTeams = useMemo(() => {
+    const teams = eventTeams || [];
+    if (!matchNumber || !schedule?.length || matchTeamNumbers.size === 0) return teams;
+    const matchTeams = teams.filter((et) => matchTeamNumbers.has(et.team.teamNumber));
+    if (redOrder.length === 0 && blueOrder.length === 0) return matchTeams;
+    return [...matchTeams].sort((a, b) => {
+      const aRedIdx = redOrder.indexOf(a.team.teamNumber);
+      const bRedIdx = redOrder.indexOf(b.team.teamNumber);
+      const aBlueIdx = blueOrder.indexOf(a.team.teamNumber);
+      const bBlueIdx = blueOrder.indexOf(b.team.teamNumber);
+      const aInRed = aRedIdx >= 0;
+      const bInRed = bRedIdx >= 0;
+      if (aInRed && !bInRed) return -1;
+      if (!aInRed && bInRed) return 1;
+      if (aInRed && bInRed) return aRedIdx - bRedIdx;
+      return aBlueIdx - bBlueIdx;
+    });
+  }, [eventTeams, matchNumber, schedule, matchTeamNumbers, redOrder, blueOrder]);
+
+  const filtered = eligibleTeams.filter((et) => {
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -135,26 +170,37 @@ function TeamSearchCombobox({
               No teams found
             </div>
           ) : (
-            filtered.map((et) => (
-              <div
-                key={et.teamId}
-                className={`flex items-center gap-2 px-3 cursor-pointer hover:bg-accent ${compact ? "py-2 text-sm" : "py-3 text-base"} ${et.teamId === selectedTeamId ? "bg-accent/50" : ""}`}
-                onClick={() => {
-                  onSelectTeam(et.teamId);
-                  setSearch("");
-                  setOpen(false);
-                }}
-                data-testid={`${testId}-option-${et.team.teamNumber}`}
-              >
-                {et.teamId === selectedTeamId && (
-                  <Check className="h-4 w-4 text-primary shrink-0" />
-                )}
-                <span className={et.teamId === selectedTeamId ? "" : "ml-6"}>
-                  <span className="font-bold text-primary">{et.team.teamNumber}</span>
-                  <span className="ml-1.5">{et.team.teamName}</span>
-                </span>
-              </div>
-            ))
+            filtered.map((et) => {
+              const isRed = redTeamNumbers.has(et.team.teamNumber);
+              const isBlue = blueTeamNumbers.has(et.team.teamNumber);
+              const redPos = redOrder.indexOf(et.team.teamNumber) + 1;
+              const bluePos = blueOrder.indexOf(et.team.teamNumber) + 1;
+              const slotLabel = isRed ? `R${redPos}` : isBlue ? `B${bluePos}` : null;
+              const allianceClass = isRed ? "bg-red-500/15 hover:bg-red-500/25 border-l-2 border-l-red-500" : isBlue ? "bg-blue-500/15 hover:bg-blue-500/25 border-l-2 border-l-blue-500" : "";
+              return (
+                <div
+                  key={et.teamId}
+                  className={`flex items-center gap-2 px-3 cursor-pointer ${compact ? "py-2 text-sm" : "py-3 text-base"} ${et.teamId === selectedTeamId ? "bg-accent/50" : allianceClass || "hover:bg-accent"}`}
+                  onClick={() => {
+                    onSelectTeam(et.teamId);
+                    setSearch("");
+                    setOpen(false);
+                  }}
+                  data-testid={`${testId}-option-${et.team.teamNumber}`}
+                >
+                  {et.teamId === selectedTeamId && (
+                    <Check className="h-4 w-4 text-primary shrink-0" />
+                  )}
+                  {slotLabel && (
+                    <span className={`shrink-0 w-7 text-xs font-bold tabular-nums ${isRed ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400"}`}>{slotLabel}</span>
+                  )}
+                  <span className={et.teamId === selectedTeamId ? "" : slotLabel ? "" : "ml-6"}>
+                    <span className={`font-bold ${isRed ? "text-red-600 dark:text-red-400" : isBlue ? "text-blue-600 dark:text-blue-400" : "text-primary"}`}>{et.team.teamNumber}</span>
+                    <span className="ml-1.5">{et.team.teamName}</span>
+                  </span>
+                </div>
+              );
+            })
           )}
         </div>
       )}
@@ -169,6 +215,7 @@ function BigCounterInput({
   testId,
   heatClass = "",
   heatBorderColor = "",
+  allowOverwriteZero = false,
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -177,7 +224,10 @@ function BigCounterInput({
   heatClass?: string;
   /** CSS color for input border (matches cell outline / slider track) */
   heatBorderColor?: string;
+  /** When true, display empty string for 0 so user can type fresh (e.g. "2" not "02") */
+  allowOverwriteZero?: boolean;
 }) {
+  const displayValue = allowOverwriteZero && value === 0 ? "" : value;
   return (
     <div className={`space-y-1.5 sm:space-y-2 rounded-lg border-l-4 p-2 sm:p-2 ${heatClass || "border-border"}`}>
       <Label className="text-sm font-medium text-inherit">{label}</Label>
@@ -195,7 +245,7 @@ function BigCounterInput({
         <input
           type="number"
           min={0}
-          value={value}
+          value={displayValue}
           onChange={(e) => {
             const raw = e.target.value;
             if (raw === "") onChange(0);
@@ -372,7 +422,8 @@ function ShootingHeatmap({
     }
     const x = (clientX - rect.left) / rect.width;
     const y = (clientY - rect.top) / rect.height;
-    const newPoints = [...points, { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) }];
+    const MAX_POINTS = 4;
+    const newPoints = points.length >= MAX_POINTS ? points : [...points, { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) }];
     setPoints(newPoints);
     prevValueRef.current = JSON.stringify(newPoints);
     onChange(JSON.stringify(newPoints));
@@ -416,7 +467,7 @@ function ShootingHeatmap({
           data-testid="canvas-shooting-heatmap"
         />
       </div>
-      <p className="text-xs text-muted-foreground">Tap where the robot shoots from — more taps = hotter zone</p>
+      <p className="text-xs text-muted-foreground">Tap where the robot shoots from — max 4 points</p>
     </div>
   );
 }
@@ -462,6 +513,7 @@ function RatingSelector({
 
 type FormData = {
   autoBallsShot: number;
+  autoAccuracy: number;
   autoNotes: string;
   autoDrawing: string;
   autoClimbSuccess: string;
@@ -472,6 +524,7 @@ type FormData = {
   teleopMoveWhileShoot: boolean;
   teleopFpsEstimate: number;
   teleopAccuracy: number;
+  driverSkill: number;
   climbSuccess: string;
   climbPosition: string;
   climbLevel: string;
@@ -485,6 +538,7 @@ type FormData = {
 function getEmptyForm(): FormData {
   return {
     autoBallsShot: 0,
+    autoAccuracy: 0,
     autoNotes: "",
     autoDrawing: "",
     autoClimbSuccess: "none",
@@ -495,6 +549,7 @@ function getEmptyForm(): FormData {
     teleopMoveWhileShoot: false,
     teleopFpsEstimate: 0,
     teleopAccuracy: 50,
+    driverSkill: 0,
     climbSuccess: "none",
     climbPosition: "",
     climbLevel: "",
@@ -518,6 +573,8 @@ function TeamFormColumn({
   canRemove,
   teamCount,
   singleScreen = false,
+  matchNumber,
+  schedule,
 }: {
   index: number;
   form: FormData;
@@ -530,17 +587,25 @@ function TeamFormColumn({
   canRemove: boolean;
   teamCount: number;
   singleScreen?: boolean;
+  matchNumber?: number;
+  schedule?: Pick<ScheduleMatch, "matchNumber" | "red1" | "red2" | "red3" | "blue1" | "blue2" | "blue3">[];
 }) {
   const compact = teamCount > 1 || singleScreen;
+  const selectedTeam = eventTeams?.find((et) => et.teamId === selectedTeamId);
   const r = statRanges;
+  /* Use non-degenerate ranges so heat colors always work (min === max breaks getHeatColor) */
+  const throughputRange = r.throughput.max > r.throughput.min ? r.throughput : DEFAULT_STAT_RANGES.throughput;
+  const autoRange = r.auto.max > r.auto.min ? r.auto : DEFAULT_STAT_RANGES.auto;
+  const accuracyRange = r.accuracy.max > r.accuracy.min ? r.accuracy : DEFAULT_STAT_RANGES.accuracy;
+  const defenseRange = r.defense.max > r.defense.min ? r.defense : DEFAULT_STAT_RANGES.defense;
   /* Neutral until a value is chosen: 0 = default for auto/BPS/defense, 50 = default for accuracy */
-  const autoHeat = form.autoBallsShot === 0 ? "" : getHeatClass(form.autoBallsShot, r.auto.min, r.auto.max);
-  const autoHeatBorderColor = form.autoBallsShot === 0 ? "" : getHeatCssColor(form.autoBallsShot, r.auto.min, r.auto.max);
-  const throughputHeat = form.teleopFpsEstimate === 0 ? "" : getHeatClass(form.teleopFpsEstimate, r.throughput.min, r.throughput.max);
-  const accuracyHeat = form.teleopAccuracy === 50 ? "" : getHeatClass(form.teleopAccuracy, r.accuracy.min, r.accuracy.max);
-  const accuracySliderColor = form.teleopAccuracy === 50 ? "" : getHeatCssColor(form.teleopAccuracy, r.accuracy.min, r.accuracy.max);
-  const defenseHeat = form.defenseRating === 0 ? "" : getHeatClass(form.defenseRating, r.defense.min, r.defense.max);
-  const defenseSliderColor = form.defenseRating === 0 ? "" : getHeatCssColor(form.defenseRating, r.defense.min, r.defense.max);
+  const autoHeat = form.autoBallsShot === 0 ? "" : getHeatClass(form.autoBallsShot, autoRange.min, autoRange.max);
+  const autoHeatBorderColor = form.autoBallsShot === 0 ? "" : getHeatCssColor(form.autoBallsShot, autoRange.min, autoRange.max);
+  const throughputHeat = form.teleopFpsEstimate === 0 ? "" : getHeatClass(form.teleopFpsEstimate, throughputRange.min, throughputRange.max);
+  const accuracyHeat = form.teleopAccuracy === 50 ? "" : getHeatClass(form.teleopAccuracy, accuracyRange.min, accuracyRange.max);
+  const accuracySliderColor = form.teleopAccuracy === 50 ? "" : getHeatCssColor(form.teleopAccuracy, accuracyRange.min, accuracyRange.max);
+  const defenseHeat = form.defenseRating === 0 ? "" : getHeatClass(form.defenseRating, defenseRange.min, defenseRange.max);
+  const defenseSliderColor = form.defenseRating === 0 ? "" : getHeatCssColor(form.defenseRating, defenseRange.min, defenseRange.max);
 
   const noteRows = singleScreen ? 2 : 3;
   const noteMinH = singleScreen ? "min-h-[60px]" : "min-h-[80px]";
@@ -550,9 +615,14 @@ function TeamFormColumn({
       <Card className={singleScreen ? "py-0 sm:py-1" : ""}>
         <CardHeader className="pb-2 px-3 sm:px-6 lg:px-8 pt-3 sm:pt-6 lg:pt-6">
           <CardTitle className="text-base flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <Bot className="h-4 w-4" />
-              Robot {index + 1}
+            <span className="flex items-center gap-2 sm:gap-3">
+              <Bot className="h-4 w-4 shrink-0" />
+              <span className="font-semibold">Robot {index + 1}</span>
+              {selectedTeam && (
+                <Badge variant="secondary" className="text-base sm:text-lg font-bold tabular-nums px-2.5 py-1">
+                  #{selectedTeam.team.teamNumber}
+                </Badge>
+              )}
             </span>
             {canRemove && (
               <Button type="button" variant="ghost" size="sm" className="h-9 w-9 sm:h-7 sm:w-7 sm:min-w-0 shrink-0 touch-manipulation px-2 text-destructive hover:text-destructive" onClick={onRemove} data-testid={`button-remove-robot-${index}`}>
@@ -568,6 +638,8 @@ function TeamFormColumn({
             onSelectTeam={onSelectTeam}
             compact={compact}
             testId={`select-team-${index}`}
+            matchNumber={matchNumber}
+            schedule={schedule}
           />
         </CardContent>
       </Card>
@@ -589,9 +661,13 @@ function TeamFormColumn({
             testId={`auto-balls-${index}`}
             heatClass={autoHeat}
             heatBorderColor={autoHeatBorderColor}
+            allowOverwriteZero
           />
+          {form.autoBallsShot >= 1 && (
+            <RatingSelector value={form.autoAccuracy} onChange={(v) => onUpdateField("autoAccuracy", v)} label="Auto accuracy (%)" testId={`auto-accuracy-${index}`} heatClass="" sliderColor="" />
+          )}
           <div className={`rounded-lg border-l-4 p-2 ${throughputHeat || "border-border"}`}>
-            <Label className="text-sm font-medium text-inherit">Estimated BPS</Label>
+            <Label className="text-sm font-medium text-inherit">Throughput</Label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1.5">
               {([
                 { label: "1–2", value: 2 },
@@ -605,8 +681,8 @@ function TeamFormColumn({
                   (value === 13 && form.teleopFpsEstimate >= 9 && form.teleopFpsEstimate <= 16) ||
                   (value === 20 && form.teleopFpsEstimate >= 17);
                 const isDefaultBps = form.teleopFpsEstimate === 0;
-                const heatClass = isDefaultBps ? "" : getHeatColorLib(value, r.throughput.min, r.throughput.max);
-                const heatBorderStyle = isDefaultBps ? "" : getHeatCssColor(value, r.throughput.min, r.throughput.max);
+                const heatClass = isDefaultBps ? "" : getHeatColorLib(value, throughputRange.min, throughputRange.max);
+                const heatBorderStyle = isDefaultBps ? "" : getHeatCssColor(value, throughputRange.min, throughputRange.max);
                 const selectedClass = selected
                   ? heatClass
                     ? `border-2 ${heatClass} font-semibold`
@@ -623,7 +699,7 @@ function TeamFormColumn({
                     className={`h-10 sm:h-9 text-sm touch-manipulation ${selectedClass}`}
                     style={selected && heatBorderStyle ? { borderColor: heatBorderStyle } : undefined}
                     onClick={() => onUpdateField("teleopFpsEstimate", value)}
-                    data-testid={`button-bps-${value}-${index}`}
+                    data-testid={`button-throughput-${value}-${index}`}
                   >
                     {label}
                   </Button>
@@ -632,6 +708,7 @@ function TeamFormColumn({
             </div>
           </div>
           <RatingSelector value={form.teleopAccuracy} onChange={(v) => onUpdateField("teleopAccuracy", v)} label="Accuracy (%)" testId={`accuracy-${index}`} heatClass={accuracyHeat} sliderColor={accuracySliderColor} />
+          <RatingSelector value={form.driverSkill} onChange={(v) => onUpdateField("driverSkill", v)} label="Driver skill (%)" testId={`driver-skill-${index}`} heatClass="" sliderColor="" />
           <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-3 sm:py-2 min-h-11 sm:min-h-0">
             <Label className="text-sm font-medium text-muted-foreground">Moves while shooting?</Label>
             <div className="flex gap-1.5 shrink-0">
@@ -849,6 +926,11 @@ export default function ScoutForm() {
     enabled: !!eventId,
   });
 
+  const { data: schedule } = useQuery<ScheduleMatch[]>({
+    queryKey: ["/api/events", eventId, "schedule"],
+    enabled: !!eventId,
+  });
+
   const teams = useMemo(() => (eventTeams || []).map((et) => et.team), [eventTeams]);
   const teamStats = useMemo(() => computeTeamStats(teams, entries || []), [teams, entries]);
   const statRanges = useMemo(() => {
@@ -996,23 +1078,20 @@ export default function ScoutForm() {
     <div className="pb-20 sm:pb-24">
       <div className="sticky top-0 z-30 bg-background border-b shadow-sm px-3 py-3 sm:px-4" data-testid="master-bar">
         <div className="flex items-center justify-between gap-3 sm:gap-4 flex-wrap max-w-[1800px] mx-auto">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex items-center gap-3 sm:gap-5 min-w-0">
             <h1 className="text-lg sm:text-xl font-bold tracking-tight truncate" data-testid="text-page-title">Scout</h1>
             <Badge variant="secondary" className="text-xs shrink-0">
               <Radio className="h-3 w-3 mr-1 text-chart-2" />
               <span className="truncate max-w-[120px] sm:max-w-none">{activeEvent.name}</span>
             </Badge>
-          </div>
-
-          <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground hidden sm:inline">Match</span>
+            <div className="flex items-center gap-1.5 sm:gap-2 border-l pl-3 sm:pl-4">
+              <span className="text-xs sm:text-sm font-medium text-muted-foreground">Match</span>
               <div className="flex items-center gap-1">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-10 w-10 sm:h-8 sm:w-8 p-0 touch-manipulation"
+                  className="h-11 w-11 sm:h-9 sm:w-9 p-0 touch-manipulation"
                   onClick={() => setMatchNumber((prev) => Math.max(1, (prev || 1) - 1))}
                   disabled={matchNumber <= 1}
                   data-testid="button-match-minus"
@@ -1028,14 +1107,14 @@ export default function ScoutForm() {
                     if (!isNaN(v) && v >= 1) setMatchNumber(v);
                     else if (e.target.value === "") setMatchNumber(1);
                   }}
-                  className="h-10 w-14 sm:h-8 sm:w-14 text-center text-base font-bold tabular-nums bg-primary text-primary-foreground rounded-md border-0 focus:outline-none focus:ring-2 focus:ring-ring touch-manipulation [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  className="h-11 w-16 sm:h-9 sm:w-16 text-center text-lg sm:text-xl font-bold tabular-nums bg-primary text-primary-foreground rounded-md border-0 focus:outline-none focus:ring-2 focus:ring-ring touch-manipulation [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   data-testid="input-match-number"
                 />
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-10 w-10 sm:h-8 sm:w-8 p-0 touch-manipulation"
+                  className="h-11 w-11 sm:h-9 sm:w-9 p-0 touch-manipulation"
                   onClick={() => setMatchNumber((prev) => (prev || 1) + 1)}
                   data-testid="button-match-plus"
                 >
@@ -1043,6 +1122,9 @@ export default function ScoutForm() {
                 </Button>
               </div>
             </div>
+          </div>
+
+          <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
 
             <div className="h-6 w-px bg-border hidden sm:block" />
 
@@ -1132,6 +1214,8 @@ export default function ScoutForm() {
               canRemove={effectiveTeamCount > 1}
               teamCount={effectiveTeamCount}
               singleScreen={isSingleScout}
+              matchNumber={matchNumber}
+              schedule={schedule}
             />
           ))}
         </div>

@@ -227,7 +227,7 @@ function PerMatchChart({ entries, title, bars }: {
     return Math.max(...sorted.map(e => b.field(e)), 1);
   });
 
-  const gridClass = bars.length === 3 ? "grid grid-cols-3 gap-3" : bars.length === 2 ? "grid grid-cols-2 gap-3" : "flex";
+  const gridClass = bars.length === 4 ? "grid grid-cols-4 gap-2" : bars.length === 3 ? "grid grid-cols-3 gap-3" : bars.length === 2 ? "grid grid-cols-2 gap-3" : "flex";
 
   return (
     <div className="space-y-1.5" data-testid={`chart-${title.toLowerCase().replace(/\s/g, "-")}`}>
@@ -351,33 +351,68 @@ export default function TeamProfile() {
   const team = teams?.find((t) => t.id === teamId);
   const eventTeam = eventTeams?.find(et => et.teamId === teamId);
   const tbaOpr = (eventTeam as any)?.opr;
-  const tbaRp = (eventTeam as any)?.rankingPoints;
   const tbaSeed = (eventTeam as any)?.rank;
   const tbaRecord = eventTeam ? `${(eventTeam as any)?.wins ?? 0}-${(eventTeam as any)?.losses ?? 0}-${(eventTeam as any)?.ties ?? 0}` : null;
 
-  const hasTbaForTeam = tbaOpr != null || tbaRp != null || tbaSeed != null;
+  const hasTbaForTeam = tbaOpr != null || tbaSeed != null;
   const hasScoutingForTeam = (entries?.length ?? 0) > 0;
   const showNoTbaIcon = !hasTbaForTeam;
   const showNoScoutingIcon = !hasScoutingForTeam;
 
-  const avgAutoBalls = entries?.length
-    ? parseFloat((entries.reduce((s, e) => s + e.autoBallsShot, 0) / entries.length).toFixed(1)).toString()
+  const hasEntries = (entries?.length ?? 0) > 0;
+  const avgAutoBalls = hasEntries
+    ? parseFloat((entries!.reduce((s, e) => s + e.autoBallsShot, 0) / entries!.length).toFixed(1)).toString()
     : "0";
-  const avgThroughput = entries?.length
-    ? parseFloat((entries.reduce((s, e) => s + e.teleopFpsEstimate, 0) / entries.length).toFixed(1)).toString()
+  const autoAccEntries = entries?.filter((e) => (e.autoBallsShot ?? 0) >= 1) ?? [];
+  const hasThroughput = entries?.some((e) => (e.teleopFpsEstimate ?? 0) > 0) ?? false;
+  const hasDefense = entries?.some((e) => e.playedDefense) ?? false;
+  const hasDriverSkill = entries?.some((e) => e.driverSkill != null) ?? false;
+  const hasClimbAttempted = entries?.some((e) => e.climbSuccess === "success" || e.climbSuccess === "failed") ?? false;
+  const hasAutoClimbAttempted = entries?.some((e) => e.autoClimbSuccess === "success" || e.autoClimbSuccess === "failed") ?? false;
+  const avgAutoAccuracy = autoAccEntries.length > 0
+    ? Math.round(autoAccEntries.reduce((s, e) => s + toPct(e.autoAccuracy ?? 0), 0) / autoAccEntries.length)
+    : 0;
+  const avgThroughput = hasEntries
+    ? parseFloat((entries!.reduce((s, e) => s + e.teleopFpsEstimate, 0) / entries!.length).toFixed(1)).toString()
     : "0";
-  const avgAccuracy = entries?.length
-    ? Math.round(entries.reduce((s, e) => s + toPct(e.teleopAccuracy ?? 0), 0) / entries.length)
+  const avgAccuracy = hasEntries
+    ? Math.round(entries!.reduce((s, e) => s + toPct(e.teleopAccuracy ?? 0), 0) / entries!.length)
     : 0;
-  const avgDefense = entries?.length
-    ? Math.round(entries.reduce((s, e) => s + toPct(e.defenseRating ?? 0), 0) / entries.length)
+  const avgDefense = hasEntries
+    ? Math.round(entries!.reduce((s, e) => s + toPct(e.defenseRating ?? 0), 0) / entries!.length)
     : 0;
-  const climbRate = entries?.length
-    ? Math.round((entries.filter((e) => e.climbSuccess === "success").length / entries.length) * 100)
+  const avgDriverSkill = hasEntries
+    ? Math.round(entries!.reduce((s, e) => s + toPct(e.driverSkill ?? 0), 0) / entries!.length)
     : 0;
-  const autoClimbRate = entries?.length
-    ? Math.round((entries.filter((e) => e.autoClimbSuccess === "success").length / entries.length) * 100)
+  const climbRate = hasEntries
+    ? Math.round((entries!.filter((e) => e.climbSuccess === "success").length / entries!.length) * 100)
     : 0;
+  const climbSuccessEntries = entries?.filter((e) => e.climbSuccess === "success") ?? [];
+  const climbL1Rate = hasEntries
+    ? Math.round((climbSuccessEntries.filter((e) => e.climbLevel === "1").length / entries!.length) * 100)
+    : 0;
+  const climbL2Rate = hasEntries
+    ? Math.round((climbSuccessEntries.filter((e) => e.climbLevel === "2").length / entries!.length) * 100)
+    : 0;
+  const climbL3Rate = hasEntries
+    ? Math.round((climbSuccessEntries.filter((e) => e.climbLevel === "3").length / entries!.length) * 100)
+    : 0;
+  const autoClimbRate = hasEntries
+    ? Math.round((entries!.filter((e) => e.autoClimbSuccess === "success").length / entries!.length) * 100)
+    : 0;
+
+  const EMPTY = "—";
+  const dispAutoBalls = hasEntries ? avgAutoBalls : EMPTY;
+  const dispAutoAccuracy = autoAccEntries.length > 0 ? `${avgAutoAccuracy}%` : EMPTY;
+  const dispThroughput = hasEntries && hasThroughput ? avgThroughput : EMPTY;
+  const dispAccuracy = hasEntries ? `${avgAccuracy}%` : EMPTY;
+  const dispDefense = hasEntries && hasDefense ? `${avgDefense}%` : EMPTY;
+  const dispDriverSkill = hasEntries && hasDriverSkill ? `${avgDriverSkill}%` : EMPTY;
+  const dispClimbRate = hasEntries && hasClimbAttempted ? `${climbRate}%` : EMPTY;
+  const dispClimbL1 = hasEntries && hasClimbAttempted ? `${climbL1Rate}%` : EMPTY;
+  const dispClimbL2 = hasEntries && hasClimbAttempted ? `${climbL2Rate}%` : EMPTY;
+  const dispClimbL3 = hasEntries && hasClimbAttempted ? `${climbL3Rate}%` : EMPTY;
+  const dispAutoClimbRate = hasEntries && hasAutoClimbAttempted ? `${autoClimbRate}%` : EMPTY;
 
   const teamsList = useMemo(() => (eventTeams || []).map(et => et.team), [eventTeams]);
   const teamStatsMap = useMemo(() => computeTeamStats(teamsList, allEntries || []), [teamsList, allEntries]);
@@ -396,10 +431,15 @@ export default function TeamProfile() {
     const teamIds = eventTeams.map(et => et.teamId);
     const statsMap = new Map<number, {
       avgAuto: number;
+      avgAutoAccuracy: number;
       avgThroughput: number;
       avgAccuracy: number;
       avgDefense: number;
+      avgDriverSkill: number;
       climbRate: number;
+      climbL1Rate: number;
+      climbL2Rate: number;
+      climbL3Rate: number;
       avgClimbLevel: number;
       autoClimbRate: number;
       avgAutoClimbLevel: number;
@@ -409,16 +449,25 @@ export default function TeamProfile() {
       const te = allEntries.filter(e => e.teamId === tid);
       const count = te.length;
       if (count === 0) {
-        statsMap.set(tid, { avgAuto: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, climbRate: 0, avgClimbLevel: 0, autoClimbRate: 0, avgAutoClimbLevel: 0 });
+        statsMap.set(tid, { avgAuto: 0, avgAutoAccuracy: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, avgDriverSkill: 0, climbRate: 0, climbL1Rate: 0, climbL2Rate: 0, climbL3Rate: 0, avgClimbLevel: 0, autoClimbRate: 0, avgAutoClimbLevel: 0 });
       } else {
         const climbs = te.filter(e => e.climbSuccess === "success");
         const autoClimbs = te.filter(e => e.autoClimbSuccess === "success");
+        const autoAccTe = te.filter(e => (e.autoBallsShot ?? 0) >= 1);
+        const avgAutoAcc = autoAccTe.length > 0
+          ? autoAccTe.reduce((s, e) => s + toPct(e.autoAccuracy ?? 0), 0) / autoAccTe.length
+          : 0;
         statsMap.set(tid, {
           avgAuto: te.reduce((s, e) => s + e.autoBallsShot, 0) / count,
+          avgAutoAccuracy: avgAutoAcc,
           avgThroughput: te.reduce((s, e) => s + e.teleopFpsEstimate, 0) / count,
           avgAccuracy: te.reduce((s, e) => s + toPct(e.teleopAccuracy ?? 0), 0) / count,
           avgDefense: te.reduce((s, e) => s + toPct(e.defenseRating ?? 0), 0) / count,
+          avgDriverSkill: te.reduce((s, e) => s + toPct(e.driverSkill ?? 0), 0) / count,
           climbRate: climbs.length / count * 100,
+          climbL1Rate: climbs.filter(e => e.climbLevel === "1").length / count * 100,
+          climbL2Rate: climbs.filter(e => e.climbLevel === "2").length / count * 100,
+          climbL3Rate: climbs.filter(e => e.climbLevel === "3").length / count * 100,
           avgClimbLevel: climbs.length > 0 ? climbs.reduce((s, e) => s + (parseInt(e.climbLevel || "0") || 0), 0) / climbs.length : 0,
           autoClimbRate: autoClimbs.length / count * 100,
           avgAutoClimbLevel: autoClimbs.length > 0 ? autoClimbs.reduce((s, e) => s + (parseInt(e.autoClimbLevel || "0") || 0), 0) / autoClimbs.length : 0,
@@ -427,7 +476,7 @@ export default function TeamProfile() {
     }
 
     const total = teamIds.length;
-    const autoClimbRates = [...statsMap.values()].map(s => s.autoClimbRate);
+    const autoClimbRates = Array.from(statsMap.values()).map(s => s.autoClimbRate);
     const autoClimbRange = autoClimbRates.length > 0
       ? { min: Math.min(...autoClimbRates), max: Math.max(...autoClimbRates) }
       : { min: 0, max: 100 };
@@ -455,10 +504,15 @@ export default function TeamProfile() {
       total,
       autoClimbRange,
       autoRank: getRank("avgAuto"),
+      autoAccuracyRank: getRank("avgAutoAccuracy"),
       throughputRank: getRank("avgThroughput"),
       accuracyRank: getRank("avgAccuracy"),
       defenseRank: getRank("avgDefense"),
+      driverSkillRank: getRank("avgDriverSkill"),
       climbRank: getRank("climbRate"),
+      climbL1Rank: getRank("climbL1Rate"),
+      climbL2Rank: getRank("climbL2Rate"),
+      climbL3Rank: getRank("climbL3Rate"),
       autoClimbRank: getRank("autoClimbRate"),
     };
   }, [allEntries, eventTeams, teamId]);
@@ -494,22 +548,26 @@ export default function TeamProfile() {
       seed: tbaSeed != null && tbaRanges?.seed
         ? { bg: heatInv(getHeatBgOnly)(tbaSeed, tbaRanges.seed.min, tbaRanges.seed.max), text: heatInv(getHeatTextOnly)(tbaSeed, tbaRanges.seed.min, tbaRanges.seed.max), border: heatInv(getHeatBorderOnly)(tbaSeed, tbaRanges.seed.min, tbaRanges.seed.max) }
         : { bg: "", text: "", border: "" },
-      rp: tbaRp != null && tbaRanges?.rp ? { bg: getHeatBgOnly(tbaRp, tbaRanges.rp.min, tbaRanges.rp.max), text: getHeatTextOnly(tbaRp, tbaRanges.rp.min, tbaRanges.rp.max), border: getHeatBorderOnly(tbaRp, tbaRanges.rp.min, tbaRanges.rp.max) } : { bg: "", text: "", border: "" },
       opr: tbaOpr != null && tbaRanges?.opr ? { bg: getHeatBgOnly(tbaOpr, tbaRanges.opr.min, tbaRanges.opr.max), text: getHeatTextOnly(tbaOpr, tbaRanges.opr.min, tbaRanges.opr.max), border: getHeatBorderOnly(tbaOpr, tbaRanges.opr.min, tbaRanges.opr.max) } : { bg: "", text: "", border: "" },
       record: total > 0 ? { bg: getHeatBgOnly(winRate, winRateMin, winRateMax || 1), text: getHeatTextOnly(winRate, winRateMin, winRateMax || 1), border: getHeatBorderOnly(winRate, winRateMin, winRateMax || 1) } : { bg: "", text: "", border: "" },
     };
-  }, [eventTeam, eventTeams, tbaOpr, tbaRp, tbaSeed, tbaRanges, szr]);
+  }, [eventTeam, eventTeams, tbaOpr, tbaSeed, tbaRanges, szr]);
 
   const heatColors = useMemo(() => {
-    if (!thisTeamStats || !statRanges) return { auto: "", throughput: "", accuracy: "", defense: "", climb: "" };
+    if (!thisTeamStats || !statRanges) return { auto: "", autoAccuracy: "", throughput: "", accuracy: "", defense: "", driverSkill: "", climb: "", climbL1: "", climbL2: "", climbL3: "" };
     const s = thisTeamStats;
     const r = statRanges;
     return {
       auto: getHeatColor(s.avgAuto, r.auto.min, r.auto.max),
+      autoAccuracy: s.avgAutoAccuracy > 0 ? getHeatColor(s.avgAutoAccuracy, r.autoAccuracy.min, r.autoAccuracy.max) : "",
       throughput: getHeatColor(s.avgThroughput, r.throughput.min, r.throughput.max),
       accuracy: getHeatColor(s.avgAccuracy, r.accuracy.min, r.accuracy.max),
       defense: getHeatColor(s.avgDefense, r.defense.min, r.defense.max),
+      driverSkill: getHeatColor(s.avgDriverSkill, r.driverSkill.min, r.driverSkill.max),
       climb: getHeatColor(s.climbRate, r.climb.min, r.climb.max),
+      climbL1: getHeatColor(s.climbL1Rate, r.climbL1.min, r.climbL1.max),
+      climbL2: getHeatColor(s.climbL2Rate, r.climbL2.min, r.climbL2.max),
+      climbL3: getHeatColor(s.climbL3Rate, r.climbL3.min, r.climbL3.max),
     };
   }, [thisTeamStats, statRanges]);
 
@@ -589,12 +647,6 @@ export default function TeamProfile() {
               <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 ${tbaStatHeat.seed.border || "border-border"} ${tbaStatHeat.seed.bg || "bg-card"}`}>
                 <span className={`text-xs font-medium uppercase ${tbaStatHeat.seed.text || "text-muted-foreground"}`}>Seed</span>
                 <span className={`text-lg font-extrabold ${tbaStatHeat.seed.text || "text-foreground"}`}>#{tbaSeed}</span>
-              </div>
-            )}
-            {tbaRp != null && (
-              <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 ${tbaStatHeat.rp.border || "border-border"} ${tbaStatHeat.rp.bg || "bg-card"}`}>
-                <span className={`text-xs font-medium uppercase ${tbaStatHeat.rp.text || "text-muted-foreground"}`}>RP</span>
-                <span className={`text-lg font-extrabold ${tbaStatHeat.rp.text || "text-foreground"}`}>{tbaRp.toFixed(2)}</span>
               </div>
             )}
             {tbaOpr != null && (
@@ -694,7 +746,7 @@ export default function TeamProfile() {
             <div className="text-center space-y-2">
               <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide">Balls Shot</p>
               <div className={`inline-block rounded-lg px-3 py-1.5 ${heatColors.auto || "bg-muted/30"}`}>
-                <p className="text-4xl font-extrabold leading-none" data-testid="text-avg-auto">{avgAutoBalls}</p>
+                <p className={`text-4xl font-extrabold leading-none ${dispAutoBalls === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-avg-auto">{dispAutoBalls}</p>
               </div>
               {rankings && (
                 <>
@@ -703,11 +755,27 @@ export default function TeamProfile() {
                 </>
               )}
             </div>
+            {autoAccEntries.length > 0 && (
+              <div className="border-t border-border pt-3 space-y-2">
+                <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide text-center">Auto accuracy</p>
+                <div className="text-center space-y-2">
+                  <div className={`inline-block rounded-lg px-3 py-1.5 ${heatColors.autoAccuracy || "bg-muted/30"}`}>
+                    <p className={`text-3xl font-extrabold leading-none ${dispAutoAccuracy === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-avg-auto-accuracy">{dispAutoAccuracy}</p>
+                  </div>
+                  {rankings && (
+                    <>
+                      <div className="w-8 mx-auto border-t border-border" />
+                      <p className={`text-xs font-bold ${heatTextOnly(heatColors.autoAccuracy) || "text-muted-foreground"}`}>{getOrdinal(rankings.autoAccuracyRank)} <span className="text-muted-foreground font-normal">of {rankings.total}</span></p>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="border-t border-border pt-3 space-y-2">
               <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide text-center">Auto climb</p>
               <div className="text-center space-y-2">
                 <div className={`inline-block rounded-lg px-3 py-1.5 ${rankings ? (getHeatColor(autoClimbRate, rankings.autoClimbRange.min, rankings.autoClimbRange.max) || "bg-muted/30") : "bg-muted/30"}`}>
-                  <p className="text-3xl font-extrabold leading-none" data-testid="text-auto-climb-rate">{autoClimbRate}<span className="text-lg">%</span></p>
+                  <p className={`text-3xl font-extrabold leading-none ${dispAutoClimbRate === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-auto-climb-rate">{dispAutoClimbRate}</p>
                 </div>
 
                 {rankings && (
@@ -722,7 +790,14 @@ export default function TeamProfile() {
               <PerMatchChart
                 entries={entries}
                 title="Auto"
-                bars={[{ field: (e) => e.autoBallsShot, color: "bg-primary", label: "Balls" }]}
+                bars={
+                  autoAccEntries.length > 0
+                    ? [
+                        { field: (e) => e.autoBallsShot, color: "bg-primary", label: "Balls" },
+                        { field: (e) => (e.autoBallsShot ?? 0) >= 1 ? toPct(e.autoAccuracy ?? 0) : 0, color: "bg-primary/70", label: "Auto Acc%", max: 100, suffix: "%" },
+                      ]
+                    : [{ field: (e) => e.autoBallsShot, color: "bg-primary", label: "Balls" }]
+                }
               />
             )}
             {entries && entries.length > 1 && (
@@ -736,11 +811,11 @@ export default function TeamProfile() {
             <CardTitle className="text-base font-bold text-chart-2 text-center">Teleop</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="text-center space-y-2">
                 <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide">Throughput</p>
                 <div className={`inline-block rounded-lg px-2 py-1.5 ${heatColors.throughput || "bg-muted/30"}`}>
-                  <p className="text-3xl font-extrabold leading-none" data-testid="text-avg-throughput">{avgThroughput}</p>
+                  <p className={`text-3xl font-extrabold leading-none ${dispThroughput === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-avg-throughput">{dispThroughput}</p>
                 </div>
                 {rankings && (
                   <>
@@ -752,7 +827,7 @@ export default function TeamProfile() {
               <div className="text-center space-y-2">
                 <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide">Accuracy</p>
                 <div className={`inline-block rounded-lg px-2 py-1.5 ${heatColors.accuracy || "bg-muted/30"}`}>
-                  <p className="text-3xl font-extrabold leading-none" data-testid="text-avg-accuracy">{avgAccuracy}<span className="text-lg">%</span></p>
+                  <p className={`text-3xl font-extrabold leading-none ${dispAccuracy === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-avg-accuracy">{dispAccuracy}</p>
                 </div>
                 {rankings && (
                   <>
@@ -764,12 +839,24 @@ export default function TeamProfile() {
               <div className="text-center space-y-2">
                 <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide">Defense</p>
                 <div className={`inline-block rounded-lg px-2 py-1.5 ${heatColors.defense || "bg-muted/30"}`}>
-                  <p className="text-3xl font-extrabold leading-none" data-testid="text-avg-defense">{avgDefense}<span className="text-lg">%</span></p>
+                  <p className={`text-3xl font-extrabold leading-none ${dispDefense === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-avg-defense">{dispDefense}</p>
                 </div>
                 {rankings && (
                   <>
                     <div className="w-8 mx-auto border-t border-border" />
                     <p className={`text-xs font-bold ${heatTextOnly(heatColors.defense) || "text-muted-foreground"}`}>{getOrdinal(rankings.defenseRank)} <span className="text-muted-foreground font-normal">of {rankings.total}</span></p>
+                  </>
+                )}
+              </div>
+              <div className="text-center space-y-2">
+                <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide">Driver skill</p>
+                <div className={`inline-block rounded-lg px-2 py-1.5 ${heatColors.driverSkill || "bg-muted/30"}`}>
+                  <p className={`text-3xl font-extrabold leading-none ${dispDriverSkill === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-avg-driver-skill">{dispDriverSkill}</p>
+                </div>
+                {rankings && (
+                  <>
+                    <div className="w-8 mx-auto border-t border-border" />
+                    <p className={`text-xs font-bold ${heatTextOnly(heatColors.driverSkill) || "text-muted-foreground"}`}>{getOrdinal(rankings.driverSkillRank)} <span className="text-muted-foreground font-normal">of {rankings.total}</span></p>
                   </>
                 )}
               </div>
@@ -782,6 +869,7 @@ export default function TeamProfile() {
                   { field: (e) => e.teleopFpsEstimate, color: "bg-chart-2", label: "FPS" },
                   { field: (e) => toPct(e.teleopAccuracy ?? 0), color: "bg-chart-3", label: "Acc%", max: 100, suffix: "%" },
                   { field: (e) => toPct(e.defenseRating ?? 0), color: "bg-chart-4", label: "Def%", max: 100, suffix: "%" },
+                  { field: (e) => toPct(e.driverSkill ?? 0), color: "bg-chart-5", label: "Driver%", max: 100, suffix: "%" },
                 ]}
               />
             )}
@@ -800,7 +888,7 @@ export default function TeamProfile() {
             <div className="text-center space-y-2">
               <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide">Climb Rate</p>
               <div className={`inline-block rounded-lg px-3 py-1.5 ${heatColors.climb || "bg-muted/30"}`}>
-                <p className="text-4xl font-extrabold leading-none" data-testid="text-climb-rate">{climbRate}<span className="text-lg">%</span></p>
+                <p className={`text-4xl font-extrabold leading-none ${dispClimbRate === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-climb-rate">{dispClimbRate}</p>
               </div>
               {rankings && (
                 <>
@@ -808,6 +896,32 @@ export default function TeamProfile() {
                   <p className={`text-xs font-bold ${heatTextOnly(heatColors.climb) || "text-muted-foreground"}`}>{getOrdinal(rankings.climbRank)} <span className="text-muted-foreground font-normal">of {rankings.total}</span></p>
                 </>
               )}
+            </div>
+            <div className="border-t border-border pt-3 space-y-2">
+              <p className="text-sm font-bold text-foreground/70 uppercase tracking-wide text-center">By level</p>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center space-y-1">
+                  <p className="text-xs text-muted-foreground">L1</p>
+                  <div className={`rounded-lg px-2 py-1 ${heatColors.climbL1 || "bg-muted/30"}`}>
+                    <p className={`text-lg font-bold leading-none ${dispClimbL1 === EMPTY ? "text-muted-foreground/40" : ""}`}>{dispClimbL1}</p>
+                  </div>
+                  {rankings && <p className={`text-[10px] ${heatTextOnly(heatColors.climbL1) || "text-muted-foreground"}`}>{getOrdinal(rankings.climbL1Rank)}/{rankings.total}</p>}
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="text-xs text-muted-foreground">L2</p>
+                  <div className={`rounded-lg px-2 py-1 ${heatColors.climbL2 || "bg-muted/30"}`}>
+                    <p className={`text-lg font-bold leading-none ${dispClimbL2 === EMPTY ? "text-muted-foreground/40" : ""}`}>{dispClimbL2}</p>
+                  </div>
+                  {rankings && <p className={`text-[10px] ${heatTextOnly(heatColors.climbL2) || "text-muted-foreground"}`}>{getOrdinal(rankings.climbL2Rank)}/{rankings.total}</p>}
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="text-xs text-muted-foreground">L3</p>
+                  <div className={`rounded-lg px-2 py-1 ${heatColors.climbL3 || "bg-muted/30"}`}>
+                    <p className={`text-lg font-bold leading-none ${dispClimbL3 === EMPTY ? "text-muted-foreground/40" : ""}`}>{dispClimbL3}</p>
+                  </div>
+                  {rankings && <p className={`text-[10px] ${heatTextOnly(heatColors.climbL3) || "text-muted-foreground"}`}>{getOrdinal(rankings.climbL3Rank)}/{rankings.total}</p>}
+                </div>
+              </div>
             </div>
             {entries && entries.length > 1 && (
               <ClimbChart entries={entries} />
@@ -834,9 +948,11 @@ export default function TeamProfile() {
                   <TableRow>
                     <TableHead className="text-sm font-bold">Match</TableHead>
                     <TableHead className="text-center text-sm font-bold">Auto</TableHead>
+                    <TableHead className="text-center text-sm font-bold">Auto Acc</TableHead>
                     <TableHead className="text-center text-sm font-bold">Auto climb</TableHead>
                     <TableHead className="text-center text-sm font-bold">Throughput</TableHead>
                     <TableHead className="text-center text-sm font-bold">Accuracy</TableHead>
+                    <TableHead className="text-center text-sm font-bold">Driver</TableHead>
                     <TableHead className="text-center text-sm font-bold">Climb</TableHead>
                     <TableHead className="text-center text-sm font-bold">Defense</TableHead>
                     <TableHead className="text-sm font-bold">Notes</TableHead>
@@ -851,6 +967,9 @@ export default function TeamProfile() {
                           M{entry.matchNumber}
                         </TableCell>
                         <TableCell className={`text-center text-base font-semibold ${statRanges ? getHeatColor(entry.autoBallsShot, statRanges.auto.min, statRanges.auto.max) : ""}`}>{entry.autoBallsShot}</TableCell>
+                        <TableCell className={`text-center text-base font-semibold ${(entry.autoBallsShot ?? 0) >= 1 && entry.autoAccuracy != null && statRanges?.autoAccuracy ? getHeatColor(toPct(entry.autoAccuracy), statRanges.autoAccuracy.min, statRanges.autoAccuracy.max) : ""}`}>
+                          {(entry.autoBallsShot ?? 0) >= 1 && entry.autoAccuracy != null ? `${toPct(entry.autoAccuracy)}%` : <span className="text-muted-foreground/50">—</span>}
+                        </TableCell>
                         <TableCell className="text-center">
                           <Badge
                             variant={entry.autoClimbSuccess === "success" ? "default" : "secondary"}
@@ -861,15 +980,20 @@ export default function TeamProfile() {
                         </TableCell>
                         <TableCell className={`text-center text-base font-semibold ${statRanges ? getHeatColor(entry.teleopFpsEstimate, statRanges.throughput.min, statRanges.throughput.max) : ""}`}>{entry.teleopFpsEstimate}</TableCell>
                         <TableCell className={`text-center text-base font-semibold ${statRanges ? getHeatColor(toPct(entry.teleopAccuracy ?? 0), statRanges.accuracy.min, statRanges.accuracy.max) : ""}`}>{toPct(entry.teleopAccuracy ?? 0)}<span className="text-xs">%</span></TableCell>
+                        <TableCell className={`text-center text-base font-semibold ${entry.driverSkill != null && statRanges?.driverSkill ? getHeatColor(toPct(entry.driverSkill), statRanges.driverSkill.min, statRanges.driverSkill.max) : ""}`}>
+                          {entry.driverSkill != null ? <>{toPct(entry.driverSkill)}<span className="text-xs">%</span></> : <span className="text-muted-foreground/50">—</span>}
+                        </TableCell>
                         <TableCell className="text-center">
                           <Badge
                             variant={entry.climbSuccess === "success" ? "default" : "secondary"}
                             className={`text-sm font-semibold ${entry.climbSuccess === "success" ? "bg-green-600 text-white" : entry.climbSuccess === "failed" ? "bg-red-500/15 text-red-500" : ""}`}
                           >
-                            {entry.climbSuccess === "success" ? "Yes" : entry.climbSuccess === "failed" ? "Failed" : "No"}
+                            {entry.climbSuccess === "success" ? `L${entry.climbLevel || "?"}` : entry.climbSuccess === "failed" ? "Failed" : "No"}
                           </Badge>
                         </TableCell>
-                        <TableCell className={`text-center text-base font-semibold ${statRanges ? getHeatColor(toPct(entry.defenseRating ?? 0), statRanges.defense.min, statRanges.defense.max) : ""}`}>{toPct(entry.defenseRating ?? 0)}<span className="text-xs">%</span></TableCell>
+                        <TableCell className={`text-center text-base font-semibold ${entry.playedDefense && statRanges ? getHeatColor(toPct(entry.defenseRating ?? 0), statRanges.defense.min, statRanges.defense.max) : ""}`}>
+                          {entry.playedDefense ? <>{toPct(entry.defenseRating ?? 0)}<span className="text-xs">%</span></> : <span className="text-muted-foreground/50">—</span>}
+                        </TableCell>
                         <TableCell className="max-w-[250px] truncate text-sm">
                           {entry.notes || "-"}
                         </TableCell>
