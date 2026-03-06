@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "wouter";
-import { toPct, getHeatColor, getRowBorderColor, computeTeamStats, computeStatRanges, computeSzrMap, parseSzrWeights } from "@/lib/team-colors";
+import { toPct, getHeatColor, getRowBorderColor, computeTeamStats, computeStatRanges, computeStatRangesForSzr, computeTbaRanges, computeSzrMapWithSweepBonus, parseSzrWeights } from "@/lib/team-colors";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -143,8 +143,10 @@ export default function DataManagement() {
     const teams = eventTeams.map(et => et.team);
     const teamStats = computeTeamStats(teams, entries);
     const statRanges = computeStatRanges(teamStats);
+    const statRangesForSzr = computeStatRangesForSzr(teamStats);
+    const tbaRanges = computeTbaRanges(eventTeams);
     const szrWeights = parseSzrWeights(event.szrWeights);
-    const szrMap = computeSzrMap(teams, entries, statRanges, szrWeights);
+    const szrMap = computeSzrMapWithSweepBonus(teams, entries, statRangesForSzr, statRanges, szrWeights, eventTeams, tbaRanges);
 
     const headers = [
       "Team Number", "Team Name", "City", "State",

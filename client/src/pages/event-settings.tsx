@@ -316,13 +316,13 @@ export default function EventSettings() {
 
   const szrWeightsChanged = (() => {
     const current = normalizeWeightsToPercent(parseSzrWeights(event?.szrWeights));
-    return szrWeights.auto !== current.auto || szrWeights.throughput !== current.throughput || szrWeights.accuracy !== current.accuracy || szrWeights.defense !== current.defense || szrWeights.climb !== current.climb;
+    return szrWeights.auto !== current.auto || szrWeights.throughput !== current.throughput || szrWeights.accuracy !== current.accuracy || szrWeights.defense !== current.defense || szrWeights.driverSkill !== current.driverSkill || szrWeights.climb !== current.climb;
   })();
 
   const handleSzrWeightChange = (key: keyof SzrWeights, value: number) => {
     setSzrWeights((prev) => {
       const clamped = Math.max(0, Math.min(100, value));
-      const others = (["auto", "throughput", "accuracy", "defense", "climb"] as const).filter((k) => k !== key);
+      const others = (["auto", "throughput", "accuracy", "defense", "driverSkill", "climb"] as const).filter((k) => k !== key);
       const otherSum = others.reduce((s, k) => s + prev[k], 0);
       const remaining = 100 - clamped;
 
@@ -343,7 +343,7 @@ export default function EventSettings() {
         }
       }
 
-      const sum = (["auto", "throughput", "accuracy", "defense", "climb"] as const).reduce((s, k) => s + next[k], 0);
+      const sum = (["auto", "throughput", "accuracy", "defense", "driverSkill", "climb"] as const).reduce((s, k) => s + next[k], 0);
       const diff = 100 - sum;
       if (Math.abs(diff) > 0.01) {
         const largestOther = others.reduce((best, k) => (prev[k] > (prev[best] ?? 0) ? k : best), others[0]);
@@ -405,7 +405,7 @@ export default function EventSettings() {
             {help?.HelpTrigger?.({
               content: {
                 title: "SZR weights",
-                body: <p>SZR is a single number from your scouting data (auto, throughput, accuracy, defense, climb). Adjust weights to emphasize what matters most for your strategy. Weights always sum to 100%.</p>,
+                body: <p>SZR is a single number from your scouting data (auto, throughput, accuracy, defense, driver rating, climb). Adjust weights to emphasize what matters most. Uses percentile-based ranges and a balance factor so one dominant stat can&apos;t overpower the score. Weights sum to 100%.</p>,
               },
             })}
           </CardTitle>
@@ -414,10 +414,10 @@ export default function EventSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {(["auto", "throughput", "accuracy", "defense", "climb"] as const).map((key) => (
+          {(["auto", "throughput", "accuracy", "defense", "driverSkill", "climb"] as const).map((key) => (
             <div key={key} className="space-y-2">
               <div className="flex justify-between">
-                <Label className="capitalize">{key === "throughput" ? "Throughput" : key}</Label>
+                <Label className="capitalize">{key === "throughput" ? "Throughput" : key === "driverSkill" ? "Driver (DR)" : key}</Label>
                 <span className="text-sm tabular-nums text-muted-foreground">{Math.round(szrWeights[key])}%</span>
               </div>
               <Slider
@@ -432,7 +432,7 @@ export default function EventSettings() {
             </div>
           ))}
           <p className="text-xs text-muted-foreground">
-            Total: {Math.round((["auto", "throughput", "accuracy", "defense", "climb"] as const).reduce((s, k) => s + szrWeights[k], 0))}%
+            Total: {Math.round((["auto", "throughput", "accuracy", "defense", "driverSkill", "climb"] as const).reduce((s, k) => s + szrWeights[k], 0))}%
           </p>
           <div className="flex gap-2 pt-2">
             <Button

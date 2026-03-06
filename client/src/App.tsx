@@ -19,6 +19,7 @@ import { RufflesProvider } from "@/contexts/ruffles";
 import { DraggableRuffles } from "@/components/draggable-ruffles";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
+import Landing from "@/pages/landing";
 import AdminEvents from "@/pages/admin-events";
 import AdminEventDetail from "@/pages/admin-event-detail";
 import UserManagement from "@/pages/user-management";
@@ -34,6 +35,9 @@ import MatchDetail from "@/pages/match-detail";
 import MatchSimulator from "@/pages/match-simulator";
 import EventSettings from "@/pages/event-settings";
 import Picklist from "@/pages/picklist";
+import PicklistList from "@/pages/picklist-list";
+import ScouterLeaderboard from "@/pages/scouter-leaderboard";
+import ScouterProfile from "@/pages/scouter-profile";
 import { Loader2 } from "lucide-react";
 
 function ScrollToTop({ containerRef }: { containerRef: React.RefObject<HTMLElement | null> }) {
@@ -102,16 +106,23 @@ function EventLayout() {
                 <Route path="/events/:id/schedule/:matchNumber" component={MatchDetail} />
                 <Route path="/events/:id/simulator" component={MatchSimulator} />
                 <Route path="/events/:id/settings" component={EventSettings} />
+                <Route path="/events/:id/picklists" component={PicklistList} />
                 <Route path="/events/:id/picklist" component={Picklist} />
                 <Route path="/events/:id/teams/:teamId" component={TeamProfile} />
                 <Route path="/events/:id/teams/:teamId/compare/:otherTeamId?" component={TeamCompare} />
                 <Route path="/events/:id/teams/:teamId/notes" component={TeamNotes} />
+                <Route path="/events/:id/scouters/:scouterId" component={ScouterProfile} />
+                <Route path="/events/:id/scouters" component={ScouterLeaderboard} />
                 <Route component={NotFound} />
               </Switch>
             ) : (
               <Switch>
                 <Route path="/events/:id/scout" component={ScoutForm} />
                 <Route path="/events/:id/scout/history" component={FormHistory} />
+                <Route path="/events/:id/picklists" component={PicklistList} />
+                <Route path="/events/:id/picklist" component={Picklist} />
+                <Route path="/events/:id/scouters/:scouterId" component={ScouterProfile} />
+                <Route path="/events/:id/scouters" component={ScouterLeaderboard} />
                 <Route path="/events/:id" component={ScouterRedirect} />
                 <Route component={ScouterRedirect} />
               </Switch>
@@ -123,6 +134,24 @@ function EventLayout() {
     </SidebarProvider>
     </EventUpdatesProvider>
   );
+}
+
+function AuthenticatedRedirect() {
+  const [location, setLocation] = useLocation();
+  useEffect(() => {
+    if (location === "/login") {
+      setLocation("/", { replace: true });
+    }
+  }, [location, setLocation]);
+  return null;
+}
+
+function RedirectTo({ path }: { path: string }) {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    setLocation(path, { replace: true });
+  }, [path, setLocation]);
+  return null;
 }
 
 function AppContent() {
@@ -138,7 +167,13 @@ function AppContent() {
   }
 
   if (!user) {
-    return <Login />;
+    return (
+      <Switch>
+        <Route path="/" component={Landing} />
+        <Route path="/login" component={Login} />
+        <Route component={Landing} />
+      </Switch>
+    );
   }
 
   return (
@@ -150,7 +185,11 @@ function AppContent() {
           transition: "transform 0.6s ease",
         }}
       >
+        <AuthenticatedRedirect />
         <Switch>
+          <Route path="/login">
+            <RedirectTo path="/" />
+          </Route>
           <Route path="/" component={AdminEvents} />
           <Route path="/admin/users" component={UserManagement} />
           <Route path="/events/:id/*?" component={EventLayout} />

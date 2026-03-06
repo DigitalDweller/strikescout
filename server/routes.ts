@@ -51,14 +51,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  // --- Auth gate: runs FIRST for every /api request ---
-  app.use("/api", (req: Request, res: Response, next: NextFunction) => {
-    const path = req.path;
-    if (path === "/login" || path === "/logout" || path === "/user") return next();
-    requireAuth(req, res, next);
-  });
-
-  // --- Public auth routes ---
+  // --- Public routes (registered BEFORE auth gate so they bypass it) ---
   app.post("/api/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: Express.User | false, info: { message: string } | undefined) => {
       if (err) return next(err);
@@ -178,15 +171,43 @@ export async function registerRoutes(
       if (!user) return res.sendStatus(404);
       const stats = await storage.getScouterStats(id);
       const totalEntries = stats.reduce((s, r) => s + r.entryCount, 0);
+      const awardsSum = (await storage.getRepAwardsSumForScouters([id])).get(id) ?? 0;
+      const rep = stats.length * 10 + totalEntries + awardsSum;
+      const repHistory = await storage.getRepHistoryForScouter(id);
       res.json({
         id: user.id,
         displayName: user.displayName,
         role: user.role,
         totalEntries,
+        rep,
+        repHistory,
         events: stats.map(s => ({ eventId: s.eventId, eventName: s.eventName, entryCount: s.entryCount })),
       });
     } catch (err: any) {
       res.status(500).json({ message: err?.message || "Failed to fetch profile" });
+    }
+  });
+
+  /** Admin: award rep to a scouter. */
+  app.post("/api/users/:id/rep-awards", requireAdmin, async (req, res) => {
+    try {
+      const scouterId = parseInt(req.params.id);
+      if (!Number.isFinite(scouterId)) return res.status(400).json({ message: "Invalid user id" });
+      const { amount, reason, eventId } = req.body;
+      const parsedAmount = typeof amount === "number" ? amount : parseInt(String(amount), 10);
+      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) return res.status(400).json({ message: "Amount must be a positive number" });
+      const awardedById = req.user?.id;
+      if (!awardedById) return res.status(401).json({ message: "Not authenticated" });
+      await storage.createRepAward({
+        scouterId,
+        awardedById,
+        amount: parsedAmount,
+        reason: typeof reason === "string" ? reason : null,
+        eventId: typeof eventId === "number" ? eventId : undefined,
+      });
+      res.status(201).json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err?.message || "Failed to award rep" });
     }
   });
 
@@ -814,6 +835,7 @@ export async function registerRoutes(
     throughput: z.number().min(0),
     accuracy: z.number().min(0),
     defense: z.number().min(0),
+    driverSkill: z.number().min(0).optional().default(18),
     climb: z.number().min(0),
   });
 
@@ -907,18 +929,23 @@ export async function registerRoutes(
     const eventId = parseInt(req.params.eventId);
     if (!Number.isFinite(eventId)) return res.status(400).json({ message: "Invalid event id" });
     const list = await storage.getPicklists(eventId);
-    res.json(list);
+    const counts = await storage.getPicklistEntryCounts(eventId);
+    const withStats = list.map((p) => ({ ...p, entryCount: counts.get(p.id) ?? 0 }));
+    res.json(withStats);
   });
 
   app.post("/api/events/:eventId/picklists", async (req, res) => {
     try {
       const eventId = parseInt(req.params.eventId);
       const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+      const adminOnly = !!req.body?.adminOnly;
       if (!Number.isFinite(eventId)) return res.status(400).json({ message: "Invalid event id" });
       if (!name) return res.status(400).json({ message: "Name is required" });
+      if (adminOnly && req.user?.role !== "admin") return res.status(403).json({ message: "Admin required to create admin-only picklist" });
       const event = await storage.getEvent(eventId);
       if (!event) return res.sendStatus(404);
-      const picklist = await storage.createPicklist(eventId, name);
+      const createdById = req.user?.id;
+      const picklist = await storage.createPicklist(eventId, name, adminOnly, createdById);
       notifyEventDataUpdated(eventId);
       res.status(201).json(picklist);
     } catch (err: any) {
@@ -931,12 +958,19 @@ export async function registerRoutes(
   app.patch("/api/events/:eventId/picklists/:picklistId", async (req, res) => {
     const eventId = parseInt(req.params.eventId);
     const picklistId = parseInt(req.params.picklistId);
-    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() || undefined : undefined;
+    const adminOnly = req.body?.adminOnly;
     if (!Number.isFinite(eventId) || !Number.isFinite(picklistId)) return res.status(400).json({ message: "Invalid id" });
-    if (!name) return res.status(400).json({ message: "Name is required" });
     const list = await storage.getPicklists(eventId);
-    if (!list.some((p) => p.id === picklistId)) return res.sendStatus(404);
-    const updated = await storage.updatePicklist(picklistId, { name });
+    const picklist = list.find((p) => p.id === picklistId);
+    if (!picklist) return res.sendStatus(404);
+    if ((picklist as { adminOnly?: boolean }).adminOnly && req.user?.role !== "admin") return res.status(403).json({ message: "Admin-only picklist" });
+    if (adminOnly !== undefined && req.user?.role !== "admin") return res.status(403).json({ message: "Admin required to change admin-only setting" });
+    const updates: { name?: string; adminOnly?: boolean } = {};
+    if (name !== undefined) updates.name = name;
+    if (adminOnly !== undefined) updates.adminOnly = !!adminOnly;
+    if (Object.keys(updates).length === 0) return res.json(picklist);
+    const updated = await storage.updatePicklist(picklistId, updates);
     notifyEventDataUpdated(eventId);
     res.json(updated);
   });
@@ -946,7 +980,9 @@ export async function registerRoutes(
     const picklistId = parseInt(req.params.picklistId);
     if (!Number.isFinite(eventId) || !Number.isFinite(picklistId)) return res.status(400).json({ message: "Invalid id" });
     const list = await storage.getPicklists(eventId);
-    if (!list.some((p) => p.id === picklistId)) return res.sendStatus(404);
+    const picklist = list.find((p) => p.id === picklistId);
+    if (!picklist) return res.sendStatus(404);
+    if ((picklist as { adminOnly?: boolean }).adminOnly && req.user?.role !== "admin") return res.status(403).json({ message: "Admin-only picklist" });
     await storage.deletePicklist(picklistId);
     notifyEventDataUpdated(eventId);
     res.sendStatus(204);
@@ -969,7 +1005,9 @@ export async function registerRoutes(
     if (!Number.isFinite(eventId) || !Number.isFinite(picklistId)) return res.status(400).json({ message: "Invalid id" });
     if (!Array.isArray(teamIds)) return res.status(400).json({ message: "teamIds must be an array" });
     const list = await storage.getPicklists(eventId);
-    if (!list.some((p) => p.id === picklistId)) return res.sendStatus(404);
+    const picklist = list.find((p) => p.id === picklistId);
+    if (!picklist) return res.sendStatus(404);
+    if ((picklist as { adminOnly?: boolean }).adminOnly && req.user?.role !== "admin") return res.status(403).json({ message: "Admin-only picklist" });
     await storage.setPicklistEntries(picklistId, teamIds);
     const entries = await storage.getPicklistEntries(picklistId);
     notifyEventDataUpdated(eventId);
@@ -982,7 +1020,9 @@ export async function registerRoutes(
     const teamId = parseInt(req.params.teamId);
     if (!Number.isFinite(eventId) || !Number.isFinite(picklistId) || !Number.isFinite(teamId)) return res.status(400).json({ message: "Invalid id" });
     const list = await storage.getPicklists(eventId);
-    if (!list.some((p) => p.id === picklistId)) return res.sendStatus(404);
+    const picklist = list.find((p) => p.id === picklistId);
+    if (!picklist) return res.sendStatus(404);
+    if ((picklist as { adminOnly?: boolean }).adminOnly && req.user?.role !== "admin") return res.status(403).json({ message: "Admin-only picklist" });
     await storage.removeFromPicklistEntries(picklistId, teamId);
     const entries = await storage.getPicklistEntries(picklistId);
     notifyEventDataUpdated(eventId);

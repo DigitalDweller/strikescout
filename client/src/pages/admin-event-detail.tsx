@@ -9,6 +9,7 @@ import {
   MapPin,
   Calendar,
   Users,
+  User as UserIcon,
   ClipboardList,
   CalendarDays,
   ListOrdered,
@@ -154,8 +155,9 @@ export default function AdminEventDetail() {
   const quickActions = [
     { title: "Scout", href: `/events/${eventId}/scout`, icon: ClipboardList, color: "text-emerald-500", desc: "Record match data" },
     { title: "Teams", href: `/events/${eventId}/teams`, icon: Users, color: "text-blue-500", desc: "View & sort teams" },
+    { title: "Scouter Leaderboard", href: `/events/${eventId}/scouters`, icon: UserIcon, color: "text-emerald-500", desc: "Scouter stats & rankings" },
     { title: "Matches", href: `/events/${eventId}/schedule`, icon: CalendarDays, color: "text-sky-500", desc: "Match schedule & results" },
-    { title: "Picklist", href: `/events/${eventId}/picklist`, icon: ListOrdered, color: "text-teal-500", desc: "Build draft order" },
+    { title: "Picklists", href: `/events/${eventId}/picklists`, icon: ListOrdered, color: "text-teal-500", desc: "Build draft order" },
     { title: "Data", href: `/events/${eventId}/data`, icon: Database, color: "text-slate-400", desc: "Export CSV" },
     { title: "Settings", href: `/events/${eventId}/settings`, icon: Settings, color: "text-slate-400", desc: "TBA & sync" },
   ];
@@ -231,8 +233,8 @@ export default function AdminEventDetail() {
               </li>
               <li>
                 <strong>Build your picklist</strong> — After collecting data, use the{" "}
-                <Link href={`/events/${eventId}/picklist`} className="text-primary hover:underline font-medium">
-                  Picklist
+                <Link href={`/events/${eventId}/picklists`} className="text-primary hover:underline font-medium">
+                  Picklists
                 </Link>
                 {" "}to rank teams for alliance selection.
               </li>

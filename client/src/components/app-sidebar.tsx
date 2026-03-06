@@ -40,6 +40,7 @@ import {
   Settings,
   ListOrdered,
   LogOut,
+  Trophy,
   User as UserIcon,
   Wrench,
 } from "lucide-react";
@@ -191,17 +192,19 @@ export function AppSidebar({ eventId }: { eventId: number }) {
         { title: "Form History", url: `/events/${eventId}/scout/history`, icon: History, iconClass: "text-green-400" },
       ],
     },
-    ...(isAdmin ? [{ title: "Picklist", url: `/events/${eventId}/picklist`, icon: ListOrdered, iconClass: "text-teal-500" }] : []),
+    { title: "Picklists", url: `/events/${eventId}/picklists`, icon: ListOrdered, iconClass: "text-teal-500" },
+    { title: "Scouter Leaderboard", url: `/events/${eventId}/scouters`, icon: Trophy, iconClass: "text-amber-500" },
   ];
 
   const navHints: Record<string, string> = {
     "Overview": "Event dashboard and quick actions",
     "Teams": "View and sort all teams",
+    "Scouter Leaderboard": "Individual scouter stats and ranking colors",
     "Matches": "Schedule and results",
     "Match Simulator": "Predict match outcomes",
     "Scouting Form": "Enter match data",
     "Form History": "Past scouting entries",
-    "Picklist": "Rank teams for alliance selection",
+    "Picklists": "View and edit picklists for alliance selection",
     "Data Management": "Export data to CSV",
     "Settings": "TBA sync and event setup",
   };

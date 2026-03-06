@@ -23,7 +23,7 @@ import { useHelp } from "@/contexts/help-context";
 import type { Event, Team, EventTeam, ScoutingEntry } from "@shared/schema";
 import { toPct } from "@/lib/team-colors";
 import { TeamSearchInput } from "@/components/team-search-input";
-import { computeTeamStats, computeStatRanges, computeTbaRanges, computeSzrMap, parseSzrWeights } from "@/lib/team-colors";
+import { computeTeamStats, computeStatRanges, computeStatRangesForSzr, computeTbaRanges, computeSzrMapWithSweepBonus, parseSzrWeights } from "@/lib/team-colors";
 import placeholderAvatar from "@assets/images_1772071870956.png";
 
 type TeamStatsSlice = {
@@ -104,9 +104,10 @@ export default function MatchSimulator() {
     return map;
   }, [allEntries, eventTeams]);
   const statRanges = useMemo(() => computeStatRanges(rawTeamStats), [rawTeamStats]);
+  const statRangesForSzr = useMemo(() => computeStatRangesForSzr(rawTeamStats), [rawTeamStats]);
   const tbaRanges = useMemo(() => computeTbaRanges(eventTeams || []), [eventTeams]);
   const szrWeights = useMemo(() => parseSzrWeights(event?.szrWeights), [event?.szrWeights]);
-  const szrMap = useMemo(() => computeSzrMap(eventTeamList, allEntries || [], statRanges, szrWeights), [eventTeamList, allEntries, statRanges, szrWeights]);
+  const szrMap = useMemo(() => computeSzrMapWithSweepBonus(eventTeamList, allEntries || [], statRangesForSzr, statRanges, szrWeights, eventTeams ?? undefined, tbaRanges), [eventTeamList, allEntries, statRangesForSzr, statRanges, szrWeights, eventTeams, tbaRanges]);
 
   const teamNumToId = useMemo(() => {
     const m = new Map<number, number>();

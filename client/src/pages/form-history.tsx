@@ -83,19 +83,23 @@ export default function FormHistory() {
     mutationFn: async ({ id, data }: { id: number; data: Partial<ScoutingEntry> }) => {
       await apiRequest("PATCH", `/api/entries/${id}`, data, { eventId });
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: [entriesUrl] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "scouters"] });
+      if (variables.scouterId) queryClient.invalidateQueries({ queryKey: ["/api/users", variables.scouterId, "profile"] });
       toast({ title: "Entry updated" });
       setEditEntry(null);
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
+    mutationFn: async ({ id }: { id: number; scouterId?: number }) => {
       await apiRequest("DELETE", `/api/entries/${id}`, undefined, { eventId });
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: [entriesUrl] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "scouters"] });
+      if (variables.scouterId) queryClient.invalidateQueries({ queryKey: ["/api/users", variables.scouterId, "profile"] });
       toast({ title: "Entry deleted" });
       setDeleteEntry(null);
     },
@@ -461,7 +465,7 @@ export default function FormHistory() {
             <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => deleteEntry && deleteMutation.mutate(deleteEntry.id)}
+              onClick={() => deleteEntry && deleteMutation.mutate({ id: deleteEntry.id, scouterId: deleteEntry.scouterId })}
               data-testid="button-confirm-delete"
             >
               {deleteMutation.isPending ? "Deleting..." : "Delete"}

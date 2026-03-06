@@ -9,6 +9,17 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   displayName: text("display_name").notNull(),
   role: text("role").notNull().default("scouter"),
+  email: text("email"),
+});
+
+export const pendingSignups = pgTable("pending_signups", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull(),
+  username: text("username").notNull(),
+  password: text("password").notNull(),
+  confirmationToken: text("confirmation_token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const events = pgTable("events", {
@@ -50,6 +61,8 @@ export const picklists = pgTable("picklists", {
   id: serial("id").primaryKey(),
   eventId: integer("event_id").notNull(),
   name: text("name").notNull(),
+  adminOnly: boolean("admin_only").notNull().default(false),
+  createdById: integer("created_by_id").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -97,6 +110,16 @@ export const scoutingEntries = pgTable("scouting_entries", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const repAwards = pgTable("rep_awards", {
+  id: serial("id").primaryKey(),
+  scouterId: integer("scouter_id").notNull().references(() => users.id),
+  awardedById: integer("awarded_by_id").notNull().references(() => users.id),
+  amount: integer("amount").notNull(),
+  reason: text("reason"),
+  eventId: integer("event_id").references(() => events.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const scheduleMatches = pgTable("schedule_matches", {
   id: serial("id").primaryKey(),
   eventId: integer("event_id").notNull(),
@@ -116,6 +139,13 @@ export const scheduleMatches = pgTable("schedule_matches", {
 
 export const usersRelations = relations(users, ({ many }) => ({
   scoutingEntries: many(scoutingEntries),
+  repAwardsReceived: many(repAwards),
+}));
+
+export const repAwardsRelations = relations(repAwards, ({ one }) => ({
+  scouter: one(users, { fields: [repAwards.scouterId], references: [users.id] }),
+  awardedBy: one(users, { fields: [repAwards.awardedById], references: [users.id] }),
+  event: one(events, { fields: [repAwards.eventId], references: [events.id] }),
 }));
 
 export const eventsRelations = relations(events, ({ many }) => ({
@@ -163,8 +193,12 @@ export const insertScoutingEntrySchema = createInsertSchema(scoutingEntries).omi
 export const insertScheduleMatchSchema = createInsertSchema(scheduleMatches).omit({ id: true });
 export const insertPicklistSchema = createInsertSchema(picklists).omit({ id: true, createdAt: true });
 export const insertPicklistEntrySchema = createInsertSchema(picklistEntries).omit({ id: true });
+export const insertRepAwardSchema = createInsertSchema(repAwards).omit({ id: true, createdAt: true });
+export const insertPendingSignupSchema = createInsertSchema(pendingSignups).omit({ id: true, createdAt: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type PendingSignup = typeof pendingSignups.$inferSelect;
+export type InsertPendingSignup = z.infer<typeof insertPendingSignupSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertEvent = z.infer<typeof insertEventSchema>;
 export type Event = typeof events.$inferSelect;
@@ -180,3 +214,5 @@ export type Picklist = typeof picklists.$inferSelect;
 export type InsertPicklist = z.infer<typeof insertPicklistSchema>;
 export type InsertPicklistEntry = z.infer<typeof insertPicklistEntrySchema>;
 export type PicklistEntry = typeof picklistEntries.$inferSelect;
+export type RepAward = typeof repAwards.$inferSelect;
+export type InsertRepAward = z.infer<typeof insertRepAwardSchema>;

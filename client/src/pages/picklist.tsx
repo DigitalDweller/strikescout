@@ -29,25 +29,23 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
-import { Plus, X, GripVertical, Search, ListOrdered, MoreHorizontal, Pencil, Trash2, Users, ArrowRight } from "lucide-react";
+import { Plus, X, GripVertical, Search, ListOrdered, MoreHorizontal, Pencil, Trash2, Users, User, ArrowRight, Shield, ChevronDown } from "lucide-react";
 import { useHelp } from "@/contexts/help-context";
+import { useAuth } from "@/hooks/use-auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { Event, Team, EventTeam, PicklistEntry, Picklist, ScoutingEntry } from "@shared/schema";
 import placeholderAvatar from "@assets/images_1772071870956.png";
-import { getTeamDominantColor, computeTeamStats, computeStatRanges, computeTbaRanges, computeSzrMap, parseSzrWeights } from "@/lib/team-colors";
+import { getTeamDominantColor, computeTeamStats, computeStatRanges, computeStatRangesForSzr, computeTbaRanges, computeSzrMapWithSweepBonus, parseSzrWeights } from "@/lib/team-colors";
 import { RankingColorKey } from "@/components/ranking-color-key";
 
 type PicklistWithTeam = PicklistEntry & { team: Team };
 type EventTeamWithTeam = EventTeam & { team: Team };
+type PicklistWithCreator = Picklist & { createdBy?: { id: number; displayName: string; role: string } };
 
 type DragSource = { type: "available"; teamId: number } | { type: "picklist"; idx: number };
 
@@ -80,16 +78,25 @@ const PICKLIST_HELP = {
 export default function Picklist() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id!);
+  const listIdFromUrl = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const list = new URLSearchParams(window.location.search).get("list");
+    return list ? parseInt(list, 10) : null;
+  }, []);
   const { toast } = useToast();
   const help = useHelp();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [search, setSearch] = useState("");
   const [selectedPicklistId, setSelectedPicklistId] = useState<number | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
+  const [createAdminOnly, setCreateAdminOnly] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
-  const [renamePicklist, setRenamePicklist] = useState<Picklist | null>(null);
+  const [renamePicklist, setRenamePicklist] = useState<PicklistWithCreator | null>(null);
   const [renameName, setRenameName] = useState("");
-  const [deletePicklist, setDeletePicklist] = useState<Picklist | null>(null);
+  const [renameAdminOnly, setRenameAdminOnly] = useState(false);
+  const [deletePicklist, setDeletePicklist] = useState<PicklistWithCreator | null>(null);
   const [dragSource, setDragSource] = useState<DragSource | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [dragOverPanel, setDragOverPanel] = useState<"picklist" | "available" | null>(null);
@@ -121,7 +128,7 @@ export default function Picklist() {
     enabled: !!eventId,
   });
 
-  const { data: picklists = [], isLoading: picklistsLoading } = useQuery<Picklist[]>({
+  const { data: picklists = [], isLoading: picklistsLoading } = useQuery<PicklistWithCreator[]>({
     queryKey: ["/api/events", eventId, "picklists"],
     queryFn: async () => {
       const res = await fetch(`/api/events/${eventId}/picklists`);
@@ -131,11 +138,16 @@ export default function Picklist() {
   });
 
   useEffect(() => {
-    if (picklists.length > 0 && selectedPicklistId === null) setSelectedPicklistId(picklists[0].id);
-    if (picklists.length > 0 && selectedPicklistId !== null && !picklists.some((p) => p.id === selectedPicklistId)) {
+    if (picklists.length === 0) return;
+    const targetId = listIdFromUrl && picklists.some((p) => p.id === listIdFromUrl) ? listIdFromUrl : null;
+    if (targetId) {
+      setSelectedPicklistId(targetId);
+    } else if (selectedPicklistId === null) {
+      setSelectedPicklistId(picklists[0].id);
+    } else if (!picklists.some((p) => p.id === selectedPicklistId)) {
       setSelectedPicklistId(picklists[0].id);
     }
-  }, [picklists, selectedPicklistId]);
+  }, [picklists, selectedPicklistId, listIdFromUrl]);
 
   const { data: eventTeams, isLoading: teamsLoading } = useQuery<EventTeamWithTeam[]>({
     queryKey: ["/api/events", eventId, "teams"],
@@ -149,9 +161,15 @@ export default function Picklist() {
   const teams = useMemo(() => (eventTeams || []).map((et) => et.team), [eventTeams]);
   const teamStats = useMemo(() => computeTeamStats(teams, scoutingEntries), [teams, scoutingEntries]);
   const statRanges = useMemo(() => computeStatRanges(teamStats), [teamStats]);
+  const statRangesForSzr = useMemo(() => computeStatRangesForSzr(teamStats), [teamStats]);
   const tbaRanges = useMemo(() => computeTbaRanges(eventTeams || []), [eventTeams]);
   const szrWeights = useMemo(() => parseSzrWeights(event?.szrWeights), [event?.szrWeights]);
-  const szrMap = useMemo(() => computeSzrMap(teams, scoutingEntries, statRanges, szrWeights), [teams, scoutingEntries, statRanges, szrWeights]);
+  const szrMap = useMemo(() => computeSzrMapWithSweepBonus(teams, scoutingEntries, statRangesForSzr, statRanges, szrWeights, eventTeams ?? undefined, tbaRanges), [teams, scoutingEntries, statRangesForSzr, statRanges, szrWeights, eventTeams, tbaRanges]);
+  const szrSweepThreshold = useMemo(() => {
+    const values = Array.from(szrMap.values()).filter((v) => v > 0).sort((a, b) => b - a);
+    if (values.length < 2) return null;
+    return values[1] + 19;
+  }, [szrMap]);
 
   const { data: picklistEntries = [], isLoading: entriesLoading } = useQuery<PicklistWithTeam[]>({
     queryKey: ["/api/events", eventId, "picklists", selectedPicklistId, "entries"],
@@ -165,10 +183,11 @@ export default function Picklist() {
   });
 
   const selectedPicklist = useMemo(() => picklists.find((p) => p.id === selectedPicklistId) ?? null, [picklists, selectedPicklistId]);
+  const canEditPicklist = isAdmin || !selectedPicklist?.adminOnly;
 
   const createMutation = useMutation({
-    mutationFn: async (name: string) => {
-      const res = await apiRequest("POST", `/api/events/${eventId}/picklists`, { name });
+    mutationFn: async ({ name, adminOnly }: { name: string; adminOnly: boolean }) => {
+      const res = await apiRequest("POST", `/api/events/${eventId}/picklists`, { name, adminOnly });
       return res.json();
     },
     onSuccess: (created: Picklist) => {
@@ -176,20 +195,24 @@ export default function Picklist() {
       setSelectedPicklistId(created.id);
       setCreateOpen(false);
       setCreateName("");
+      setCreateAdminOnly(false);
       toast({ title: "Picklist created" });
     },
     onError: (e: Error) => toast({ title: "Failed to create picklist", description: e.message, variant: "destructive" }),
   });
 
   const renameMutation = useMutation({
-    mutationFn: async ({ id: picklistId, name }: { id: number; name: string }) => {
-      await apiRequest("PATCH", `/api/events/${eventId}/picklists/${picklistId}`, { name });
+    mutationFn: async ({ id: picklistId, name, adminOnly }: { id: number; name: string; adminOnly?: boolean }) => {
+      const body: { name?: string; adminOnly?: boolean } = { name };
+      if (adminOnly !== undefined) body.adminOnly = adminOnly;
+      await apiRequest("PATCH", `/api/events/${eventId}/picklists/${picklistId}`, body);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "picklists"] });
       setRenameOpen(false);
       setRenamePicklist(null);
       setRenameName("");
+      setRenameAdminOnly(false);
       toast({ title: "Picklist renamed" });
     },
     onError: (e: Error) => toast({ title: "Failed to rename", description: e.message, variant: "destructive" }),
@@ -206,6 +229,17 @@ export default function Picklist() {
       toast({ title: "Picklist deleted" });
     },
     onError: (e: Error) => toast({ title: "Failed to delete", description: e.message, variant: "destructive" }),
+  });
+
+  const setAdminOnlyMutation = useMutation({
+    mutationFn: async ({ picklistId, adminOnly, name }: { picklistId: number; adminOnly: boolean; name: string }) => {
+      await apiRequest("PATCH", `/api/events/${eventId}/picklists/${picklistId}`, { name, adminOnly });
+    },
+    onSuccess: (_, { adminOnly }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "picklists"] });
+      toast({ title: adminOnly ? "Picklist is now admin only" : "Picklist is now editable by all" });
+    },
+    onError: (e: Error) => toast({ title: "Failed to update", description: e.message, variant: "destructive" }),
   });
 
   const picklistTeamIds = useMemo(() => new Set(picklistEntries?.map((p) => p.teamId) || []), [picklistEntries]);
@@ -332,6 +366,7 @@ export default function Picklist() {
   };
 
   const handleAvailablePanelDrop = async () => {
+    if (!canEditPicklist) return;
     const src = dragSourceRef.current;
     if (!src) return;
     if (src.type === "picklist" && picklistEntries) {
@@ -344,6 +379,7 @@ export default function Picklist() {
   };
 
   const handlePicklistDrop = async (idx: number) => {
+    if (!canEditPicklist) return;
     const src = dragSourceRef.current;
     if (!src || !picklistEntries) return;
     if (src.type === "picklist") {
@@ -360,6 +396,7 @@ export default function Picklist() {
   };
 
   const handlePicklistPanelDrop = async () => {
+    if (!canEditPicklist) return;
     const src = dragSourceRef.current;
     if (!src) return;
     if (src.type === "available") {
@@ -379,8 +416,8 @@ export default function Picklist() {
   const getTeamEventData = useCallback((teamId: number) => eventTeams?.find((e) => e.teamId === teamId), [eventTeams]);
 
   const getTeamColor = useCallback(
-    (teamId: number) => getTeamDominantColor(teamId, eventTeams ?? undefined, teamStats, statRanges, tbaRanges),
-    [eventTeams, teamStats, statRanges, tbaRanges]
+    (teamId: number) => getTeamDominantColor(teamId, eventTeams ?? undefined, teamStats, statRanges, tbaRanges, { szrMap, szrSweepThreshold }),
+    [eventTeams, teamStats, statRanges, tbaRanges, szrMap, szrSweepThreshold]
   );
 
   const isLoading = teamsLoading || picklistsLoading;
@@ -427,22 +464,35 @@ export default function Picklist() {
             </div>
             {picklists.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
-                <Select
-                  value={selectedPicklistId?.toString() ?? ""}
-                  onValueChange={(v) => setSelectedPicklistId(v ? parseInt(v, 10) : null)}
-                >
-                  <SelectTrigger className="w-[200px] font-medium" data-testid="select-picklist">
-                    <SelectValue placeholder="Choose list" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {picklists.map((p) => (
-                      <SelectItem key={p.id} value={p.id.toString()}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedPicklist && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-[200px] justify-between font-medium" data-testid="select-picklist">
+                      <span className="flex items-center gap-2 truncate">
+                        {selectedPicklist ? selectedPicklist.name : "Choose list"}
+                        {selectedPicklist?.adminOnly && <Shield className="h-4 w-4 text-blue-500 shrink-0" aria-label="Admin only" />}
+                      </span>
+                      <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-[200px]">
+                    <DropdownMenuRadioGroup value={selectedPicklistId?.toString() ?? ""} onValueChange={(v) => setSelectedPicklistId(v ? parseInt(v, 10) : null)}>
+                      {picklists.map((p) => (
+                        <DropdownMenuRadioItem key={p.id} value={p.id.toString()}>
+                          <span className="flex flex-col items-start gap-0.5 min-w-0">
+                            <span className="flex items-center gap-2">
+                              {p.name}
+                              {p.adminOnly && <Shield className="h-4 w-4 text-blue-500 shrink-0" aria-label="Admin only" />}
+                            </span>
+                            {p.createdBy && (
+                              <span className="text-[10px] text-muted-foreground truncate w-full">by {p.createdBy.displayName}{p.createdBy.role === "admin" ? " (Admin)" : ""}</span>
+                            )}
+                          </span>
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {selectedPicklist && canEditPicklist && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" data-testid="button-picklist-edit">
@@ -450,10 +500,21 @@ export default function Picklist() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      {isAdmin && (
+                        <DropdownMenuItem
+                          onClick={() => setAdminOnlyMutation.mutate({ picklistId: selectedPicklist.id, adminOnly: !selectedPicklist.adminOnly, name: selectedPicklist.name })}
+                          disabled={setAdminOnlyMutation.isPending}
+                          data-testid="button-toggle-admin-only"
+                        >
+                          <Shield className="h-4 w-4 mr-2 text-blue-500" />
+                          {selectedPicklist.adminOnly ? "Remove admin only" : "Make admin only"}
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
                         onClick={() => {
                           setRenamePicklist(selectedPicklist);
                           setRenameName(selectedPicklist.name);
+                          setRenameAdminOnly(selectedPicklist.adminOnly ?? false);
                           setRenameOpen(true);
                         }}
                         data-testid="button-rename-picklist"
@@ -503,10 +564,33 @@ export default function Picklist() {
         ) : selectedPicklistId && (
           <>
             <div className="flex flex-col gap-2">
-              <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                <ArrowRight className="h-4 w-4" />
-                Add teams from the left, then drag to reorder. Drag a team back to the left to remove it.
-              </p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                {selectedPicklist?.createdBy && (
+                  <span className="flex items-center gap-2" data-testid="text-picklist-creator">
+                    <span className="flex items-center gap-1.5">
+                      <User className="h-4 w-4 shrink-0" />
+                      Created by {selectedPicklist.createdBy.displayName}
+                    </span>
+                    {selectedPicklist.createdBy.role === "admin" && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-blue-500/15 px-1.5 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">
+                        <Shield className="h-3 w-3" />
+                        Admin
+                      </span>
+                    )}
+                  </span>
+                )}
+                {!canEditPicklist ? (
+                  <span className="flex items-center gap-1.5">
+                    <Shield className="h-4 w-4 text-blue-500 shrink-0" aria-label="Admin only" />
+                    Admin-only picklist — view only. Only admins can edit this list.
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <ArrowRight className="h-4 w-4" />
+                    Add teams from the left, then drag to reorder. Drag a team back to the left to remove it.
+                  </span>
+                )}
+              </div>
               <RankingColorKey />
             </div>
 
@@ -565,13 +649,13 @@ export default function Picklist() {
                     return (
                       <div
                         key={et.teamId}
-                        draggable
-                        onDragStart={(e) => handleDragStart({ type: "available", teamId: et.teamId }, e)}
+                        draggable={canEditPicklist}
+                        onDragStart={(e) => canEditPicklist && handleDragStart({ type: "available", teamId: et.teamId }, e)}
                         onDragEnd={resetDrag}
-                        className={`flex items-center gap-3 rounded-lg border-l-4 py-2.5 px-3 transition-colors group cursor-grab active:cursor-grabbing ${colors.border} ${colors.bg || "hover:bg-muted/50"} ${isDragging ? "opacity-40" : ""}`}
+                        className={`flex items-center gap-3 rounded-lg border-l-4 py-2.5 px-3 transition-colors group ${canEditPicklist ? "cursor-grab active:cursor-grabbing" : ""} ${colors.border} ${colors.bg || "hover:bg-muted/50"} ${isDragging ? "opacity-40" : ""}`}
                         data-testid={`available-team-${et.teamId}`}
                       >
-                        <GripVertical className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+                        {canEditPicklist ? <GripVertical className="h-4 w-4 text-muted-foreground/50 shrink-0" /> : <span className="w-4 shrink-0" aria-hidden />}
                         <img src={et.team.avatar || placeholderAvatar} alt="" className="h-9 w-9 rounded-full border border-border object-cover bg-muted shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="font-semibold text-sm truncate">{et.team.teamNumber} — {et.team.teamName}</div>
@@ -581,9 +665,11 @@ export default function Picklist() {
                             {rank != null && <span>Rank #{rank}</span>}
                           </div>
                         </div>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity" onClick={() => addTeam(et.teamId)} data-testid={`button-add-${et.teamId}`} aria-label={`Add team ${et.team.teamNumber}`}>
-                          <Plus className="h-4 w-4" />
-                        </Button>
+                        {canEditPicklist && (
+                          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity" onClick={() => addTeam(et.teamId)} data-testid={`button-add-${et.teamId}`} aria-label={`Add team ${et.team.teamNumber}`}>
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     );
                   })
@@ -614,12 +700,15 @@ export default function Picklist() {
                   <div className="min-w-0 flex-1">
                     <CardTitle className="text-base font-semibold flex items-center gap-1.5">
                       {selectedPicklist?.name ?? "Picklist"}
+                      {selectedPicklist?.adminOnly && <Shield className="h-4 w-4 text-blue-500 shrink-0" aria-label="Admin only" />}
                       {help?.HelpTrigger?.({
                         content: { title: "Your picklist", body: <p>Teams you&apos;ve ranked. Drag by the handle to reorder. Top = preferred. Drop here from Available to remove.</p> },
                       })}
                     </CardTitle>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {picklistEntries?.length ?? 0} of {eventTeams?.length ?? 0} teams · drag to reorder
+                      {picklistEntries?.length ?? 0} of {eventTeams?.length ?? 0} teams
+                      {selectedPicklist?.createdBy && <> · by {selectedPicklist.createdBy.displayName}{selectedPicklist.createdBy.role === "admin" ? " (Admin)" : ""}</>}
+                      {" · drag to reorder"}
                     </p>
                   </div>
                 </div>
@@ -649,19 +738,19 @@ export default function Picklist() {
                     return (
                       <div
                         key={entry.teamId}
-                        draggable
-                        onDragStart={(e) => handleDragStart({ type: "picklist", idx }, e)}
-                        onDragOver={(e) => handlePicklistDragOver(e, idx)}
+                        draggable={canEditPicklist}
+                        onDragStart={(e) => canEditPicklist && handleDragStart({ type: "picklist", idx }, e)}
+                        onDragOver={(e) => canEditPicklist && handlePicklistDragOver(e, idx)}
                         onDrop={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           handlePicklistDrop(idx);
                         }}
                         onDragEnd={resetDrag}
-                        className={`flex items-center gap-3 rounded-lg border-l-4 py-2.5 px-3 transition-all cursor-grab active:cursor-grabbing ${colors.border} ${isDragging ? "opacity-40" : ""} ${isDragOver ? "bg-primary/15 border border-primary/40 ring-1 ring-primary/20" : `${colors.bg || "hover:bg-muted/50"} border border-transparent`}`}
+                        className={`flex items-center gap-3 rounded-lg border-l-4 py-2.5 px-3 transition-all ${canEditPicklist ? "cursor-grab active:cursor-grabbing" : ""} ${colors.border} ${isDragging ? "opacity-40" : ""} ${isDragOver ? "bg-primary/15 border border-primary/40 ring-1 ring-primary/20" : `${colors.bg || "hover:bg-muted/50"} border border-transparent`}`}
                         data-testid={`picklist-row-${idx}`}
                       >
-                        <GripVertical className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+                        {canEditPicklist ? <GripVertical className="h-4 w-4 text-muted-foreground/50 shrink-0" /> : <span className="w-4 shrink-0" aria-hidden />}
                         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-bold text-muted-foreground" aria-hidden>{idx + 1}</span>
                         <img src={entry.team.avatar || placeholderAvatar} alt="" className="h-9 w-9 rounded-full border border-border object-cover bg-muted shrink-0" />
                         <div className="flex-1 min-w-0">
@@ -672,9 +761,11 @@ export default function Picklist() {
                             {tbaRank != null && <span>Rank #{tbaRank}</span>}
                           </div>
                         </div>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 opacity-60 hover:opacity-100 hover:text-destructive transition-all" onClick={() => removeTeam(entry.teamId)} data-testid={`button-remove-${entry.teamId}`} aria-label={`Remove team ${entry.team.teamNumber}`}>
-                          <X className="h-4 w-4" />
-                        </Button>
+                        {canEditPicklist && (
+                          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 opacity-60 hover:opacity-100 hover:text-destructive transition-all" onClick={() => removeTeam(entry.teamId)} data-testid={`button-remove-${entry.teamId}`} aria-label={`Remove team ${entry.team.teamNumber}`}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     );
                   })
@@ -694,9 +785,17 @@ export default function Picklist() {
             <DialogDescription>Give this picklist a name (e.g. &quot;Strategy A&quot;, &quot;Backup&quot;).</DialogDescription>
           </DialogHeader>
           <Input placeholder="Picklist name" value={createName} onChange={(e) => setCreateName(e.target.value)} data-testid="input-new-picklist-name" />
+          {isAdmin && (
+            <div className="flex items-center space-x-2">
+              <Checkbox id="create-admin-only" checked={createAdminOnly} onCheckedChange={(c) => setCreateAdminOnly(!!c)} />
+              <label htmlFor="create-admin-only" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
+                Admin only — only admins can edit this picklist
+              </label>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={() => createName.trim() && createMutation.mutate(createName.trim())} disabled={!createName.trim() || createMutation.isPending} data-testid="button-create-picklist-submit">
+            <Button onClick={() => createName.trim() && createMutation.mutate({ name: createName.trim(), adminOnly: createAdminOnly })} disabled={!createName.trim() || createMutation.isPending} data-testid="button-create-picklist-submit">
               {createMutation.isPending ? "Creating…" : "Create"}
             </Button>
           </DialogFooter>
@@ -704,17 +803,25 @@ export default function Picklist() {
       </Dialog>
 
       {/* Rename dialog */}
-      <Dialog open={renameOpen} onOpenChange={(open) => !open && setRenameOpen(false)}>
+      <Dialog open={renameOpen} onOpenChange={(open) => { if (!open) { setRenameOpen(false); setRenamePicklist(null); setRenameName(""); setRenameAdminOnly(false); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Rename picklist</DialogTitle>
             <DialogDescription>Enter a new name for this picklist.</DialogDescription>
           </DialogHeader>
           <Input placeholder="Name" value={renameName} onChange={(e) => setRenameName(e.target.value)} data-testid="input-rename-picklist" />
+          {isAdmin && renamePicklist && (
+            <div className="flex items-center space-x-2">
+              <Checkbox id="rename-admin-only" checked={renameAdminOnly} onCheckedChange={(c) => setRenameAdminOnly(!!c)} />
+              <label htmlFor="rename-admin-only" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
+                Admin only — only admins can edit this picklist
+              </label>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenameOpen(false)}>Cancel</Button>
             <Button
-              onClick={() => renamePicklist && renameName.trim() && renameMutation.mutate({ id: renamePicklist.id, name: renameName.trim() })}
+              onClick={() => renamePicklist && renameName.trim() && renameMutation.mutate({ id: renamePicklist.id, name: renameName.trim(), adminOnly: isAdmin ? renameAdminOnly : undefined })}
               disabled={!renamePicklist || !renameName.trim() || renameMutation.isPending}
               data-testid="button-rename-picklist-submit"
             >

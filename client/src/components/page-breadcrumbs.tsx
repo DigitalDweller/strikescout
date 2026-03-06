@@ -17,7 +17,7 @@ import type { Event } from "@shared/schema";
  */
 export function PageBreadcrumbs() {
   const [location] = useLocation();
-  const params = useParams<{ id: string; teamId?: string; otherTeamId?: string; matchNumber?: string }>();
+  const params = useParams<{ id: string; teamId?: string; otherTeamId?: string; matchNumber?: string; scouterId?: string }>();
 
   const eventId = params.id ? parseInt(params.id, 10) : 0;
   const { data: event } = useQuery<Event>({
@@ -67,8 +67,16 @@ export function PageBreadcrumbs() {
     crumbs.push({ label: "Data management" });
   } else if (location.includes("/settings")) {
     crumbs.push({ label: "Settings" });
+  } else if (location.includes("/picklists")) {
+    crumbs.push({ label: "Picklists" });
   } else if (location.includes("/picklist")) {
+    crumbs.push({ label: "Picklists", href: `${basePath}/picklists` });
     crumbs.push({ label: "Picklist" });
+  } else if (location.includes("/scouters/") && params.scouterId) {
+    crumbs.push({ label: "Scouter Leaderboard", href: `${basePath}/scouters` });
+    crumbs.push({ label: "Scouter profile" });
+  } else if (location.includes("/scouters")) {
+    crumbs.push({ label: "Scouter Leaderboard" });
   }
 
   if (crumbs.length <= 1) return null;

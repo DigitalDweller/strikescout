@@ -32,9 +32,9 @@ import { Button } from "@/components/ui/button";
 import { RankingColorKey } from "@/components/ranking-color-key";
 import { useRuffles } from "@/contexts/ruffles";
 import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
-import { getHeatColor, getDominantColor, computeTeamStats, computeStatRanges, computeTbaRanges, computeSzrMap, parseSzrWeights } from "@/lib/team-colors";
+import { getHeatColor, getSeedHeatColor, getTeamDominantColor, computeTeamStats, computeStatRanges, computeStatRangesForSzr, computeTbaRanges, computeSzrMapWithSweepBonus, parseSzrWeights } from "@/lib/team-colors";
 
-type SortField = "teamNumber" | "teamName" | "opr" | "szr" | "rank" | "avgAuto" | "avgThroughput" | "avgAccuracy" | "avgDefense" | "climbRate" | "entries";
+type SortField = "teamNumber" | "overallRank" | "opr" | "szr" | "rank" | "avgDriverSkill" | "avgAuto" | "avgThroughput" | "avgAccuracy" | "avgDefense" | "climbRate" | "entries";
 type SortDir = "asc" | "desc";
 
 const TEAM_SEARCH_EASTER_EGG = "5460";
@@ -46,7 +46,11 @@ export default function TeamList() {
   const { triggerSpawn } = useRuffles();
   const help = useHelp();
   const [search, _setSearch] = useState(() => sessionStorage.getItem(`teams-search-${eventId}`) || "");
-  const [sortField, _setSortField] = useState<SortField>(() => (sessionStorage.getItem(`teams-sort-${eventId}`) as SortField) || "teamNumber");
+  const [sortField, _setSortField] = useState<SortField>(() => {
+    const stored = sessionStorage.getItem(`teams-sort-${eventId}`);
+    if (stored === "teamName") return "overallRank";
+    return (stored as SortField) || "teamNumber";
+  });
   const [sortDir, _setSortDir] = useState<SortDir>(() => (sessionStorage.getItem(`teams-dir-${eventId}`) as SortDir) || "asc");
 
   const setSearch = useCallback((v: string) => { sessionStorage.setItem(`teams-search-${eventId}`, v); _setSearch(v); }, [eventId]);
@@ -88,9 +92,31 @@ export default function TeamList() {
 
   const teamStats = useMemo(() => computeTeamStats(teams, entries || []), [teams, entries]);
   const statRanges = useMemo(() => computeStatRanges(teamStats), [teamStats]);
+  const statRangesForSzr = useMemo(() => computeStatRangesForSzr(teamStats), [teamStats]);
   const tbaRanges = useMemo(() => computeTbaRanges(eventTeams || []), [eventTeams]);
   const szrWeights = useMemo(() => parseSzrWeights(event?.szrWeights), [event?.szrWeights]);
-  const szrMap = useMemo(() => computeSzrMap(teams, entries || [], statRanges, szrWeights), [teams, entries, statRanges, szrWeights]);
+  const szrMap = useMemo(() => computeSzrMapWithSweepBonus(teams, entries || [], statRangesForSzr, statRanges, szrWeights, eventTeams ?? undefined, tbaRanges), [teams, entries, statRangesForSzr, statRanges, szrWeights, eventTeams, tbaRanges]);
+  const szrSweepThreshold = useMemo(() => {
+    const values = Array.from(szrMap.values()).filter(v => v > 0).sort((a, b) => b - a);
+    if (values.length < 2) return null;
+    return values[1] + 19; // 20+ above second place: value > second+19
+  }, [szrMap]);
+
+  const teamRankScores = useMemo(() => {
+    const map = new Map<number, number>();
+    if (!statRanges || !eventTeams) return map;
+    for (const team of teams) {
+      const { bg } = getTeamDominantColor(team.id, eventTeams, teamStats, statRanges, tbaRanges, { szrMap, szrSweepThreshold });
+      let score = 0;
+      if (bg.includes("blue-500") || bg.includes("blue-900")) score = 5;
+      else if (bg.includes("green")) score = 4;
+      else if (bg.includes("yellow")) score = 3;
+      else if (bg.includes("orange")) score = 2;
+      else if (bg.includes("red") || bg.includes("rose")) score = 1;
+      map.set(team.id, score);
+    }
+    return map;
+  }, [teams, eventTeams, teamStats, statRanges, tbaRanges, szrMap, szrSweepThreshold]);
 
   const filteredTeams = useMemo(() => {
     let list = teams.filter(t => {
@@ -106,10 +132,11 @@ export default function TeamList() {
 
       switch (sortField) {
         case "teamNumber": valA = a.teamNumber; valB = b.teamNumber; break;
-        case "teamName": valA = a.teamName.toLowerCase(); valB = b.teamName.toLowerCase(); break;
+        case "overallRank": valA = teamRankScores.get(a.id) ?? 0; valB = teamRankScores.get(b.id) ?? 0; break;
         case "opr": valA = (eventTeamMap.get(a.id) as any)?.opr || 0; valB = (eventTeamMap.get(b.id) as any)?.opr || 0; break;
         case "szr": valA = szrMap.get(a.id) ?? 0; valB = szrMap.get(b.id) ?? 0; break;
         case "rank": valA = (eventTeamMap.get(a.id) as any)?.rank || 999; valB = (eventTeamMap.get(b.id) as any)?.rank || 999; break;
+        case "avgDriverSkill": valA = teamStats.get(a.id)?.avgDriverSkill || 0; valB = teamStats.get(b.id)?.avgDriverSkill || 0; break;
         case "avgAuto": valA = teamStats.get(a.id)?.avgAuto || 0; valB = teamStats.get(b.id)?.avgAuto || 0; break;
         case "avgThroughput": valA = teamStats.get(a.id)?.avgThroughput || 0; valB = teamStats.get(b.id)?.avgThroughput || 0; break;
         case "avgAccuracy": valA = teamStats.get(a.id)?.avgAccuracy || 0; valB = teamStats.get(b.id)?.avgAccuracy || 0; break;
@@ -125,7 +152,7 @@ export default function TeamList() {
     });
 
     return list;
-  }, [teams, search, sortField, sortDir, teamStats, eventTeamMap, szrMap]);
+  }, [teams, search, sortField, sortDir, teamStats, eventTeamMap, szrMap, teamRankScores]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -158,7 +185,7 @@ export default function TeamList() {
           {help?.HelpTrigger?.({
             content: {
               title: "Team list",
-              body: <p>All teams at this event. Sort by any column (click header). Use search to find teams by number or name. Colors show performance: green = strong, red = weak.</p>,
+              body: <p>All teams at this event. Sort by any column (click header). Use search to find teams by number or name. Colors: blue = Sweep (far above), green = Cooking, yellow = Mid, orange = Bad, red = Shit.</p>,
             },
           })}
         </h1>
@@ -186,13 +213,14 @@ export default function TeamList() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="teamNumber">Team Number</SelectItem>
-            <SelectItem value="teamName">Team Name</SelectItem>
+            <SelectItem value="overallRank">Overall Team Rank</SelectItem>
             <SelectItem value="szr">SZR</SelectItem>
             {hasTbaData && <SelectItem value="opr">OPR</SelectItem>}
             {hasTbaData && <SelectItem value="rank">Seed</SelectItem>}
-            <SelectItem value="avgAuto">Avg Auto</SelectItem>
+            <SelectItem value="avgDriverSkill">DR</SelectItem>
             <SelectItem value="avgThroughput">Throughput</SelectItem>
             <SelectItem value="avgAccuracy">Avg Accuracy</SelectItem>
+            <SelectItem value="avgAuto">Avg Auto</SelectItem>
             <SelectItem value="avgDefense">Avg Defense</SelectItem>
             <SelectItem value="climbRate">Climb Rate</SelectItem>
           </SelectContent>
@@ -233,7 +261,7 @@ export default function TeamList() {
                 <TableHeader>
                   <TableRow>
                     <SortableHeader field="teamNumber">#</SortableHeader>
-                    <SortableHeader field="teamName">Name</SortableHeader>
+                    <SortableHeader field="overallRank">Rank</SortableHeader>
                     <SortableHeader field="szr">
                       <Tooltip>
                         <TooltipTrigger asChild><span className="cursor-help">SZR</span></TooltipTrigger>
@@ -242,9 +270,10 @@ export default function TeamList() {
                     </SortableHeader>
                     {hasTbaData && <SortableHeader field="opr">OPR</SortableHeader>}
                     {hasTbaData && <SortableHeader field="rank">Seed</SortableHeader>}
-                    <SortableHeader field="avgAuto">Auto</SortableHeader>
+                    <SortableHeader field="avgDriverSkill">DR</SortableHeader>
                     <SortableHeader field="avgThroughput">Throughput</SortableHeader>
                     <SortableHeader field="avgAccuracy">Accuracy</SortableHeader>
+                    <SortableHeader field="avgAuto">Auto</SortableHeader>
                     <SortableHeader field="avgDefense">Defense</SortableHeader>
                     <SortableHeader field="climbRate">Climb</SortableHeader>
                   </TableRow>
@@ -259,20 +288,24 @@ export default function TeamList() {
                     const autoVal = parseFloat((stats?.avgAuto || 0).toFixed(1));
                     const throughputVal = parseFloat((stats?.avgThroughput || 0).toFixed(1));
                     const accuracyVal = Math.round(stats?.avgAccuracy || 0);
+                    const drVal = Math.round(stats?.avgDriverSkill || 0);
                     const defenseVal = Math.round(stats?.avgDefense || 0);
                     const climbVal = Math.round(stats?.climbRate || 0);
+                    const hasDefense = stats?.hasDefense ?? false;
+                    const hasClimbAttempted = stats?.hasClimbAttempted ?? false;
 
-                    const autoColor = hasData && statRanges ? getHeatColor(stats!.avgAuto, statRanges.auto.min, statRanges.auto.max) : "";
-                    const throughputColor = hasData && statRanges ? getHeatColor(stats!.avgThroughput, statRanges.throughput.min, statRanges.throughput.max) : "";
-                    const accuracyColor = hasData && statRanges ? getHeatColor(stats!.avgAccuracy, statRanges.accuracy.min, statRanges.accuracy.max) : "";
-                    const defenseColor = hasData && statRanges ? getHeatColor(stats!.avgDefense, statRanges.defense.min, statRanges.defense.max) : "";
-                    const climbColor = hasData && statRanges ? getHeatColor(stats!.climbRate, statRanges.climb.min, statRanges.climb.max) : "";
+                    const drColor = hasData && statRanges ? getHeatColor(stats!.avgDriverSkill, statRanges.driverSkill.min, statRanges.driverSkill.max, statRanges.driverSkill.sweep) : "";
+                    const autoColor = hasData && statRanges ? getHeatColor(stats!.avgAuto, statRanges.auto.min, statRanges.auto.max, statRanges.auto.sweep) : "";
+                    const throughputColor = hasData && statRanges ? getHeatColor(stats!.avgThroughput, statRanges.throughput.min, statRanges.throughput.max, statRanges.throughput.sweep) : "";
+                    const accuracyColor = hasData && statRanges ? getHeatColor(stats!.avgAccuracy, statRanges.accuracy.min, statRanges.accuracy.max, statRanges.accuracy.sweep) : "";
+                    const defenseColor = hasData && hasDefense && statRanges ? getHeatColor(stats!.avgDefense, statRanges.defense.min, statRanges.defense.max, statRanges.defense.sweep) : "";
+                    const climbColor = hasData && hasClimbAttempted && statRanges ? getHeatColor(stats!.climbRate, statRanges.climb.min, statRanges.climb.max, statRanges.climb.sweep) : "";
 
-                    const oprColorVal = opr != null && tbaRanges?.opr ? getHeatColor(opr, tbaRanges.opr.min, tbaRanges.opr.max) : "";
+                    const oprColorVal = opr != null && tbaRanges?.opr ? getHeatColor(opr, tbaRanges.opr.min, tbaRanges.opr.max, tbaRanges.opr.sweep) : "";
                     const szrVal = szrMap.get(team.id) ?? 0;
-                    const szrColorVal = szrVal > 0 ? getHeatColor(szrVal, 0, 100) : "";
-                    const seedColorVal = seed != null && tbaRanges?.seed ? getHeatColor(tbaRanges.seed.max - seed + tbaRanges.seed.min, tbaRanges.seed.min, tbaRanges.seed.max) : "";
-                    const dominant = getDominantColor([szrColorVal, oprColorVal, seedColorVal, autoColor, throughputColor, accuracyColor, defenseColor, climbColor]);
+                    const szrColorVal = szrVal > 0 ? getHeatColor(szrVal, 0, 100, szrSweepThreshold) : "";
+                    const seedColorVal = seed != null && tbaRanges?.seed ? getSeedHeatColor(seed, tbaRanges.seed, et) : "";
+                    const { bg: dominant } = getTeamDominantColor(team.id, eventTeams ?? [], teamStats, statRanges, tbaRanges, { szrMap, szrSweepThreshold });
 
                     const hasTbaForTeam = opr != null || seed != null;
                     const hasScoutingForTeam = (stats?.entries || 0) > 0;
@@ -323,8 +356,8 @@ export default function TeamList() {
                             {seed != null ? `#${seed}` : <span className="text-muted-foreground/40">-</span>}
                           </TableCell>
                         )}
-                        <TableCell className={`text-center font-bold text-base ${autoColor}`} data-testid={`stat-auto-${team.id}`}>
-                          {hasData ? autoVal : <span className="text-muted-foreground/40">—</span>}
+                        <TableCell className={`text-center font-bold text-base ${drColor}`} data-testid={`stat-dr-${team.id}`}>
+                          {hasData ? <>{drVal}<span className="text-xs text-muted-foreground">%</span></> : <span className="text-muted-foreground/40">—</span>}
                         </TableCell>
                         <TableCell className={`text-center font-bold text-base ${throughputColor}`} data-testid={`stat-throughput-${team.id}`}>
                           {hasData ? throughputVal : <span className="text-muted-foreground/40">—</span>}
@@ -332,11 +365,14 @@ export default function TeamList() {
                         <TableCell className={`text-center font-bold text-base ${accuracyColor}`} data-testid={`stat-accuracy-${team.id}`}>
                           {hasData ? <>{accuracyVal}<span className="text-xs text-muted-foreground">%</span></> : <span className="text-muted-foreground/40">—</span>}
                         </TableCell>
+                        <TableCell className={`text-center font-bold text-base ${autoColor}`} data-testid={`stat-auto-${team.id}`}>
+                          {hasData ? autoVal : <span className="text-muted-foreground/40">—</span>}
+                        </TableCell>
                         <TableCell className={`text-center font-bold text-base ${defenseColor}`} data-testid={`stat-defense-${team.id}`}>
-                          {hasData ? <>{defenseVal}<span className="text-xs text-muted-foreground">%</span></> : <span className="text-muted-foreground/40">—</span>}
+                          {hasData && hasDefense ? <>{defenseVal}<span className="text-xs text-muted-foreground">%</span></> : <span className="text-muted-foreground/40">—</span>}
                         </TableCell>
                         <TableCell className={`text-center font-bold text-base ${climbColor}`} data-testid={`stat-climb-${team.id}`}>
-                          {hasData ? <>{climbVal}<span className="text-xs text-muted-foreground">%</span></> : <span className="text-muted-foreground/40">—</span>}
+                          {hasData && hasClimbAttempted ? <>{climbVal}<span className="text-xs text-muted-foreground">%</span></> : <span className="text-muted-foreground/40">—</span>}
                         </TableCell>
                       </TableRow>
                     );

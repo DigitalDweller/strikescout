@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,9 +37,9 @@ import { getHeatColor as getHeatColorLib, getHeatCssColor, getRowBorderColor, co
 import { useHelp } from "@/contexts/help-context";
 
 /** Heat class for form inputs: combines bg/text and left border from team-colors so colors match Team List. */
-function getHeatClass(value: number, min: number, max: number): string {
-  const bg = getHeatColorLib(value, min, max);
-  const border = getRowBorderColor(value, min, max);
+function getHeatClass(value: number, min: number, max: number, sweep?: number): string {
+  const bg = getHeatColorLib(value, min, max, sweep);
+  const border = getRowBorderColor(value, min, max, sweep);
   return [bg, border].filter(Boolean).join(" ") || "border-border";
 }
 
@@ -47,6 +48,8 @@ const DEFAULT_STAT_RANGES = {
   throughput: { min: 0, max: 14 },
   accuracy: { min: 0, max: 100 },
   defense: { min: 0, max: 100 },
+  autoAccuracy: { min: 0, max: 100 },
+  driverSkill: { min: 0, max: 100 },
 };
 
 function TeamSearchCombobox({
@@ -407,21 +410,13 @@ function ShootingHeatmap({
     drawHeatmap();
   }, [drawHeatmap]);
 
-  const handleTap = (e: React.TouchEvent | React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    let clientX: number, clientY: number;
-    if ("touches" in e) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-    const x = (clientX - rect.left) / rect.width;
-    const y = (clientY - rect.top) / rect.height;
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
     const MAX_POINTS = 4;
     const newPoints = points.length >= MAX_POINTS ? points : [...points, { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) }];
     setPoints(newPoints);
@@ -462,8 +457,7 @@ function ShootingHeatmap({
           height={250}
           className="w-full touch-none cursor-crosshair block"
           style={{ aspectRatio: "400/250" }}
-          onMouseDown={handleTap}
-          onTouchStart={handleTap}
+          onPointerDown={handlePointerDown}
           data-testid="canvas-shooting-heatmap"
         />
       </div>
@@ -580,7 +574,7 @@ function TeamFormColumn({
   form: FormData;
   selectedTeamId: number;
   eventTeams?: (EventTeam & { team: Team })[];
-  statRanges: { auto: { min: number; max: number }; throughput: { min: number; max: number }; accuracy: { min: number; max: number }; defense: { min: number; max: number } };
+  statRanges: { auto: { min: number; max: number; sweep?: number }; throughput: { min: number; max: number; sweep?: number }; accuracy: { min: number; max: number; sweep?: number }; defense: { min: number; max: number; sweep?: number }; autoAccuracy: { min: number; max: number; sweep?: number }; driverSkill: { min: number; max: number; sweep?: number } };
   onUpdateField: (field: string, value: any) => void;
   onSelectTeam: (teamId: number) => void;
   onRemove: () => void;
@@ -598,14 +592,20 @@ function TeamFormColumn({
   const autoRange = r.auto.max > r.auto.min ? r.auto : DEFAULT_STAT_RANGES.auto;
   const accuracyRange = r.accuracy.max > r.accuracy.min ? r.accuracy : DEFAULT_STAT_RANGES.accuracy;
   const defenseRange = r.defense.max > r.defense.min ? r.defense : DEFAULT_STAT_RANGES.defense;
-  /* Neutral until a value is chosen: 0 = default for auto/BPS/defense, 50 = default for accuracy */
-  const autoHeat = form.autoBallsShot === 0 ? "" : getHeatClass(form.autoBallsShot, autoRange.min, autoRange.max);
-  const autoHeatBorderColor = form.autoBallsShot === 0 ? "" : getHeatCssColor(form.autoBallsShot, autoRange.min, autoRange.max);
-  const throughputHeat = form.teleopFpsEstimate === 0 ? "" : getHeatClass(form.teleopFpsEstimate, throughputRange.min, throughputRange.max);
-  const accuracyHeat = form.teleopAccuracy === 50 ? "" : getHeatClass(form.teleopAccuracy, accuracyRange.min, accuracyRange.max);
-  const accuracySliderColor = form.teleopAccuracy === 50 ? "" : getHeatCssColor(form.teleopAccuracy, accuracyRange.min, accuracyRange.max);
-  const defenseHeat = form.defenseRating === 0 ? "" : getHeatClass(form.defenseRating, defenseRange.min, defenseRange.max);
-  const defenseSliderColor = form.defenseRating === 0 ? "" : getHeatCssColor(form.defenseRating, defenseRange.min, defenseRange.max);
+  const autoAccuracyRange = r.autoAccuracy.max > r.autoAccuracy.min ? r.autoAccuracy : DEFAULT_STAT_RANGES.autoAccuracy;
+  const driverSkillRange = r.driverSkill.max > r.driverSkill.min ? r.driverSkill : DEFAULT_STAT_RANGES.driverSkill;
+  /* Neutral until a value is chosen: 0 = default for auto/BPS/defense/driver/autoAcc, 50 = default for accuracy */
+  const autoHeat = form.autoBallsShot === 0 ? "" : getHeatClass(form.autoBallsShot, autoRange.min, autoRange.max, autoRange.sweep);
+  const autoHeatBorderColor = form.autoBallsShot === 0 ? "" : getHeatCssColor(form.autoBallsShot, autoRange.min, autoRange.max, autoRange.sweep);
+  const throughputHeat = form.teleopFpsEstimate === 0 ? "" : getHeatClass(form.teleopFpsEstimate, throughputRange.min, throughputRange.max, throughputRange.sweep);
+  const accuracyHeat = form.teleopAccuracy === 50 ? "" : getHeatClass(form.teleopAccuracy, accuracyRange.min, accuracyRange.max, accuracyRange.sweep);
+  const accuracySliderColor = form.teleopAccuracy === 50 ? "" : getHeatCssColor(form.teleopAccuracy, accuracyRange.min, accuracyRange.max, accuracyRange.sweep);
+  const defenseHeat = form.defenseRating === 0 ? "" : getHeatClass(form.defenseRating, defenseRange.min, defenseRange.max, defenseRange.sweep);
+  const defenseSliderColor = form.defenseRating === 0 ? "" : getHeatCssColor(form.defenseRating, defenseRange.min, defenseRange.max, defenseRange.sweep);
+  const autoAccuracyHeat = form.autoAccuracy === 0 ? "" : getHeatClass(form.autoAccuracy, autoAccuracyRange.min, autoAccuracyRange.max, autoAccuracyRange.sweep);
+  const autoAccuracySliderColor = form.autoAccuracy === 0 ? "" : getHeatCssColor(form.autoAccuracy, autoAccuracyRange.min, autoAccuracyRange.max, autoAccuracyRange.sweep);
+  const driverSkillHeat = form.driverSkill === 0 ? "" : getHeatClass(form.driverSkill, driverSkillRange.min, driverSkillRange.max, driverSkillRange.sweep);
+  const driverSkillSliderColor = form.driverSkill === 0 ? "" : getHeatCssColor(form.driverSkill, driverSkillRange.min, driverSkillRange.max, driverSkillRange.sweep);
 
   const noteRows = singleScreen ? 2 : 3;
   const noteMinH = singleScreen ? "min-h-[60px]" : "min-h-[80px]";
@@ -651,7 +651,7 @@ function TeamFormColumn({
             <Target className="h-4 w-4" />
             Stats
           </CardTitle>
-          <p className="text-xs text-muted-foreground hidden sm:block">Colors match Team List — yellow = top, green = strong, red = weak</p>
+          <p className="text-xs text-muted-foreground hidden sm:block">Colors match Team List — blue = Sweep, green = Cooking, yellow = Mid, orange = Bad, red = Shit</p>
         </CardHeader>
         <CardContent className="space-y-2 sm:space-y-3 pt-0 px-3 sm:px-6 lg:px-8 pb-4 sm:pb-6 lg:pb-6">
           <BigCounterInput
@@ -664,7 +664,7 @@ function TeamFormColumn({
             allowOverwriteZero
           />
           {form.autoBallsShot >= 1 && (
-            <RatingSelector value={form.autoAccuracy} onChange={(v) => onUpdateField("autoAccuracy", v)} label="Auto accuracy (%)" testId={`auto-accuracy-${index}`} heatClass="" sliderColor="" />
+            <RatingSelector value={form.autoAccuracy} onChange={(v) => onUpdateField("autoAccuracy", v)} label="Auto accuracy (%)" testId={`auto-accuracy-${index}`} heatClass={autoAccuracyHeat} sliderColor={autoAccuracySliderColor} />
           )}
           <div className={`rounded-lg border-l-4 p-2 ${throughputHeat || "border-border"}`}>
             <Label className="text-sm font-medium text-inherit">Throughput</Label>
@@ -681,8 +681,8 @@ function TeamFormColumn({
                   (value === 13 && form.teleopFpsEstimate >= 9 && form.teleopFpsEstimate <= 16) ||
                   (value === 20 && form.teleopFpsEstimate >= 17);
                 const isDefaultBps = form.teleopFpsEstimate === 0;
-                const heatClass = isDefaultBps ? "" : getHeatColorLib(value, throughputRange.min, throughputRange.max);
-                const heatBorderStyle = isDefaultBps ? "" : getHeatCssColor(value, throughputRange.min, throughputRange.max);
+                const heatClass = isDefaultBps ? "" : getHeatColorLib(value, throughputRange.min, throughputRange.max, throughputRange.sweep);
+                const heatBorderStyle = isDefaultBps ? "" : getHeatCssColor(value, throughputRange.min, throughputRange.max, throughputRange.sweep);
                 const selectedClass = selected
                   ? heatClass
                     ? `border-2 ${heatClass} font-semibold`
@@ -708,7 +708,7 @@ function TeamFormColumn({
             </div>
           </div>
           <RatingSelector value={form.teleopAccuracy} onChange={(v) => onUpdateField("teleopAccuracy", v)} label="Accuracy (%)" testId={`accuracy-${index}`} heatClass={accuracyHeat} sliderColor={accuracySliderColor} />
-          <RatingSelector value={form.driverSkill} onChange={(v) => onUpdateField("driverSkill", v)} label="Driver skill (%)" testId={`driver-skill-${index}`} heatClass="" sliderColor="" />
+          <RatingSelector value={form.driverSkill} onChange={(v) => onUpdateField("driverSkill", v)} label="Driver skill (%)" testId={`driver-skill-${index}`} heatClass={driverSkillHeat} sliderColor={driverSkillSliderColor} />
           <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-3 sm:py-2 min-h-11 sm:min-h-0">
             <Label className="text-sm font-medium text-muted-foreground">Moves while shooting?</Label>
             <div className="flex gap-1.5 shrink-0">
@@ -900,7 +900,11 @@ export default function ScoutForm() {
   const [scoutMode, setScoutMode] = useState<ScoutMode>("single");
   const [teamCount, setTeamCount] = useState(1);
   const [selectedTeams, setSelectedTeams] = useState<number[]>([0]);
-  const [matchNumber, setMatchNumber] = useState<number>(1);
+  const [matchNumberInput, setMatchNumberInput] = useState<string>("1");
+  const matchNumber = (() => {
+    const n = parseInt(matchNumberInput, 10);
+    return !isNaN(n) && n >= 1 ? n : undefined;
+  })();
   const [formDataMap, setFormDataMap] = useState<Record<number, FormData>>({
     0: getEmptyForm(),
   });
@@ -931,6 +935,11 @@ export default function ScoutForm() {
     enabled: !!eventId,
   });
 
+  const maxMatchNumber = useMemo(() => {
+    if (!schedule?.length) return undefined;
+    return Math.max(...schedule.map((s) => s.matchNumber));
+  }, [schedule]);
+
   const teams = useMemo(() => (eventTeams || []).map((et) => et.team), [eventTeams]);
   const teamStats = useMemo(() => computeTeamStats(teams, entries || []), [teams, entries]);
   const statRanges = useMemo(() => {
@@ -939,6 +948,7 @@ export default function ScoutForm() {
     return DEFAULT_STAT_RANGES;
   }, [teamStats]);
 
+  const { user } = useAuth();
   const submitMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/entries", data);
@@ -946,6 +956,8 @@ export default function ScoutForm() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "scouters"] });
+      if (user?.id) queryClient.invalidateQueries({ queryKey: ["/api/users", user.id, "profile"] });
     },
     onError: (error: Error) => {
       toast({
@@ -1008,6 +1020,15 @@ export default function ScoutForm() {
   const handleSubmitAll = async () => {
     if (!eventId) return;
 
+    if (matchNumber == null || matchNumber < 1) {
+      toast({ title: "Please enter a match number", variant: "destructive" });
+      return;
+    }
+    if (maxMatchNumber != null && matchNumber > maxMatchNumber) {
+      toast({ title: `Match number cannot exceed ${maxMatchNumber}`, variant: "destructive" });
+      return;
+    }
+
     const validEntries = selectedTeams
       .slice(0, effectiveTeamCount)
       .map((teamId, idx) => ({ teamId, form: formDataMap[idx] }))
@@ -1036,7 +1057,8 @@ export default function ScoutForm() {
       setTeamCount(1);
       setSelectedTeams([0]);
       setFormDataMap({ 0: getEmptyForm() });
-      setMatchNumber(matchNumber + 1);
+      const next = matchNumber + 1;
+      setMatchNumberInput(String(maxMatchNumber != null ? Math.min(next, maxMatchNumber) : next));
     }
   };
 
@@ -1092,22 +1114,28 @@ export default function ScoutForm() {
                   variant="outline"
                   size="sm"
                   className="h-11 w-11 sm:h-9 sm:w-9 p-0 touch-manipulation"
-                  onClick={() => setMatchNumber((prev) => Math.max(1, (prev || 1) - 1))}
-                  disabled={matchNumber <= 1}
+                  onClick={() => {
+                    const n = matchNumber ?? 1;
+                    setMatchNumberInput(String(Math.max(1, n - 1)));
+                  }}
+                  disabled={(matchNumber ?? 1) <= 1}
                   data-testid="button-match-minus"
                 >
                   <Minus className="h-4 w-4" />
                 </Button>
                 <input
                   type="number"
-                  min={1}
-                  value={matchNumber}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    if (!isNaN(v) && v >= 1) setMatchNumber(v);
-                    else if (e.target.value === "") setMatchNumber(1);
+                  value={matchNumberInput}
+                  max={maxMatchNumber}
+                  onChange={(e) => setMatchNumberInput(e.target.value)}
+                  onBlur={() => {
+                    const n = parseInt(matchNumberInput, 10);
+                    if (!isNaN(n) && n >= 1 && maxMatchNumber != null && n > maxMatchNumber) {
+                      setMatchNumberInput(String(maxMatchNumber));
+                    }
                   }}
-                  className="h-11 w-16 sm:h-9 sm:w-16 text-center text-lg sm:text-xl font-bold tabular-nums bg-primary text-primary-foreground rounded-md border-0 focus:outline-none focus:ring-2 focus:ring-ring touch-manipulation [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  placeholder="—"
+                  className="h-11 w-16 sm:h-9 sm:w-16 text-center text-lg sm:text-xl font-bold tabular-nums bg-primary text-primary-foreground rounded-md border-0 focus:outline-none focus:ring-2 focus:ring-ring touch-manipulation placeholder:text-primary-foreground/50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   data-testid="input-match-number"
                 />
                 <Button
@@ -1115,7 +1143,11 @@ export default function ScoutForm() {
                   variant="outline"
                   size="sm"
                   className="h-11 w-11 sm:h-9 sm:w-9 p-0 touch-manipulation"
-                  onClick={() => setMatchNumber((prev) => (prev || 1) + 1)}
+                  onClick={() => {
+                    const next = (matchNumber ?? 1) + 1;
+                    setMatchNumberInput(String(maxMatchNumber != null ? Math.min(next, maxMatchNumber) : next));
+                  }}
+                  disabled={maxMatchNumber != null && (matchNumber ?? 1) >= maxMatchNumber}
                   data-testid="button-match-plus"
                 >
                   <Plus className="h-4 w-4" />
