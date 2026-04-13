@@ -1,0 +1,840 @@
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useParams, Link, useLocation } from "wouter";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableCaption,
+} from "@/components/ui/table";
+import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { ArrowLeft, Swords, Video, Trophy, BarChart2, TrendingUp, AlertTriangle } from "lucide-react";
+import { useHelp } from "@/contexts/help-context";
+import type { Event, Team, ScheduleMatch, EventTeam, ScoutingEntry } from "@shared/schema";
+import { toPct, parsePredictorWeights } from "@/lib/team-colors";
+import placeholderAvatar from "@assets/images_1772071870956.png";
+
+type TeamStatsSlice = {
+  avgAuto: number;
+  avgThroughput: number;
+  avgAccuracy: number;
+  avgDefense: number;
+  climbRate: number;
+  autoClimbRate: number;
+  entries: number;
+};
+
+type EtExtended = EventTeam & { team: Team } & { opr?: number; rank?: number; rankingPoints?: number };
+
+function computeTeamStats(teamId: number, entries: ScoutingEntry[]): TeamStatsSlice | null {
+  const teamEntries = entries.filter((e) => e.teamId === teamId);
+  if (teamEntries.length === 0) return null;
+  const climbSuccess = teamEntries.filter((e) => e.climbSuccess === "success").length;
+  const autoClimbSuccess = teamEntries.filter((e) => e.autoClimbSuccess === "success").length;
+  return {
+    avgAuto: teamEntries.reduce((s, e) => s + e.autoBallsShot, 0) / teamEntries.length,
+    avgThroughput: teamEntries.reduce((s, e) => s + e.teleopFpsEstimate, 0) / teamEntries.length,
+    avgAccuracy: teamEntries.reduce((s, e) => s + toPct(e.teleopAccuracy ?? 0), 0) / teamEntries.length,
+    avgDefense: teamEntries.reduce((s, e) => s + toPct(e.defenseRating ?? 0), 0) / teamEntries.length,
+    climbRate: (climbSuccess / teamEntries.length) * 100,
+    autoClimbRate: (autoClimbSuccess / teamEntries.length) * 100,
+    entries: teamEntries.length,
+  };
+}
+
+function allianceAverage(statsList: (TeamStatsSlice | null)[]): TeamStatsSlice | null {
+  const valid = statsList.filter((s): s is TeamStatsSlice => s != null && s.entries > 0);
+  if (valid.length === 0) return null;
+  return {
+    avgAuto: valid.reduce((s, v) => s + v.avgAuto, 0) / valid.length,
+    avgThroughput: valid.reduce((s, v) => s + v.avgThroughput, 0) / valid.length,
+    avgAccuracy: valid.reduce((s, v) => s + v.avgAccuracy, 0) / valid.length,
+    avgDefense: valid.reduce((s, v) => s + v.avgDefense, 0) / valid.length,
+    climbRate: valid.reduce((s, v) => s + v.climbRate, 0) / valid.length,
+    autoClimbRate: valid.reduce((s, v) => s + v.autoClimbRate, 0) / valid.length,
+    entries: valid.reduce((s, v) => s + v.entries, 0),
+  };
+}
+
+export default function MatchDetail() {
+  const { id, matchNumber } = useParams<{ id: string; matchNumber: string }>();
+  const [, navigate] = useLocation();
+  const eventId = parseInt(id || "0");
+  const matchNum = parseInt(matchNumber || "0");
+  const matchReturnTo = `/events/${eventId}/schedule/${matchNum}`;
+  const teamLink = (teamId: number) => `/events/${eventId}/teams/${teamId}?returnTo=${encodeURIComponent(matchReturnTo)}`;
+  const help = useHelp();
+
+  const { data: event } = useQuery<Event>({
+    queryKey: ["/api/events", eventId],
+  });
+
+  const { data: schedule, isLoading } = useQuery<ScheduleMatch[]>({
+    queryKey: ["/api/events", eventId, "schedule"],
+  });
+
+  const { data: eventTeams } = useQuery<(EventTeam & { team: Team })[]>({
+    queryKey: ["/api/events", eventId, "teams"],
+  });
+
+  const { data: allEntries } = useQuery<ScoutingEntry[]>({
+    queryKey: ["/api/events", eventId, "entries"],
+  });
+
+  const teamMap = new Map<number, Team>();
+  eventTeams?.forEach(et => {
+    teamMap.set(et.team.teamNumber, et.team);
+  });
+
+  const match = schedule?.find(m => m.matchNumber === matchNum);
+
+  const redTeamNums = match ? [match.red1, match.red2, match.red3].filter(Boolean) as number[] : [];
+  const blueTeamNums = match ? [match.blue1, match.blue2, match.blue3].filter(Boolean) as number[] : [];
+
+  const teamNumToId = useMemo(() => {
+    const m = new Map<number, number>();
+    eventTeams?.forEach((et) => m.set(et.team.teamNumber, et.teamId));
+    return m;
+  }, [eventTeams]);
+
+  const teamStats = useMemo(() => {
+    const map = new Map<number, TeamStatsSlice | null>();
+    if (!allEntries || !eventTeams) return map;
+    for (const et of eventTeams) {
+      map.set(et.teamId, computeTeamStats(et.teamId, allEntries));
+    }
+    return map;
+  }, [allEntries, eventTeams]);
+
+  const redStats = useMemo(
+    () => redTeamNums.map((n) => teamStats.get(teamNumToId.get(n)!) ?? null),
+    [redTeamNums, teamNumToId, teamStats]
+  );
+  const blueStats = useMemo(
+    () => blueTeamNums.map((n) => teamStats.get(teamNumToId.get(n)!) ?? null),
+    [blueTeamNums, teamNumToId, teamStats]
+  );
+  const redAllianceStats = useMemo(() => allianceAverage(redStats), [redStats]);
+  const blueAllianceStats = useMemo(() => allianceAverage(blueStats), [blueStats]);
+
+  const predictorWeights = useMemo(() => parsePredictorWeights(event?.predictorWeights), [event?.predictorWeights]);
+  const compositeWeights = predictorWeights.composite;
+
+  const redOprSum = useMemo(() => {
+    if (!eventTeams) return null;
+    let sum = 0;
+    let count = 0;
+    for (const n of redTeamNums) {
+      const et = eventTeams.find((e) => e.team.teamNumber === n) as (EventTeam & { team: Team }) & { opr?: number };
+      if (et?.opr != null) {
+        sum += et.opr;
+        count++;
+      }
+    }
+    return count > 0 ? sum : null;
+  }, [eventTeams, redTeamNums]);
+
+  const blueOprSum = useMemo(() => {
+    if (!eventTeams) return null;
+    let sum = 0;
+    let count = 0;
+    for (const n of blueTeamNums) {
+      const et = eventTeams.find((e) => e.team.teamNumber === n) as (EventTeam & { team: Team }) & { opr?: number };
+      if (et?.opr != null) {
+        sum += et.opr;
+        count++;
+      }
+    }
+    return count > 0 ? sum : null;
+  }, [eventTeams, blueTeamNums]);
+
+  const predictionAnalysis = useMemo(() => {
+    const result: {
+      winner: "red" | "blue" | "tossup";
+      winProbability: number;
+      confidence: string;
+      compositeScoreRed: number;
+      compositeScoreBlue: number;
+      breakdown: { factor: string; weight: number; redVal: number; blueVal: number; redContrib: number; blueContrib: number; edge: "red" | "blue" | "tie" }[];
+      redAdvantages: string[];
+      blueAdvantages: string[];
+      dataQuality: { redScouted: number; blueScouted: number; redMissing: string[]; blueMissing: string[] };
+      keyFactors: string[];
+    } = {
+      winner: "tossup",
+      winProbability: 50,
+      confidence: "N/A",
+      compositeScoreRed: 0,
+      compositeScoreBlue: 0,
+      breakdown: [],
+      redAdvantages: [],
+      blueAdvantages: [],
+      dataQuality: { redScouted: 0, blueScouted: 0, redMissing: [], blueMissing: [] },
+      keyFactors: [],
+    };
+
+    const redScouted = redStats.filter(Boolean).reduce((s, st) => s + (st?.entries ?? 0), 0);
+    const blueScouted = blueStats.filter(Boolean).reduce((s, st) => s + (st?.entries ?? 0), 0);
+    result.dataQuality.redScouted = redScouted;
+    result.dataQuality.blueScouted = blueScouted;
+    redTeamNums.forEach((n, i) => {
+      const st = redStats[i];
+      if (!st || st.entries === 0) result.dataQuality.redMissing.push(`Team ${n}`);
+    });
+    blueTeamNums.forEach((n, i) => {
+      const st = blueStats[i];
+      if (!st || st.entries === 0) result.dataQuality.blueMissing.push(`Team ${n}`);
+    });
+
+    if (redOprSum != null && blueOprSum != null) {
+      const totalOpr = redOprSum + blueOprSum;
+      result.winProbability = totalOpr > 0 ? Math.round((redOprSum / totalOpr) * 100) : 50;
+      result.winner = result.winProbability > 55 ? "red" : result.winProbability < 45 ? "blue" : "tossup";
+      const pctDiff = totalOpr > 0 ? (Math.abs(redOprSum - blueOprSum) / totalOpr) * 100 : 0;
+      result.confidence = pctDiff > 20 ? "High" : pctDiff > 10 ? "Medium" : "Low";
+      result.breakdown.push({
+        factor: "OPR sum",
+        weight: 3,
+        redVal: redOprSum,
+        blueVal: blueOprSum,
+        redContrib: redOprSum,
+        blueContrib: blueOprSum,
+        edge: redOprSum > blueOprSum ? "red" : blueOprSum > redOprSum ? "blue" : "tie",
+      });
+      if (redOprSum > blueOprSum) result.redAdvantages.push(`OPR +${(redOprSum - blueOprSum).toFixed(1)}`);
+      else if (blueOprSum > redOprSum) result.blueAdvantages.push(`OPR +${(blueOprSum - redOprSum).toFixed(1)}`);
+    }
+    if (redAllianceStats && blueAllianceStats) {
+      const factors: { key: keyof TeamStatsSlice; label: string; weight: number }[] = [
+        { key: "avgAuto", label: "Auto (avg)", weight: compositeWeights.auto },
+        { key: "avgThroughput", label: "Throughput", weight: compositeWeights.throughput },
+        { key: "avgAccuracy", label: "Accuracy %", weight: compositeWeights.accuracy },
+        { key: "avgDefense", label: "Defense %", weight: compositeWeights.defense },
+        { key: "climbRate", label: "Climb %", weight: compositeWeights.climb },
+        { key: "autoClimbRate", label: "Auto climb %", weight: compositeWeights.autoClimb },
+      ];
+      for (const { key, label, weight } of factors) {
+        const r = redAllianceStats[key] as number;
+        const b = blueAllianceStats[key] as number;
+        result.breakdown.push({
+          factor: label,
+          weight,
+          redVal: r,
+          blueVal: b,
+          redContrib: r * weight,
+          blueContrib: b * weight,
+          edge: r > b ? "red" : b > r ? "blue" : "tie",
+        });
+        if (r > b) result.redAdvantages.push(`${label}: ${r.toFixed(1)} vs ${b.toFixed(1)}`);
+        else if (b > r) result.blueAdvantages.push(`${label}: ${b.toFixed(1)} vs ${r.toFixed(1)}`);
+      }
+      result.compositeScoreRed =
+        redAllianceStats.avgAuto * compositeWeights.auto +
+        redAllianceStats.avgThroughput * compositeWeights.throughput +
+        (redAllianceStats.avgAccuracy / 100) * compositeWeights.accuracy +
+        (redAllianceStats.avgDefense / 100) * compositeWeights.defense +
+        (redAllianceStats.climbRate / 100) * compositeWeights.climb +
+        (redAllianceStats.autoClimbRate / 100) * compositeWeights.autoClimb;
+      result.compositeScoreBlue =
+        blueAllianceStats.avgAuto * compositeWeights.auto +
+        blueAllianceStats.avgThroughput * compositeWeights.throughput +
+        (blueAllianceStats.avgAccuracy / 100) * compositeWeights.accuracy +
+        (blueAllianceStats.avgDefense / 100) * compositeWeights.defense +
+        (blueAllianceStats.climbRate / 100) * compositeWeights.climb +
+        (blueAllianceStats.autoClimbRate / 100) * compositeWeights.autoClimb;
+
+      if (redOprSum == null || blueOprSum == null) {
+        const total = result.compositeScoreRed + result.compositeScoreBlue;
+        result.winProbability = total > 0 ? Math.round((result.compositeScoreRed / total) * 100) : 50;
+        result.winner = result.winProbability > 55 ? "red" : result.winProbability < 45 ? "blue" : "tossup";
+        const diff = Math.abs(result.compositeScoreRed - result.compositeScoreBlue);
+        result.confidence = diff > 2 ? "Medium" : diff > 0.5 ? "Low" : "N/A";
+      }
+    }
+
+    if (result.winner === "tossup") result.keyFactors.push("Match is highly competitive — small advantages could swing either way.");
+    else result.keyFactors.push(`Prediction favors ${result.winner} alliance based on composite metrics.`);
+    if (result.dataQuality.redMissing.length > 0 || result.dataQuality.blueMissing.length > 0) {
+      result.keyFactors.push("Some teams lack scouting data — prediction confidence may be affected.");
+    }
+    if (redOprSum != null && blueOprSum != null && result.breakdown.length > 1) {
+      result.keyFactors.push("TBA OPR provides statistical baseline; scouting adds game-specific nuance.");
+    }
+
+    return result;
+  }, [
+    redOprSum,
+    blueOprSum,
+    redAllianceStats,
+    blueAllianceStats,
+    redStats,
+    blueStats,
+    redTeamNums,
+    blueTeamNums,
+    compositeWeights,
+  ]);
+
+  const prediction = {
+    winner: predictionAnalysis.winner,
+    confidence: predictionAnalysis.confidence,
+    reason: predictionAnalysis.breakdown.length > 0
+      ? `${predictionAnalysis.winProbability}% Red win probability (${predictionAnalysis.confidence} confidence)`
+      : "Insufficient data for prediction",
+  };
+
+  const redTeams = redTeamNums;
+  const blueTeams = blueTeamNums;
+
+  const hasScores = match?.redScore != null && match?.blueScore != null;
+  const redWon = match?.winningAlliance === "red";
+  const blueWon = match?.winningAlliance === "blue";
+  const isTie = hasScores && !redWon && !blueWon;
+
+  const formatTime = (time: string | null) => {
+    if (!time) return "";
+    const parsed = new Date(time);
+    if (!isNaN(parsed.getTime())) {
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const day = days[parsed.getDay()];
+      const timePart = time.replace(/^\d{4}-\d{2}-\d{2}\s*/, "");
+      return `${day} ${timePart}`;
+    }
+    return time;
+  };
+
+  const getYoutubeId = (url: string) => {
+    if (url.includes("v=")) return url.split("v=")[1]?.split("&")[0];
+    if (url.includes("youtu.be/")) return url.split("youtu.be/")[1]?.split("?")[0];
+    return url.split("/").pop();
+  };
+
+  const winnerFr = hasScores && (redWon || blueWon) ? "3fr" : "1fr";
+  const loserFr = hasScores && (redWon || blueWon) ? "2fr" : "1fr";
+  const redFr = redWon ? winnerFr : loserFr;
+  const blueFr = blueWon ? winnerFr : loserFr;
+
+  return (
+    <div className="p-4 sm:p-6 space-y-8 max-w-6xl mx-auto">
+      <div className="space-y-1">
+        <Link href={`/events/${eventId}/schedule`}>
+          <Button variant="ghost" size="sm" className="-ml-1 text-muted-foreground hover:text-foreground" data-testid="button-back-schedule">
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back to Matches
+          </Button>
+        </Link>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2" data-testid="text-match-title">
+          Match {matchNum}
+          {help?.HelpTrigger?.({
+            content: {
+              title: "Match detail",
+              body: <p>Red vs blue alliances, scores, and prediction based on your scouting data. Click a team to view their profile. Watch the video if available.</p>,
+            },
+          })}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          {event?.name}{match?.time ? ` · ${formatTime(match.time)}` : ""}
+        </p>
+      </div>
+
+      {isLoading ? (
+        <Skeleton className="h-48 w-full" />
+      ) : !match ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Swords className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <p className="font-semibold text-lg">Match not found in schedule</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              This match number doesn't exist in the imported schedule.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-8">
+          {match.videoUrl && (match.videoUrl.includes("youtube.com") || match.videoUrl.includes("youtu.be")) && (
+            <div className="flex justify-center">
+              <div className="w-full max-w-lg aspect-video rounded-lg overflow-hidden bg-black">
+                <iframe
+                  src={`https://www.youtube.com/embed/${getYoutubeId(match.videoUrl)}`}
+                  className="w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title={`Match ${matchNum} Video`}
+                />
+              </div>
+            </div>
+          )}
+
+          {match.videoUrl && !(match.videoUrl.includes("youtube.com") || match.videoUrl.includes("youtu.be")) && (
+            <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 text-primary hover:underline text-sm font-medium" data-testid="link-match-video">
+              <Video className="h-4 w-4" />
+              Watch Match Video
+            </a>
+          )}
+
+          <div
+            className="grid items-stretch gap-0 rounded-xl overflow-hidden border border-border transition-all duration-300"
+            style={{ gridTemplateColumns: `${redFr} auto ${blueFr}` }}
+          >
+            <div className={`p-4 transition-all duration-300 ${redWon ? "bg-red-500/15 dark:bg-red-500/20" : hasScores && blueWon ? "bg-red-500/3 dark:bg-red-500/5 opacity-75" : "bg-red-500/5 dark:bg-red-500/8"}`}>
+              <div className="flex items-center gap-2 mb-3">
+                {redWon && <Trophy className="h-5 w-5 text-red-500 dark:text-red-400" />}
+                <p className={`text-sm font-bold uppercase tracking-wide ${redWon ? "text-red-600 dark:text-red-400" : "text-red-500/60 dark:text-red-400/50"}`}>
+                  Red Alliance
+                </p>
+              </div>
+
+              {hasScores && (
+                <p className={`font-extrabold tabular-nums mb-4 ${redWon ? "text-5xl text-red-600 dark:text-red-400" : "text-3xl text-red-500/40 dark:text-red-400/40"}`} data-testid="text-red-score">
+                  {match.redScore}
+                </p>
+              )}
+
+              <div className="space-y-2">
+                {redTeams.map(num => {
+                  const team = teamMap.get(num);
+                  const et = eventTeams?.find((e) => e.team.teamNumber === num);
+                  const stats = et ? teamStats.get(et.teamId) ?? null : null;
+                  return (
+                    <Link key={num} href={team ? teamLink(team.id) : "#"}>
+                      <div className="flex items-center gap-2.5 py-1.5 hover:opacity-80 transition-opacity cursor-pointer" data-testid={`link-team-${num}`}>
+                        <img
+                          src={team?.avatar || placeholderAvatar}
+                          alt=""
+                          className={`rounded-full border border-border object-cover bg-white shrink-0 ${redWon ? "w-9 h-9" : "w-7 h-7"}`}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className={`font-bold leading-tight ${redWon ? "text-sm text-foreground" : "text-xs"} ${!redWon && hasScores && blueWon ? "text-foreground/70" : "text-foreground"}`}>{num}</p>
+                          <p className={`text-muted-foreground truncate ${redWon ? "text-xs" : "text-[11px]"}`}>{team?.teamName || "Unknown"}</p>
+                          {stats && (
+                            <div className="flex flex-wrap gap-x-2 gap-y-0 mt-0.5 text-[10px] text-muted-foreground">
+                              <span>Auto: {stats.avgAuto.toFixed(1)}</span>
+                              <span>TP: {stats.avgThroughput.toFixed(1)}</span>
+                              <span>Climb: {Math.round(stats.climbRate)}%</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+              {redAllianceStats && (
+                <div className="mt-3 pt-2 border-t border-red-500/20">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Alliance avg</p>
+                  <div className="flex flex-wrap gap-x-2 gap-y-0 text-[10px] text-muted-foreground">
+                    <span>Auto {redAllianceStats.avgAuto.toFixed(1)}</span>
+                    <span>TP {redAllianceStats.avgThroughput.toFixed(1)}</span>
+                    <span>Acc {Math.round(redAllianceStats.avgAccuracy)}%</span>
+                    <span>Climb {Math.round(redAllianceStats.climbRate)}%</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col items-center justify-center px-3 bg-muted/30 border-x border-border">
+              <Swords className="h-5 w-5 text-muted-foreground" />
+              {isTie && (
+                <span className="text-[10px] font-bold text-muted-foreground mt-1">TIE</span>
+              )}
+            </div>
+
+            <div className={`p-4 transition-all duration-300 ${blueWon ? "bg-blue-500/15 dark:bg-blue-500/20" : hasScores && redWon ? "bg-blue-500/3 dark:bg-blue-500/5 opacity-75" : "bg-blue-500/5 dark:bg-blue-500/8"}`}>
+              <div className="flex items-center gap-2 mb-3">
+                {blueWon && <Trophy className="h-5 w-5 text-blue-500 dark:text-blue-400" />}
+                <p className={`text-sm font-bold uppercase tracking-wide ${blueWon ? "text-blue-600 dark:text-blue-400" : "text-blue-500/60 dark:text-blue-400/50"}`}>
+                  Blue Alliance
+                </p>
+              </div>
+
+              {hasScores && (
+                <p className={`font-extrabold tabular-nums mb-4 ${blueWon ? "text-5xl text-blue-600 dark:text-blue-400" : "text-3xl text-blue-500/40 dark:text-blue-400/40"}`} data-testid="text-blue-score">
+                  {match.blueScore}
+                </p>
+              )}
+
+              <div className="space-y-2">
+                {blueTeams.map(num => {
+                  const team = teamMap.get(num);
+                  const et = eventTeams?.find((e) => e.team.teamNumber === num);
+                  const stats = et ? teamStats.get(et.teamId) ?? null : null;
+                  return (
+                    <Link key={num} href={team ? teamLink(team.id) : "#"}>
+                      <div className="flex items-center gap-2.5 py-1.5 hover:opacity-80 transition-opacity cursor-pointer" data-testid={`link-team-${num}`}>
+                        <img
+                          src={team?.avatar || placeholderAvatar}
+                          alt=""
+                          className={`rounded-full border border-border object-cover bg-white shrink-0 ${blueWon ? "w-9 h-9" : "w-7 h-7"}`}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className={`font-bold leading-tight ${blueWon ? "text-sm text-foreground" : "text-xs"} ${!blueWon && hasScores && redWon ? "text-foreground/70" : "text-foreground"}`}>{num}</p>
+                          <p className={`text-muted-foreground truncate ${blueWon ? "text-xs" : "text-[11px]"}`}>{team?.teamName || "Unknown"}</p>
+                          {stats && (
+                            <div className="flex flex-wrap gap-x-2 gap-y-0 mt-0.5 text-[10px] text-muted-foreground">
+                              <span>Auto: {stats.avgAuto.toFixed(1)}</span>
+                              <span>TP: {stats.avgThroughput.toFixed(1)}</span>
+                              <span>Climb: {Math.round(stats.climbRate)}%</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+              {blueAllianceStats && (
+                <div className="mt-3 pt-2 border-t border-blue-500/20">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Alliance avg</p>
+                  <div className="flex flex-wrap gap-x-2 gap-y-0 text-[10px] text-muted-foreground">
+                    <span>Auto {blueAllianceStats.avgAuto.toFixed(1)}</span>
+                    <span>TP {blueAllianceStats.avgThroughput.toFixed(1)}</span>
+                    <span>Acc {Math.round(blueAllianceStats.avgAccuracy)}%</span>
+                    <span>Climb {Math.round(blueAllianceStats.climbRate)}%</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ========== IN-DEPTH PREDICTION SECTION ========== */}
+          <Separator className="my-10" />
+          <section className="space-y-8" aria-label="Match prediction analysis">
+            {/* Verdict */}
+            <Card className={`overflow-hidden border-0 shadow-lg ${
+              predictionAnalysis.winner === "tossup"
+                ? "bg-muted dark:bg-muted/80 border border-border"
+                : predictionAnalysis.winner === "red"
+                  ? "bg-red-500/15 dark:bg-red-500/20 border border-red-500/30"
+                  : "bg-blue-500/15 dark:bg-blue-500/20 border border-blue-500/30"
+            }`}>
+              <CardContent className="py-5 px-6">
+                <div className="flex flex-col items-center justify-center text-center gap-2">
+                  {predictionAnalysis.winner === "tossup" ? (
+                    <>
+                      <div className="rounded-full p-2 bg-muted/50">
+                        <Swords className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-xl font-bold tracking-tight text-muted-foreground">Toss-up</p>
+                        <p className="text-sm font-medium text-muted-foreground/70 mt-0.5">50% Favoured</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className={`rounded-full p-2 ${
+                        predictionAnalysis.winner === "red"
+                          ? "bg-red-500/25 dark:bg-red-500/30"
+                          : "bg-blue-500/25 dark:bg-blue-500/30"
+                      }`}>
+                        <Trophy className={`h-7 w-7 ${
+                          predictionAnalysis.winner === "red"
+                            ? "text-red-500 dark:text-red-400"
+                            : "text-blue-500 dark:text-blue-400"
+                        }`} />
+                      </div>
+                      <div>
+                        <p className={`text-2xl font-bold tracking-tight ${
+                          predictionAnalysis.winner === "red"
+                            ? "text-red-600 dark:text-red-400"
+                            : "text-blue-600 dark:text-blue-400"
+                        }`}>
+                          {predictionAnalysis.winner === "red" ? "Red" : "Blue"} Alliance
+                        </p>
+                        <p className={`text-sm font-semibold mt-0.5 tabular-nums ${
+                          predictionAnalysis.winner === "red"
+                            ? "text-red-600/90 dark:text-red-400/90"
+                            : "text-blue-600/90 dark:text-blue-400/90"
+                        }`}>
+                          {(predictionAnalysis.winner === "red" ? predictionAnalysis.winProbability : 100 - predictionAnalysis.winProbability)}% Favoured
+                        </p>
+                      </div>
+                      {/* Progress bar */}
+                      <div className="w-full max-w-[200px] h-1.5 rounded-full bg-black/40 dark:bg-black/60 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            predictionAnalysis.winner === "red"
+                              ? "bg-red-500 dark:bg-red-400"
+                              : "bg-blue-500 dark:bg-blue-400"
+                          }`}
+                          style={{ width: `${predictionAnalysis.winner === "red" ? predictionAnalysis.winProbability : 100 - predictionAnalysis.winProbability}%` }}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Overall Alliance Stats */}
+            {(redAllianceStats || blueAllianceStats || redOprSum != null || blueOprSum != null) && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold text-foreground">Overall Alliance Stats</CardTitle>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Red vs Blue alliance averages
+                  </p>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="rounded-md border overflow-auto bg-background">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-b-2 border-border bg-muted/60 hover:bg-muted/60">
+                          <TableHead className="w-24 text-sm font-bold text-foreground h-11">Alliance</TableHead>
+                          <TableHead className="text-right text-sm font-bold text-foreground">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help">OPR</span>
+                              </TooltipTrigger>
+                              <TooltipContent>Offensive Power Rating sum (TBA)</TooltipContent>
+                            </Tooltip>
+                          </TableHead>
+                          <TableHead className="text-right text-sm font-bold text-foreground">Auto</TableHead>
+                          <TableHead className="text-right text-sm font-bold text-foreground">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help">TP</span>
+                              </TooltipTrigger>
+                              <TooltipContent>Throughput (balls/min in teleop)</TooltipContent>
+                            </Tooltip>
+                          </TableHead>
+                          <TableHead className="text-right text-sm font-bold text-foreground">Acc %</TableHead>
+                          <TableHead className="text-right text-sm font-bold text-foreground">Def %</TableHead>
+                          <TableHead className="text-right text-sm font-bold text-foreground">Climb %</TableHead>
+                          <TableHead className="text-right text-sm font-bold text-foreground">Auto Climb %</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow className={`h-12 border-b border-border bg-red-500/5 hover:bg-red-500/10 transition-colors ${predictionAnalysis.winner === "red" ? "ring-2 ring-red-500/60 ring-inset" : ""}`}>
+                          <TableCell className="font-medium font-mono font-bold text-base text-red-500 dark:text-red-400">Red</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-red-500 dark:text-red-400">{redOprSum != null ? redOprSum.toFixed(1) : <span className="text-red-500/70 dark:text-red-400/70">—</span>}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-red-500 dark:text-red-400">{redAllianceStats ? redAllianceStats.avgAuto.toFixed(1) : <span className="text-red-500/70 dark:text-red-400/70">—</span>}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-red-500 dark:text-red-400">{redAllianceStats ? redAllianceStats.avgThroughput.toFixed(1) : <span className="text-red-500/70 dark:text-red-400/70">—</span>}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-red-500 dark:text-red-400">{redAllianceStats ? `${Math.round(redAllianceStats.avgAccuracy)}%` : <span className="text-red-500/70 dark:text-red-400/70">—</span>}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-red-500 dark:text-red-400">{redAllianceStats ? `${Math.round(redAllianceStats.avgDefense)}%` : <span className="text-red-500/70 dark:text-red-400/70">—</span>}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-red-500 dark:text-red-400">{redAllianceStats ? `${Math.round(redAllianceStats.climbRate)}%` : <span className="text-red-500/70 dark:text-red-400/70">—</span>}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-red-500 dark:text-red-400">{redAllianceStats ? `${Math.round(redAllianceStats.autoClimbRate)}%` : <span className="text-red-500/70 dark:text-red-400/70">—</span>}</TableCell>
+                        </TableRow>
+                        <TableRow className={`h-12 border-b border-border bg-blue-500/5 hover:bg-blue-500/10 transition-colors ${predictionAnalysis.winner === "blue" ? "ring-2 ring-blue-500/60 ring-inset" : ""}`}>
+                          <TableCell className="font-medium font-mono font-bold text-base text-blue-500 dark:text-blue-400">Blue</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-blue-500 dark:text-blue-400">{blueOprSum != null ? blueOprSum.toFixed(1) : <span className="text-blue-500/70 dark:text-blue-400/70">—</span>}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-blue-500 dark:text-blue-400">{blueAllianceStats ? blueAllianceStats.avgAuto.toFixed(1) : <span className="text-blue-500/70 dark:text-blue-400/70">—</span>}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-blue-500 dark:text-blue-400">{blueAllianceStats ? blueAllianceStats.avgThroughput.toFixed(1) : <span className="text-blue-500/70 dark:text-blue-400/70">—</span>}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-blue-500 dark:text-blue-400">{blueAllianceStats ? `${Math.round(blueAllianceStats.avgAccuracy)}%` : <span className="text-blue-500/70 dark:text-blue-400/70">—</span>}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-blue-500 dark:text-blue-400">{blueAllianceStats ? `${Math.round(blueAllianceStats.avgDefense)}%` : <span className="text-blue-500/70 dark:text-blue-400/70">—</span>}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-blue-500 dark:text-blue-400">{blueAllianceStats ? `${Math.round(blueAllianceStats.climbRate)}%` : <span className="text-blue-500/70 dark:text-blue-400/70">—</span>}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium text-blue-500 dark:text-blue-400">{blueAllianceStats ? `${Math.round(blueAllianceStats.autoClimbRate)}%` : <span className="text-blue-500/70 dark:text-blue-400/70">—</span>}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Per-Team Stats Table */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold text-foreground">Per-Team Stats</CardTitle>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Individual metrics for each team
+                </p>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="rounded-md border overflow-auto bg-background">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b-2 border-border bg-muted/60 hover:bg-muted/60">
+                      <TableHead className="w-24 text-sm font-bold text-foreground h-11">Team</TableHead>
+                      <TableHead className="text-right text-sm font-bold text-foreground">Auto</TableHead>
+                      <TableHead className="text-right text-sm font-bold text-foreground">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help">TP</span>
+                          </TooltipTrigger>
+                          <TooltipContent>Throughput (balls/min in teleop)</TooltipContent>
+                        </Tooltip>
+                      </TableHead>
+                      <TableHead className="text-right text-sm font-bold text-foreground">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help">Acc %</span>
+                          </TooltipTrigger>
+                          <TooltipContent>Shooting accuracy</TooltipContent>
+                        </Tooltip>
+                      </TableHead>
+                      <TableHead className="text-right text-sm font-bold text-foreground">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help">Def %</span>
+                          </TooltipTrigger>
+                          <TooltipContent>Defense rating</TooltipContent>
+                        </Tooltip>
+                      </TableHead>
+                      <TableHead className="text-right text-sm font-bold text-foreground">Climb %</TableHead>
+                      <TableHead className="text-right text-sm font-bold text-foreground">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help">OPR</span>
+                          </TooltipTrigger>
+                          <TooltipContent>Offensive Power Rating (TBA)</TooltipContent>
+                        </Tooltip>
+                      </TableHead>
+                      <TableHead className="text-right text-sm font-bold text-foreground">Scouted</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[...redTeamNums, ...blueTeamNums].map((num, idx) => {
+                      const isRed = idx < redTeamNums.length;
+                      const et = eventTeams?.find((e) => e.team.teamNumber === num);
+                      const stats = et ? teamStats.get(et.teamId) ?? null : null;
+                      const opr = et ? (et as EtExtended).opr : null;
+                      const rowBg = isRed ? "bg-red-500/5 hover:bg-red-500/10" : "bg-blue-500/5 hover:bg-blue-500/10";
+                      const textCls = isRed ? "text-red-500 dark:text-red-400" : "text-blue-500 dark:text-blue-400";
+                      const mutedCls = isRed ? "text-red-500/70 dark:text-red-400/70" : "text-blue-500/70 dark:text-blue-400/70";
+                      const isWinner = hasScores
+                        ? (isRed && redWon) || (!isRed && blueWon)
+                        : predictionAnalysis.winner !== "tossup" && ((isRed && predictionAnalysis.winner === "red") || (!isRed && predictionAnalysis.winner === "blue"));
+                      const posInAlliance = isRed ? idx : idx - redTeamNums.length;
+                      const isFirstInBlock = isWinner && posInAlliance === 0;
+                      const isLastInBlock = isWinner && (isRed ? posInAlliance === redTeamNums.length - 1 : posInAlliance === blueTeamNums.length - 1);
+                      const borderClr = isRed ? "border-red-500/60" : "border-blue-500/60";
+                      const firstCellBorder = isWinner ? `border-l-2 ${borderClr} ${isFirstInBlock ? `border-t-2 ${borderClr}` : ""} ${isLastInBlock ? `border-b-2 ${borderClr}` : ""}` : "";
+                      const lastCellBorder = isWinner ? `border-r-2 ${borderClr} ${isFirstInBlock ? `border-t-2 ${borderClr}` : ""} ${isLastInBlock ? `border-b-2 ${borderClr}` : ""}` : "";
+                      const midCellBorder = isWinner ? `${isFirstInBlock ? `border-t-2 ${borderClr}` : ""} ${isLastInBlock ? `border-b-2 ${borderClr}` : ""}` : "";
+                      const rowBorder = isWinner && !isLastInBlock ? "border-b-0" : "";
+                      return (
+                        <TableRow key={`${num}-${isRed ? "r" : "b"}`} className={`h-12 cursor-pointer border-b border-border transition-colors ${rowBg} ${rowBorder}`} onClick={() => et && navigate(teamLink(et.team.id))}>
+                          <TableCell className={`font-medium ${textCls} ${firstCellBorder}`}>
+                            <Link href={et ? teamLink(et.team.id) : "#"} className={`font-mono font-bold text-base hover:underline ${isRed ? "text-red-500 dark:text-red-400" : "text-blue-500 dark:text-blue-400"}`} onClick={(e) => e.stopPropagation()}>
+                              {num}
+                            </Link>
+                          </TableCell>
+                          <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{stats ? stats.avgAuto.toFixed(1) : <span className={mutedCls}>—</span>}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{stats ? stats.avgThroughput.toFixed(1) : <span className={mutedCls}>—</span>}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{stats ? `${Math.round(stats.avgAccuracy)}%` : <span className={mutedCls}>—</span>}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{stats ? `${Math.round(stats.avgDefense)}%` : <span className={mutedCls}>—</span>}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{stats ? `${Math.round(stats.climbRate)}%` : <span className={mutedCls}>—</span>}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-medium ${textCls} ${midCellBorder}`}>{opr != null ? opr.toFixed(1) : <span className={mutedCls}>—</span>}</TableCell>
+                          <TableCell className={`text-right tabular-nums font-medium ${textCls} ${lastCellBorder}`}>{stats ? stats.entries : <span className={mutedCls}>0</span>}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                  <TableCaption className="text-xs text-muted-foreground py-3">
+                    Click a team number to view full profile.
+                  </TableCaption>
+                </Table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Advantages / Disadvantages */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="border-l-4 border-l-red-500/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold text-red-700 dark:text-red-400">Red Alliance Advantages</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {predictionAnalysis.redAdvantages.length > 0 ? (
+                    <ul className="space-y-1.5 text-sm">
+                      {predictionAnalysis.redAdvantages.map((a, i) => (
+                        <li key={i} className="flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4 text-red-500 shrink-0" />
+                          {a}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No significant advantages identified.</p>
+                  )}
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-blue-500/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold text-blue-700 dark:text-blue-400">Blue Alliance Advantages</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {predictionAnalysis.blueAdvantages.length > 0 ? (
+                    <ul className="space-y-1.5 text-sm">
+                      {predictionAnalysis.blueAdvantages.map((a, i) => (
+                        <li key={i} className="flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4 text-blue-500 shrink-0" />
+                          {a}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No significant advantages identified.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Data Quality & Key Factors */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    Data Quality
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div>
+                    <p className="font-medium text-red-600 dark:text-red-400">Red alliance</p>
+                    <p className="text-muted-foreground">{predictionAnalysis.dataQuality.redScouted} matches scouted total</p>
+                    {predictionAnalysis.dataQuality.redMissing.length > 0 && (
+                      <p className="text-amber-600 dark:text-amber-400 text-xs mt-1">
+                        Missing data: {predictionAnalysis.dataQuality.redMissing.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-blue-600 dark:text-blue-400">Blue alliance</p>
+                    <p className="text-muted-foreground">{predictionAnalysis.dataQuality.blueScouted} matches scouted total</p>
+                    {predictionAnalysis.dataQuality.blueMissing.length > 0 && (
+                      <p className="text-amber-600 dark:text-amber-400 text-xs mt-1">
+                        Missing data: {predictionAnalysis.dataQuality.blueMissing.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold text-foreground">Key Factors</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-1.5 text-sm text-muted-foreground">
+                    {predictionAnalysis.keyFactors.map((f, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="text-primary mt-0.5">•</span>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+          </section>
+
+          {!hasScores && (
+            <p className="text-center text-sm text-muted-foreground">
+              Scores not yet available. Sync results from TBA in Event Settings.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
