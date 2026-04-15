@@ -1,26 +1,17 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  pointerWithin,
-  closestCorners,
-  MeasuringStrategy,
-  useDroppable,
-  useDraggable,
-  type CollisionDetection,
-  type DragEndEvent,
-  type DragMoveEvent,
-  type DragStartEvent,
-} from "@dnd-kit/core";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -58,9 +49,7 @@ import {
   partnersByCaptain,
   pickedTeamIds,
 } from "@shared/alliance-sim";
-import { ArrowLeft, Swords, RotateCcw, Trash2, Search, Plus, GripVertical } from "lucide-react";
-
-const DROP_POOL_ID = "drop-pool";
+import { ArrowLeft, Swords, RotateCcw, Trash2, Plus } from "lucide-react";
 
 /** Verbose alliance-sim logs: Vite dev, `?allianceDebug=1`, `localStorage.allianceSimDebug=1`, or `window.__ALLIANCE_SIM_DEBUG__ = true`. */
 function allianceSimDebugEnabled(): boolean {
@@ -101,60 +90,6 @@ function asimLogCollisionThrottled(kind: string, payload: Record<string, unknown
   console.log("[AllianceSim][collision]", kind, payload);
 }
 
-function dropSlotId(captainSlot: number, partnerIndex: number) {
-  return `drop-slot-${captainSlot}-${partnerIndex}`;
-}
-
-type ActiveDragData =
-  | { from: "pool"; teamId: number }
-  | { from: "slot"; captainSlot: number; partnerIndex: number; teamId: number };
-
-function applyDragToPicks(
-  picks: AllianceSimPick[],
-  active: ActiveDragData,
-  overId: string | null,
-  partnerSlots: AllianceSimPartnerSlotCount,
-): AllianceSimPick[] | null {
-  if (!overId) return null;
-  const mat = picksToMatrix(normalizePicks(picks, partnerSlots), partnerSlots);
-
-  if (overId === DROP_POOL_ID) {
-    if (active.from !== "slot") return null;
-    mat[active.captainSlot - 1][active.partnerIndex] = null;
-    return matrixToPicks(mat, partnerSlots);
-  }
-
-  if (!overId.startsWith("drop-slot-")) return null;
-  const rest = overId.slice("drop-slot-".length);
-  const dash = rest.lastIndexOf("-");
-  if (dash < 1) return null;
-  const tc = parseInt(rest.slice(0, dash), 10);
-  const tp = parseInt(rest.slice(dash + 1), 10);
-  if (!Number.isFinite(tc) || tc < 1 || tc > ALLIANCE_SIM_CAPTAINS || !Number.isFinite(tp) || tp < 0 || tp >= partnerSlots)
-    return null;
-
-  if (active.from === "pool") {
-    for (let i = 0; i < ALLIANCE_SIM_CAPTAINS; i++) {
-      for (let p = 0; p < partnerSlots; p++) {
-        if (mat[i][p] === active.teamId) mat[i][p] = null;
-      }
-    }
-    mat[tc - 1][tp] = active.teamId;
-    return matrixToPicks(mat, partnerSlots);
-  }
-
-  if (active.from === "slot") {
-    const { captainSlot: sc, partnerIndex: sp, teamId: st } = active;
-    if (sc === tc && sp === tp) return null;
-    const targetTeam = mat[tc - 1][tp];
-    mat[tc - 1][tp] = st;
-    mat[sc - 1][sp] = targetTeam;
-    return matrixToPicks(mat, partnerSlots);
-  }
-
-  return null;
-}
-
 function samePickSets(a: AllianceSimPick[], b: AllianceSimPick[], partnerSlots: AllianceSimPartnerSlotCount) {
   return (
     JSON.stringify(sortPicksCanonical(normalizePicks(a, partnerSlots))) ===
@@ -162,37 +97,20 @@ function samePickSets(a: AllianceSimPick[], b: AllianceSimPick[], partnerSlots: 
   );
 }
 
-/** dnd-kit often reports the inner draggable id as `over` when dropping onto a filled slot; map to the droppable id. */
-function normalizeDropTargetId(overId: string | null, active: ActiveDragData): string | null {
-  if (overId == null) return null;
-  if (overId.startsWith("drag-slot-")) return `drop-slot-${overId.slice("drag-slot-".length)}`;
-  if (active.from === "slot" && overId.startsWith("drag-pool-")) return DROP_POOL_ID;
-  return overId;
+function formatUpdatedAtShort(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return "Updated recently";
+  const diffMs = Date.now() - d.getTime();
+  const sec = Math.round(diffMs / 1000);
+  const min = Math.round(sec / 60);
+  const hr = Math.round(min / 60);
+  const day = Math.round(hr / 24);
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  if (Math.abs(sec) < 60) return `Updated ${rtf.format(-sec, "second")}`;
+  if (Math.abs(min) < 60) return `Updated ${rtf.format(-min, "minute")}`;
+  if (Math.abs(hr) < 24) return `Updated ${rtf.format(-hr, "hour")}`;
+  return `Updated ${rtf.format(-day, "day")}`;
 }
-
-/** Prefer pointer position (works for empty cells); overlay + small slots fall back to closest corners. */
-const allianceSimCollision: CollisionDetection = (args) => {
-  const byPointer = pointerWithin(args);
-  if (byPointer.length > 0) {
-    if (args.active?.id != null) {
-      asimLogCollisionThrottled("pointerWithin", {
-        activeId: args.active.id,
-        hits: byPointer.map((c) => String(c.id)),
-        pointer: args.pointerCoordinates,
-      });
-    }
-    return byPointer;
-  }
-  const byCorners = closestCorners(args);
-  if (args.active?.id != null) {
-    asimLogCollisionThrottled("closestCorners", {
-      activeId: args.active.id,
-      topCorners: byCorners.slice(0, 5).map((c) => ({ id: String(c.id), dist: c.data?.value })),
-      pointer: args.pointerCoordinates,
-    });
-  }
-  return byCorners;
-};
 
 type SimSessionSummary = {
   id: number;
@@ -212,18 +130,29 @@ type SimSessionDetail = SimSessionSummary & {
 };
 
 type EventTeamWithTeam = EventTeam & { team: Team };
+type PicklistSummary = {
+  id: number;
+  eventId: number;
+  name: string;
+  adminOnly?: boolean | null;
+  entryCount: number;
+};
+type PicklistEntryWithTeam = {
+  id: number;
+  picklistId: number;
+  teamId: number;
+  rank: number;
+  tier: string;
+  team: Team;
+};
 
 const ALLIANCE_SIM_HELP = {
   title: "Alliance selection simulator",
   body: (
     <>
+      <p>Drag teams from the pool into slots. Drag to swap/remove.</p>
       <p>
-        Build alliances by <strong>dragging</strong> teams from the pool into partner slots (any order). Drag a placed
-        team onto another slot to swap, or onto the pool to remove it.
-      </p>
-      <p>
-        Optional captain labels and a third partner slot are configured in <strong>Event settings</strong>. Use{" "}
-        <strong>Reset draft</strong> to clear placements.
+        Use <strong>Reset draft</strong> to clear placements.
       </p>
     </>
   ),
@@ -235,141 +164,91 @@ function teamByIdMap(teams: EventTeamWithTeam[]): Map<number, Team> {
   return m;
 }
 
-function PoolTeamChip({ teamId, team }: { teamId: number; team: Team }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `drag-pool-${teamId}`,
-    data: { from: "pool" as const, teamId },
-  });
-  return (
-    <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      className={cn(
-        "flex min-w-0 cursor-grab touch-none items-start gap-2 rounded-lg border bg-card px-2.5 py-2.5 text-left shadow-sm active:cursor-grabbing sm:gap-2.5 sm:px-3 sm:py-3",
-        isDragging && "opacity-40",
-      )}
-    >
-      <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="text-base font-semibold tabular-nums leading-none sm:text-lg">{team.teamNumber}</div>
-        <div className="line-clamp-2 text-sm leading-snug text-muted-foreground sm:text-[0.9375rem]">{team.teamName}</div>
-      </div>
-    </div>
-  );
+function normalizeTeamNumberDraft(v: string): string {
+  return v.replace(/[^\d]/g, "").slice(0, 5);
 }
 
-/** Filled slot: one surface — droppable + draggable share the same node (no inner “pill”). */
-function PartnerSlotFilled({
-  captainSlot,
-  partnerIndex,
-  teamId,
-  team,
+function isNonEmptyDraft(v: string | null | undefined): v is string {
+  return !!v && v.trim().length > 0;
+}
+
+function parseDraftTeamNumber(raw: string): number | null {
+  const v = normalizeTeamNumberDraft(raw);
+  if (!isNonEmptyDraft(v)) return null;
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function duplicateTeamNumbersFromDraft({
+  captainsDraft,
+  picksDraft,
+  partnerSlots,
+  attendingTeamNumbers,
 }: {
-  captainSlot: number;
-  partnerIndex: number;
-  teamId: number;
-  team: Team;
-}) {
-  const dropId = dropSlotId(captainSlot, partnerIndex);
-  const { isOver, setNodeRef: setDropRef } = useDroppable({
-    id: dropId,
-    data: { captainSlot, partnerIndex },
-  });
-  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
-    id: `drag-slot-${captainSlot}-${partnerIndex}`,
-    data: { from: "slot" as const, captainSlot, partnerIndex, teamId },
-  });
-  const mergedRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      setDropRef(node);
-      setDragRef(node);
-    },
-    [setDropRef, setDragRef],
-  );
-
-  return (
-    <div
-      ref={mergedRef}
-      {...listeners}
-      {...attributes}
-      className={cn(
-        "flex h-full min-h-[5.5rem] cursor-grab touch-none flex-col rounded-md border border-border/70 bg-muted/55 px-2 py-2 dark:bg-muted/40 active:cursor-grabbing sm:min-h-[5.75rem] sm:px-2.5 sm:py-2.5",
-        isOver && "ring-2 ring-primary ring-offset-1 ring-offset-background",
-        isDragging && "opacity-40",
-      )}
-    >
-      <div className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-xs">
-        P{partnerIndex + 1}
-      </div>
-      <div className="flex min-h-0 flex-1 items-stretch gap-2 overflow-hidden pt-1.5">
-        <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/90" aria-hidden />
-        <div className="flex min-h-[2.75rem] min-w-0 flex-1 flex-col justify-center gap-1">
-          <span className="truncate text-base font-bold tabular-nums leading-none text-foreground sm:text-lg">
-            {team.teamNumber}
-          </span>
-          <p className="line-clamp-2 min-h-[2.25rem] text-xs leading-snug text-foreground/85 sm:text-sm">{team.teamName}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PartnerSlotEmpty({ captainSlot, partnerIndex }: { captainSlot: number; partnerIndex: number }) {
-  const dropId = dropSlotId(captainSlot, partnerIndex);
-  const { isOver, setNodeRef: setDropRef } = useDroppable({
-    id: dropId,
-    data: { captainSlot, partnerIndex },
-  });
-
-  return (
-    <div
-      ref={setDropRef}
-      className={cn(
-        "flex h-full min-h-[5.5rem] flex-col rounded-md border border-dashed border-muted-foreground/40 bg-muted/10 px-2 py-2 sm:min-h-[5.75rem] sm:px-2.5 sm:py-2.5",
-        isOver && "ring-2 ring-primary ring-offset-1 ring-offset-background",
-      )}
-    >
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-xs">
-        P{partnerIndex + 1}
-      </div>
-      <div className="flex flex-1 items-center justify-center px-1 text-center text-xs text-muted-foreground sm:text-sm">
-        Drop here
-      </div>
-    </div>
-  );
-}
-
-function PartnerSlot({
-  captainSlot,
-  partnerIndex,
-  teamId,
-  team,
-}: {
-  captainSlot: number;
-  partnerIndex: number;
-  teamId: number | null;
-  team: Team | undefined;
-}) {
-  if (teamId != null && team) {
-    return <PartnerSlotFilled captainSlot={captainSlot} partnerIndex={partnerIndex} teamId={teamId} team={team} />;
+  captainsDraft: string[];
+  picksDraft: string[][];
+  partnerSlots: AllianceSimPartnerSlotCount;
+  attendingTeamNumbers: Set<number>;
+}): Set<number> {
+  const counts = new Map<number, number>();
+  for (let i = 0; i < ALLIANCE_SIM_CAPTAINS; i++) {
+    const n = parseDraftTeamNumber(captainsDraft?.[i] ?? "");
+    if (n != null && attendingTeamNumbers.has(n)) counts.set(n, (counts.get(n) ?? 0) + 1);
   }
-  return <PartnerSlotEmpty captainSlot={captainSlot} partnerIndex={partnerIndex} />;
+  for (let c = 0; c < ALLIANCE_SIM_CAPTAINS; c++) {
+    for (let p = 0; p < partnerSlots; p++) {
+      const n = parseDraftTeamNumber(picksDraft?.[c]?.[p] ?? "");
+      if (n != null && attendingTeamNumbers.has(n)) counts.set(n, (counts.get(n) ?? 0) + 1);
+    }
+  }
+  const dupes = new Set<number>();
+  for (const [n, ct] of counts.entries()) if (ct >= 2) dupes.add(n);
+  return dupes;
 }
 
-function PoolDropShell({ children }: { children: React.ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({ id: DROP_POOL_ID });
-  return (
-    <div
-      ref={setNodeRef}
-      className={cn(
-        "flex min-h-[120px] flex-1 flex-col rounded-lg border border-dashed border-muted-foreground/30 bg-muted/10 p-2.5 sm:min-h-[140px] sm:p-3",
-        isOver && "border-primary bg-primary/5",
-      )}
-    >
-      {children}
-    </div>
+function createEmptyDraftMatrix(partnerSlots: AllianceSimPartnerSlotCount): string[][] {
+  return Array.from({ length: ALLIANCE_SIM_CAPTAINS }, () => Array.from({ length: partnerSlots }, () => ""));
+}
+
+function draftFromPicks(picks: AllianceSimPick[], partnerSlots: AllianceSimPartnerSlotCount, teamMap: Map<number, Team>): string[][] {
+  const matIds = picksToMatrix(normalizePicks(picks, partnerSlots), partnerSlots);
+  return matIds.map((row) =>
+    row.map((teamId) => {
+      if (teamId == null) return "";
+      const t = teamMap.get(teamId);
+      return t ? String(t.teamNumber) : "";
+    }),
   );
+}
+
+function matrixToPicksFromDraft(
+  draft: string[][],
+  partnerSlots: AllianceSimPartnerSlotCount,
+  teamIdByNumber: Map<number, number>,
+): { picks: AllianceSimPick[]; hasInvalid: boolean } {
+  const mat: (number | null)[][] = Array.from({ length: ALLIANCE_SIM_CAPTAINS }, () =>
+    Array.from({ length: partnerSlots }, () => null as number | null),
+  );
+  let hasInvalid = false;
+  for (let c = 0; c < ALLIANCE_SIM_CAPTAINS; c++) {
+    for (let p = 0; p < partnerSlots; p++) {
+      const raw = draft?.[c]?.[p] ?? "";
+      const v = normalizeTeamNumberDraft(raw);
+      if (!isNonEmptyDraft(v)) {
+        mat[c][p] = null;
+        continue;
+      }
+      const n = parseInt(v, 10);
+      const teamId = teamIdByNumber.get(n);
+      if (teamId == null) {
+        hasInvalid = true;
+        mat[c][p] = null;
+        continue;
+      }
+      mat[c][p] = teamId;
+    }
+  }
+  return { picks: sortPicksCanonical(normalizePicks(matrixToPicks(mat, partnerSlots), partnerSlots)), hasInvalid };
 }
 
 export default function AllianceSimPage() {
@@ -387,17 +266,12 @@ export default function AllianceSimPage() {
   });
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
-  const [search, setSearch] = useState("");
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [overlayTeam, setOverlayTeam] = useState<Team | null>(null);
   const [captainsDraft, setCaptainsDraft] = useState<string[]>(() => normalizeCaptainRobots([]));
   const captainSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
-    }),
-  );
+  const picksSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [picksDraft, setPicksDraft] = useState<string[][]>(() => createEmptyDraftMatrix(2));
+  const [selectedPicklistId, setSelectedPicklistId] = useState<string>("none");
 
   useEffect(() => {
     if (!eventId) return;
@@ -435,26 +309,45 @@ export default function AllianceSimPage() {
     enabled: !!eventId,
   });
 
-  const teamMap = useMemo(() => teamByIdMap(eventTeams), [eventTeams]);
+  const { data: picklists = [] } = useQuery<PicklistSummary[]>({
+    queryKey: ["/api/events", eventId, "picklists"],
+    enabled: !!eventId,
+  });
 
-  const remainingTeams = useMemo(() => {
-    if (!session) return [];
-    const taken = pickedTeamIds(normalizePicks(session.picks, session.partnerSlots));
-    let list = eventTeams.filter((et) => !taken.has(et.teamId));
-    const q = search.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (et) => et.team.teamNumber.toString().includes(q) || et.team.teamName.toLowerCase().includes(q),
-      );
-    }
-    return list.sort((a, b) => a.team.teamNumber - b.team.teamNumber);
-  }, [session, eventTeams, search]);
+  const picklistIdNum = selectedPicklistId !== "none" ? parseInt(selectedPicklistId, 10) : null;
+  const { data: picklistEntries = [] } = useQuery<PicklistEntryWithTeam[]>({
+    queryKey: picklistIdNum ? ["/api/events", eventId, "picklists", picklistIdNum, "entries"] : ["picklist-entries-disabled"],
+    enabled: !!eventId && !!picklistIdNum,
+  });
+
+  const teamMap = useMemo(() => teamByIdMap(eventTeams), [eventTeams]);
+  const teamIdByNumber = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const et of eventTeams) m.set(et.team.teamNumber, et.teamId);
+    return m;
+  }, [eventTeams]);
+  const attendingTeamNumbers = useMemo(() => new Set<number>(teamIdByNumber.keys()), [teamIdByNumber]);
+  const duplicateTeamNumbers = useMemo(
+    () =>
+      session
+        ? duplicateTeamNumbersFromDraft({
+            captainsDraft,
+            picksDraft,
+            partnerSlots: session.partnerSlots,
+            attendingTeamNumbers,
+          })
+        : new Set<number>(),
+    [session, captainsDraft, picksDraft, attendingTeamNumbers],
+  );
+  const draftedTeamIds = useMemo(() => {
+    if (!session) return new Set<number>();
+    return pickedTeamIds(normalizePicks(session.picks, session.partnerSlots));
+  }, [session?.picks, session?.partnerSlots]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/events/${eventId}/alliance-sim/sessions`, {
-        name: newName.trim() || "Alliance sim",
-      });
+      const title = newName.trim();
+      const res = await apiRequest("POST", `/api/events/${eventId}/alliance-sim/sessions`, { name: title });
       return (await res.json()) as SimSessionDetail;
     },
     onSuccess: (created) => {
@@ -543,16 +436,55 @@ export default function AllianceSimPage() {
     (next: string[]) => {
       if (captainSaveTimer.current) clearTimeout(captainSaveTimer.current);
       captainSaveTimer.current = setTimeout(() => {
+        if (!session) return;
+        const dupes = duplicateTeamNumbersFromDraft({
+          captainsDraft: next,
+          picksDraft,
+          partnerSlots: session.partnerSlots,
+          attendingTeamNumbers,
+        });
+        if (dupes.size > 0) return;
+        // captains are now treated as team numbers; only save if all non-empty entries attend this event.
+        for (let i = 0; i < ALLIANCE_SIM_CAPTAINS; i++) {
+          const n = parseDraftTeamNumber(next?.[i] ?? "");
+          if (n != null && !attendingTeamNumbers.has(n)) return;
+        }
         patchCaptainsMutation.mutate(normalizeCaptainRobots(next));
       }, 450);
     },
-    [patchCaptainsMutation],
+    [patchCaptainsMutation, session, picksDraft, attendingTeamNumbers],
+  );
+
+  const schedulePicksSave = useCallback(
+    (nextDraft: string[][], ps: AllianceSimPartnerSlotCount) => {
+      if (picksSaveTimer.current) clearTimeout(picksSaveTimer.current);
+      picksSaveTimer.current = setTimeout(() => {
+        if (!session) return;
+        const dupes = duplicateTeamNumbersFromDraft({
+          captainsDraft,
+          picksDraft: nextDraft,
+          partnerSlots: ps,
+          attendingTeamNumbers,
+        });
+        if (dupes.size > 0) return;
+        const { picks: nextPicks, hasInvalid } = matrixToPicksFromDraft(nextDraft, ps, teamIdByNumber);
+        if (hasInvalid) return;
+        if (samePickSets(session.picks, nextPicks, ps)) return;
+        patchPicksMutation.mutate(nextPicks);
+      }, 450);
+    },
+    [patchPicksMutation, session, teamIdByNumber, captainsDraft, attendingTeamNumbers],
   );
 
   useEffect(() => {
     if (!session) return;
     setCaptainsDraft(normalizeCaptainRobots(session.captainRobots));
   }, [session?.id]);
+
+  useEffect(() => {
+    if (!session) return;
+    setPicksDraft(draftFromPicks(session.picks, session.partnerSlots, teamMap));
+  }, [session?.picks, session?.partnerSlots, teamMap]);
 
   const resetMutation = useMutation({
     mutationFn: async () => {
@@ -562,6 +494,8 @@ export default function AllianceSimPage() {
     onSuccess: (data) => {
       queryClient.setQueryData(sessionQueryKey, data);
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "alliance-sim", "sessions"] });
+      setPicksDraft(createEmptyDraftMatrix(data.partnerSlots));
+      setCaptainsDraft(normalizeCaptainRobots([]));
       toast({ title: "Draft reset" });
     },
     onError: (e: Error) => toast({ title: "Reset failed", description: e.message, variant: "destructive" }),
@@ -596,65 +530,6 @@ export default function AllianceSimPage() {
     setLocation(`/events/${eventId}/alliance-sim`, { replace: true });
   }, [eventId, setLocation]);
 
-  const handleDragStart = useCallback(
-    (ev: DragStartEvent) => {
-      const d = ev.active.data.current as Partial<ActiveDragData> | undefined;
-      asimLog("[dragStart]", { activeId: ev.active.id, data: d });
-      if (d?.from === "pool" && typeof d.teamId === "number") {
-        setOverlayTeam(teamMap.get(d.teamId) ?? null);
-        return;
-      }
-      if (d?.from === "slot" && typeof d.teamId === "number") {
-        setOverlayTeam(teamMap.get(d.teamId) ?? null);
-        return;
-      }
-      setOverlayTeam(null);
-    },
-    [teamMap],
-  );
-
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      setOverlayTeam(null);
-      const { active, over } = event;
-      const rawOver = over?.id != null ? String(over.id) : null;
-      const activeData = active.data.current as ActiveDragData | undefined;
-      asimLog("[dragEnd] raw", {
-        activeId: active.id,
-        activeData,
-        overId: rawOver,
-        delta: event.delta,
-      });
-      if (!session) {
-        asimWarn("[dragEnd] abort: no session in scope");
-        return;
-      }
-      if (!activeData || !("from" in activeData)) {
-        asimWarn("[dragEnd] abort: missing activeData.from", { activeData });
-        return;
-      }
-      const overId = normalizeDropTargetId(rawOver, activeData);
-      asimLog("[dragEnd] normalized over", { overId, currentPicks: session.picks });
-      const ps = session.partnerSlots;
-      const next = applyDragToPicks(session.picks, activeData, overId, ps);
-      if (next == null) {
-        asimWarn("[dragEnd] abort: applyDragToPicks returned null (no-op or invalid target)", {
-          overId,
-          activeData,
-        });
-        return;
-      }
-      const nextNorm = sortPicksCanonical(normalizePicks(next, ps));
-      if (samePickSets(session.picks, nextNorm, ps)) {
-        asimLog("[dragEnd] skip PATCH: pick set unchanged", { nextNorm });
-        return;
-      }
-      asimLog("[dragEnd] calling PATCH", { nextNorm });
-      patchPicksMutation.mutate(nextNorm);
-    },
-    [session, patchPicksMutation],
-  );
-
   useEffect(() => {
     if (!allianceSimDebugEnabled()) return;
     asimLog(
@@ -687,20 +562,13 @@ export default function AllianceSimPage() {
     });
   }, [eventTeams]);
 
-  const handleDragMove = useCallback((e: DragMoveEvent) => {
-    asimLogMoveThrottled({
-      activeId: e.active?.id,
-      overId: e.over?.id,
-      delta: e.delta,
-    });
-  }, []);
-
   if (!eventId) {
     return <div className="p-6 text-muted-foreground">Invalid event.</div>;
   }
 
   /* ——— List hub ——— */
   if (!sessionId) {
+    const title = newName.trim();
     return (
       <div className="mx-auto max-w-4xl space-y-6 p-4 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -710,7 +578,7 @@ export default function AllianceSimPage() {
               Alliance sim
               {help?.HelpTrigger?.({ content: ALLIANCE_SIM_HELP, className: "ml-1" })}
             </h1>
-            <p className="text-muted-foreground mt-1">{event?.name ?? "Event"} — practice alliance selection</p>
+            <p className="text-muted-foreground mt-1">{event?.name ?? "Event"}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => setCreateOpen(true)} data-testid="button-new-alliance-sim">
@@ -739,31 +607,31 @@ export default function AllianceSimPage() {
             {sessions.map((s) => (
               <Card
                 key={s.id}
-                className="cursor-pointer transition-shadow hover:shadow-md"
+                className="group cursor-pointer overflow-hidden transition-shadow hover:shadow-md"
                 onClick={() => openSession(s.id)}
                 data-testid={`card-alliance-sim-${s.id}`}
               >
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">{s.name}</CardTitle>
-                  <CardDescription>
-                    {s.pickCount}/{allianceSimMaxPicks(s.partnerSlots)} placements
-                    {s.isComplete ? " · Complete" : ""}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex justify-between text-xs text-muted-foreground">
-                  <span>Updated {new Date(s.updatedAt).toLocaleString()}</span>
+                <CardHeader className="py-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <CardTitle className="min-w-0 flex-1 truncate text-lg font-semibold leading-none tracking-tight sm:text-xl">
+                      {s.name}
+                    </CardTitle>
+                    <div className="shrink-0 flex items-center">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 text-destructive"
+                        className="h-8 w-8 p-0 text-destructive/90 opacity-80 hover:opacity-100"
                     onClick={(e) => {
                       e.stopPropagation();
                       setDeleteId(s.id);
                     }}
+                    aria-label={`Delete simulation ${s.name}`}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
-                </CardContent>
+                    </div>
+                  </div>
+                </CardHeader>
               </Card>
             ))}
           </div>
@@ -773,14 +641,10 @@ export default function AllianceSimPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>New alliance simulation</DialogTitle>
-              <DialogDescription>
-                Drag teams into partner slots in any order. Captain labels and a third partner slot (worlds-style) are
-                configured in Event settings.
-              </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
               <Input
-                placeholder="Name (optional)"
+                placeholder="Title"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 data-testid="input-alliance-sim-name"
@@ -792,7 +656,7 @@ export default function AllianceSimPage() {
               </Button>
               <Button
                 onClick={() => createMutation.mutate()}
-                disabled={createMutation.isPending}
+                disabled={createMutation.isPending || !title}
                 data-testid="button-create-alliance-sim"
               >
                 {createMutation.isPending ? "Creating…" : "Create"}
@@ -833,15 +697,7 @@ export default function AllianceSimPage() {
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={allianceSimCollision}
-      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-      onDragStart={handleDragStart}
-      onDragMove={handleDragMove}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="mx-auto max-w-[1600px] space-y-3 overflow-x-hidden px-3 py-3 pb-16 sm:px-4 sm:py-4">
+    <div className="mx-auto max-w-[1600px] space-y-3 overflow-x-hidden px-3 py-3 pb-16 sm:px-4 sm:py-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <Button variant="ghost" size="sm" className="mb-1 -ml-2 h-8" onClick={backToList}>
@@ -854,7 +710,7 @@ export default function AllianceSimPage() {
               {help?.HelpTrigger?.({ content: ALLIANCE_SIM_HELP, className: "shrink-0" })}
             </h1>
             <p className="text-xs text-muted-foreground sm:text-sm">
-              {event?.name} · {session.pickCount}/{allianceSimMaxPicks(session.partnerSlots)} placements
+              {event?.name}
               {session.isComplete ? " · Complete" : ""}
             </p>
           </div>
@@ -863,7 +719,7 @@ export default function AllianceSimPage() {
               variant="outline"
               size="sm"
               onClick={() => resetMutation.mutate()}
-              disabled={!session.pickCount || resetMutation.isPending}
+              disabled={resetMutation.isPending}
               data-testid="button-alliance-sim-reset"
             >
               <RotateCcw className="h-4 w-4 mr-1" />
@@ -879,95 +735,118 @@ export default function AllianceSimPage() {
         <Card className="overflow-hidden">
           <CardHeader className="space-y-1.5 pb-3 pt-4 sm:pt-5">
             <CardTitle className="text-base sm:text-lg">Draft board</CardTitle>
-            <CardDescription className="text-sm leading-relaxed sm:text-[0.9375rem]">
-              Eight alliances in columns. Rows align across the board — enter captain numbers in the Capt row, then drag
-              partners into P1
-              {session.partnerSlots === 3 ? " / P2 / P3" : " / P2"}.
-            </CardDescription>
           </CardHeader>
           <CardContent className="px-3 pb-4 pt-0 sm:px-5 sm:pb-5">
-            <div className="w-full overflow-x-hidden">
+            <div className="w-full">
               {(() => {
                 const ps = session.partnerSlots;
                 const slots = Array.from({ length: ALLIANCE_SIM_CAPTAINS }, (_, i) => i + 1);
-                const emptyTuple = () => Array.from({ length: ps }, () => null as number | null);
-                return (
-                  <div
-                    className="grid w-full grid-cols-8 gap-x-1 gap-y-2 text-[clamp(10px,2vw,13px)] leading-snug sm:gap-x-1.5 sm:gap-y-2.5"
-                    data-testid="alliance-draft-grid"
-                  >
-                    {slots.map((slot) => (
+                const renderColumn = (slot: number) => {
+                  return (
+                    <div
+                      key={`col-${slot}`}
+                      className={cn(
+                        "min-w-0 overflow-hidden rounded-xl border shadow-sm",
+                        "border-border/60 bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/70",
+                      )}
+                      data-testid={`alliance-column-${slot}`}
+                    >
                       <div
-                        key={`hdr-${slot}`}
-                        className="flex min-w-0 items-end justify-center border-b border-border/50 pb-1"
-                        data-testid={`alliance-column-${slot}`}
+                        className={cn(
+                          "flex items-center justify-center border-b px-1 py-2.5",
+                          "border-border/40 bg-muted/30",
+                        )}
                       >
-                        <span className="truncate text-center text-xs font-bold tabular-nums sm:text-sm">#{slot}</span>
+                        <span className={cn("truncate text-center text-sm font-bold tabular-nums sm:text-base")}>#{slot}</span>
                       </div>
-                    ))}
-                    {slots.map((slot) => (
-                      <div key={`capt-${slot}`} className="min-w-0">
-                        <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-xs">
-                          Capt
-                        </span>
-                        <Input
-                          className="h-8 px-1.5 text-center text-xs tabular-nums sm:h-9 sm:text-sm"
-                          value={captainsDraft[slot - 1] ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value.slice(0, 32);
-                            const next = [...captainsDraft];
-                            while (next.length < ALLIANCE_SIM_CAPTAINS) next.push("");
-                            next[slot - 1] = v;
-                            setCaptainsDraft(next);
-                            scheduleCaptainSave(next);
-                          }}
-                          placeholder="—"
-                          aria-label={`Captain slot ${slot}`}
-                          data-testid={`input-alliance-captain-${slot}`}
-                        />
-                      </div>
-                    ))}
-                    {slots.map((slot) => {
-                      const tuple = session.partnersByCaptain[String(slot)] ?? emptyTuple();
-                      return (
-                        <div key={`p1-${slot}`} className="flex min-h-0 min-w-0">
-                          <PartnerSlot
-                            captainSlot={slot}
-                            partnerIndex={0}
-                            teamId={tuple[0] ?? null}
-                            team={tuple[0] != null ? teamMap.get(tuple[0]) : undefined}
-                          />
+
+                      <div className="space-y-0">
+                        <div className="border-b border-border/30 px-2.5 py-2.5">
+                          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-xs">
+                            Capt
+                          </span>
+                          {(() => {
+                            const v = normalizeTeamNumberDraft(captainsDraft[slot - 1] ?? "");
+                            const n = parseDraftTeamNumber(v);
+                            const invalidAbsent = n != null && !attendingTeamNumbers.has(n);
+                            const dup = n != null && duplicateTeamNumbers.has(n) && !invalidAbsent;
+                            return (
+                              <Input
+                                className={cn(
+                                  "h-10 px-2 text-center text-sm tabular-nums sm:h-11 sm:text-base",
+                                  invalidAbsent && "text-destructive",
+                                  dup && "text-yellow-700 dark:text-yellow-400",
+                                )}
+                                value={v}
+                                onChange={(e) => {
+                                  const v = normalizeTeamNumberDraft(e.target.value);
+                                  const next = [...captainsDraft];
+                                  while (next.length < ALLIANCE_SIM_CAPTAINS) next.push("");
+                                  next[slot - 1] = v;
+                                  setCaptainsDraft(next);
+                                  scheduleCaptainSave(next);
+                                }}
+                                placeholder="—"
+                                aria-label={`Captain slot ${slot}`}
+                                data-testid={`input-alliance-captain-${slot}`}
+                              />
+                            );
+                          })()}
                         </div>
-                      );
-                    })}
-                    {slots.map((slot) => {
-                      const tuple = session.partnersByCaptain[String(slot)] ?? emptyTuple();
-                      return (
-                        <div key={`p2-${slot}`} className="flex min-h-0 min-w-0">
-                          <PartnerSlot
-                            captainSlot={slot}
-                            partnerIndex={1}
-                            teamId={tuple[1] ?? null}
-                            team={tuple[1] != null ? teamMap.get(tuple[1]) : undefined}
-                          />
-                        </div>
-                      );
-                    })}
-                    {ps === 3
-                      ? slots.map((slot) => {
-                          const tuple = session.partnersByCaptain[String(slot)] ?? emptyTuple();
+
+                        {Array.from({ length: ps }, (_, partnerIndex) => {
+                          const raw = picksDraft?.[slot - 1]?.[partnerIndex] ?? "";
+                          const v = normalizeTeamNumberDraft(raw);
+                          const n = parseDraftTeamNumber(v);
+                          const invalidAbsent = n != null && !attendingTeamNumbers.has(n);
+                          const dup = n != null && duplicateTeamNumbers.has(n) && !invalidAbsent;
+                          const isLast = partnerIndex === ps - 1;
                           return (
-                            <div key={`p3-${slot}`} className="flex min-h-0 min-w-0">
-                              <PartnerSlot
-                                captainSlot={slot}
-                                partnerIndex={2}
-                                teamId={tuple[2] ?? null}
-                                team={tuple[2] != null ? teamMap.get(tuple[2]) : undefined}
+                            <div
+                              key={`col-${slot}-p-${partnerIndex}`}
+                              className={cn("px-2.5 py-2.5", !isLast && "border-b border-border/30")}
+                            >
+                              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-xs">
+                                P{partnerIndex + 1}
+                              </span>
+                              <Input
+                                className={cn(
+                                  "h-10 px-2 text-center text-sm tabular-nums sm:h-11 sm:text-base",
+                                  invalidAbsent && "text-destructive",
+                                  dup && "text-yellow-700 dark:text-yellow-400",
+                                )}
+                                value={v}
+                                onChange={(e) => {
+                                  const nextVal = normalizeTeamNumberDraft(e.target.value);
+                                  setPicksDraft((prev) => {
+                                    const next = prev?.length ? prev.map((r) => r.slice()) : createEmptyDraftMatrix(ps);
+                                    while (next.length < ALLIANCE_SIM_CAPTAINS) next.push(Array.from({ length: ps }, () => ""));
+                                    while (next[slot - 1].length < ps) next[slot - 1].push("");
+                                    next[slot - 1][partnerIndex] = nextVal;
+                                    schedulePicksSave(next, ps);
+                                    return next;
+                                  });
+                                }}
+                                placeholder="—"
+                                aria-label={`Alliance ${slot} partner ${partnerIndex + 1}`}
+                                data-testid={`input-alliance-partner-${slot}-${partnerIndex + 1}`}
                               />
                             </div>
                           );
-                        })
-                      : null}
+                        })}
+                      </div>
+                    </div>
+                  );
+                };
+
+                const top = slots.slice(0, 4);
+                const bottom = slots.slice(4, 8);
+
+                return (
+                  <div className="space-y-4" data-testid="alliance-draft-grid">
+                    <div className="grid w-full grid-cols-4 gap-3 sm:gap-4 xl:hidden">{top.map(renderColumn)}</div>
+                    <div className="grid w-full grid-cols-4 gap-3 sm:gap-4 xl:hidden">{bottom.map(renderColumn)}</div>
+                    <div className="hidden w-full grid-cols-8 gap-x-5 gap-y-3 xl:grid">{slots.map(renderColumn)}</div>
                   </div>
                 );
               })()}
@@ -975,39 +854,67 @@ export default function AllianceSimPage() {
           </CardContent>
         </Card>
 
-        <Card className="flex min-h-0 flex-col">
-          <CardHeader className="shrink-0 space-y-3 pb-3">
-            <CardTitle className="text-base sm:text-lg">Remaining teams</CardTitle>
+        <Card className="overflow-hidden">
+          <CardHeader className="space-y-2 pb-3 pt-4 sm:pt-5">
+            <CardTitle className="text-base sm:text-lg">Picklist</CardTitle>
             <CardDescription className="text-sm leading-relaxed sm:text-[0.9375rem]">
-              Drag into a partner slot, or onto the dashed pool area to return a slot pick to the pool.
+              Select a picklist to view teams in order. Drafted teams move below the divider automatically.
             </CardDescription>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="h-10 pl-9 text-sm"
-                placeholder="Search number or name…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
           </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 pb-5">
-            <PoolDropShell>
-              <div className="flex max-h-[min(42vh,420px)] flex-wrap content-start gap-2.5 overflow-y-auto p-0.5 custom-scrollbar sm:gap-3">
-                {remainingTeams.map((et) => (
-                  <div
-                    key={et.teamId}
-                    className="w-[calc(50%-0.25rem)] min-w-0 sm:w-[calc(33.333%-0.5rem)] md:w-[calc(25%-0.45rem)] lg:w-[calc(20%-0.4rem)]"
-                    data-testid={`button-draft-team-${et.teamId}`}
-                  >
-                    <PoolTeamChip teamId={et.teamId} team={et.team} />
-                  </div>
-                ))}
-                {remainingTeams.length === 0 && (
-                  <p className="w-full py-6 text-center text-sm text-muted-foreground">No teams left in the pool.</p>
-                )}
-              </div>
-            </PoolDropShell>
+          <CardContent className="pb-5">
+            <div className="flex flex-col gap-3">
+              <Select value={selectedPicklistId} onValueChange={setSelectedPicklistId}>
+                <SelectTrigger className="max-w-md" data-testid="select-alliance-sim-picklist">
+                  <SelectValue placeholder="Select picklist…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {picklists.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name} ({p.entryCount})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {picklistIdNum == null ? (
+                <div className="text-sm text-muted-foreground">Choose a picklist to show its teams here.</div>
+              ) : picklistEntries.length === 0 ? (
+                <div className="text-sm text-muted-foreground">This picklist has no teams yet.</div>
+              ) : (
+                (() => {
+                  const available = picklistEntries.filter((e) => !draftedTeamIds.has(e.teamId));
+                  const drafted = picklistEntries.filter((e) => draftedTeamIds.has(e.teamId));
+                  const Row = ({ e }: { e: PicklistEntryWithTeam }) => (
+                    <div className="flex items-center justify-between gap-3 rounded-md border border-border/40 bg-muted/10 px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="font-semibold tabular-nums leading-none">
+                          {e.rank}. {e.team.teamNumber}
+                        </div>
+                        <div className="truncate text-sm text-muted-foreground">{e.team.teamName}</div>
+                      </div>
+                    </div>
+                  );
+                  return (
+                    <div className="space-y-3">
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {available.map((e) => (
+                          <Row key={e.id} e={e} />
+                        ))}
+                      </div>
+
+                      <div className="border-t-4 border-border/60 pt-3" />
+
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 opacity-80">
+                        {drafted.map((e) => (
+                          <Row key={e.id} e={e} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -1028,19 +935,6 @@ export default function AllianceSimPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </div>
-
-      <DragOverlay dropAnimation={null}>
-        {overlayTeam ? (
-          <div className="flex max-w-[min(90vw,280px)] cursor-grabbing items-start gap-2.5 rounded-lg border bg-card px-3 py-2.5 shadow-lg">
-            <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-            <div className="min-w-0 space-y-1">
-              <div className="text-lg font-bold tabular-nums leading-none">{overlayTeam.teamNumber}</div>
-              <div className="line-clamp-2 text-sm leading-snug text-muted-foreground">{overlayTeam.teamName}</div>
-            </div>
-          </div>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+    </div>
   );
 }

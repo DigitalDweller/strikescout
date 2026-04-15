@@ -184,6 +184,17 @@ export function AppSidebar({ eventId }: { eventId: number }) {
     queryKey: ["/api/events", eventId],
   });
 
+  const { data: pitAccessMe } = useQuery<{ allowed: boolean }>({
+    queryKey: ["/api/events", eventId, "pit-access", "me"],
+    enabled: !!eventId && !isDemo,
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/events/${eventId}/pit-access/me`, { credentials: "include" });
+      if (!res.ok) return { allowed: false };
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+
   const scoutingItems = useMemo(
     () => [
       { title: "Overview", url: `/events/${eventId}/scouting-schedule`, icon: CalendarCheck, iconClass: "text-emerald-500" },
@@ -193,23 +204,22 @@ export function AppSidebar({ eventId }: { eventId: number }) {
         icon: ClipboardList,
         iconClass: "text-emerald-500",
         children: [
-          ...(isAdmin
+          ...((isAdmin || pitAccessMe?.allowed)
             ? [{ title: "Pit scouting", url: `/events/${eventId}/pit-scout`, icon: Wrench, iconClass: "text-lime-400" }]
             : []),
           { title: "Form History", url: `/events/${eventId}/scout/history`, icon: History, iconClass: "text-green-400" },
         ],
       },
       { title: "Picklists", url: `/events/${eventId}/picklists`, icon: ListOrdered, iconClass: "text-teal-500" },
-      { title: "Alliance sim", url: `/events/${eventId}/alliance-sim`, icon: Swords, iconClass: "text-orange-500" },
-      { title: "Scouter Leaderboard", url: `/events/${eventId}/scouters`, icon: Trophy, iconClass: "text-amber-500" },
+      // Alliance sim hidden for now
+      // Scouter leaderboard hidden for now
     ],
-    [eventId, isAdmin],
+    [eventId, isAdmin, pitAccessMe?.allowed],
   );
 
   const navHints: Record<string, string> = {
     "Overview": isAdmin ? "Event dashboard and quick actions" : "Match schedule and your assignments",
     "Teams": "View and sort all teams",
-    "Scouter Leaderboard": "Individual scouter stats and ranking colors",
     "Matches": "Schedule and results",
     "Scouter Management": "Assign scouts to match slots",
     "Match Simulator": "Predict match outcomes",
@@ -217,7 +227,6 @@ export function AppSidebar({ eventId }: { eventId: number }) {
     "Pit scouting": "Robot photos, drivetrain, auto, and pit notes per team",
     "Form History": "Past scouting entries",
     "Picklists": "View and edit picklists for alliance selection",
-    "Alliance sim": "Practice serpentine alliance selection with your event roster",
     "Data Management": "Export data to CSV",
     "Settings": "TBA sync and event setup",
   };

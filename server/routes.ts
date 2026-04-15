@@ -36,6 +36,24 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   res.status(403).json({ message: "Admin access required" });
 }
 
+async function requirePitScoutingAccess(req: Request, res: Response, next: NextFunction) {
+  if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+  if (req.user?.role === "admin") return next();
+  const eventIdRaw =
+    typeof req.body?.eventId === "number"
+      ? req.body.eventId
+      : req.params?.eventId
+        ? parseInt(String(req.params.eventId), 10)
+        : NaN;
+  const eventId = Number.isFinite(eventIdRaw) ? (eventIdRaw as number) : NaN;
+  if (!Number.isFinite(eventId) || eventId < 1) {
+    return res.status(400).json({ message: "Invalid event id" });
+  }
+  const allowed = await storage.isScouterAllowedForPitScouting(eventId, req.user!.id);
+  if (allowed) return next();
+  return res.status(403).json({ message: "Pit scouting access required" });
+}
+
 /** Demo accounts are read-only and may only GET a narrow set of APIs for their assigned event. */
 function demoApiGuard(req: Request, res: Response, next: NextFunction) {
   if (!req.isAuthenticated() || req.user?.role !== "demo") return next();
@@ -614,7 +632,7 @@ export async function registerRoutes(
 
   const MAX_PIT_IMAGE_CHARS = 1_800_000;
 
-  app.post("/api/pit-entries", requireAdmin, async (req, res) => {
+  app.post("/api/pit-entries", requirePitScoutingAccess, async (req, res) => {
     const parsed = insertPitScoutingEntrySchema.safeParse({
       ...req.body,
       scouterId: req.user?.id ?? 0,
@@ -650,7 +668,7 @@ export async function registerRoutes(
     res.json(rows);
   });
 
-  app.get("/api/events/:eventId/teams/:teamId/pit-entry", requireAdmin, async (req, res) => {
+  app.get("/api/events/:eventId/teams/:teamId/pit-entry", requirePitScoutingAccess, async (req, res) => {
     const eventId = parseInt(req.params.eventId, 10);
     const teamId = parseInt(req.params.teamId, 10);
     if (!Number.isFinite(eventId) || !Number.isFinite(teamId)) {
@@ -663,6 +681,42 @@ export async function registerRoutes(
       ...row,
       scouter: scouter ? publicUserFields(scouter) : null,
     });
+  });
+
+  // --- Pit scouting allowlist (admin) ---
+  app.get("/api/events/:eventId/pit-access", requireAdmin, async (req, res) => {
+    const eventId = parseInt(req.params.eventId, 10);
+    if (!Number.isFinite(eventId) || eventId < 1) return res.status(400).json({ message: "Invalid event id" });
+    const event = await storage.getEvent(eventId);
+    if (!event) return res.sendStatus(404);
+    const scouterIds = await storage.getPitScoutingAllowedScouterIds(eventId);
+    res.json({ scouterIds });
+  });
+
+  app.put("/api/events/:eventId/pit-access", requireAdmin, async (req, res) => {
+    const eventId = parseInt(req.params.eventId, 10);
+    if (!Number.isFinite(eventId) || eventId < 1) return res.status(400).json({ message: "Invalid event id" });
+    const event = await storage.getEvent(eventId);
+    if (!event) return res.sendStatus(404);
+    const scouterIds = Array.isArray(req.body?.scouterIds) ? req.body.scouterIds : null;
+    if (!scouterIds) return res.status(400).json({ message: "scouterIds must be an array of user ids" });
+    const parsed = scouterIds
+      .map((v: unknown) => (typeof v === "number" ? v : parseInt(String(v ?? ""), 10)))
+      .filter((n: number) => Number.isFinite(n) && n > 0);
+    await storage.setPitScoutingAllowedScouterIds(eventId, parsed);
+    notifyEventDataUpdated(eventId);
+    res.json({ ok: true, scouterIds: await storage.getPitScoutingAllowedScouterIds(eventId) });
+  });
+
+  app.get("/api/events/:eventId/pit-access/me", requireAuth, async (req, res) => {
+    const eventId = parseInt(req.params.eventId, 10);
+    if (!Number.isFinite(eventId) || eventId < 1) return res.status(400).json({ message: "Invalid event id" });
+    const event = await storage.getEvent(eventId);
+    if (!event) return res.sendStatus(404);
+    if (req.user?.role === "admin") return res.json({ allowed: true });
+    if (req.user?.role === "demo") return res.json({ allowed: false });
+    const allowed = await storage.isScouterAllowedForPitScouting(eventId, req.user!.id);
+    res.json({ allowed });
   });
 
   /** SSE: app-level stream for all data updates. Sends "event:{eventId}" or "events". */
@@ -1506,13 +1560,17 @@ export async function registerRoutes(
       const eventId = parseInt(req.params.eventId);
       const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
       const adminOnly = !!req.body?.adminOnly;
+      const icon = typeof req.body?.icon === "string" ? req.body.icon : null;
+      const color = typeof req.body?.color === "string" ? req.body.color : null;
       if (!Number.isFinite(eventId)) return res.status(400).json({ message: "Invalid event id" });
       if (!name) return res.status(400).json({ message: "Name is required" });
       if (adminOnly && req.user?.role !== "admin") return res.status(403).json({ message: "Admin required to create admin-only picklist" });
+      if (icon != null && !["sword", "shield", "bolt"].includes(icon)) return res.status(400).json({ message: "Invalid icon" });
+      if (color != null && !["red", "orange", "yellow", "green", "blue", "violet"].includes(color)) return res.status(400).json({ message: "Invalid color" });
       const event = await storage.getEvent(eventId);
       if (!event) return res.sendStatus(404);
       const createdById = req.user?.id;
-      const picklist = await storage.createPicklist(eventId, name, adminOnly, createdById);
+      const picklist = await storage.createPicklist(eventId, { name, adminOnly, icon, color }, createdById);
       notifyEventDataUpdated(eventId);
       res.status(201).json(picklist);
     } catch (err: any) {
@@ -1527,15 +1585,27 @@ export async function registerRoutes(
     const picklistId = parseInt(req.params.picklistId);
     const name = typeof req.body?.name === "string" ? req.body.name.trim() || undefined : undefined;
     const adminOnly = req.body?.adminOnly;
+    const icon = req.body?.icon;
+    const color = req.body?.color;
     if (!Number.isFinite(eventId) || !Number.isFinite(picklistId)) return res.status(400).json({ message: "Invalid id" });
     const list = await storage.getPicklists(eventId);
     const picklist = list.find((p) => p.id === picklistId);
     if (!picklist) return res.sendStatus(404);
     if ((picklist as { adminOnly?: boolean }).adminOnly && req.user?.role !== "admin") return res.status(403).json({ message: "Admin-only picklist" });
     if (adminOnly !== undefined && req.user?.role !== "admin") return res.status(403).json({ message: "Admin required to change admin-only setting" });
-    const updates: { name?: string; adminOnly?: boolean } = {};
+    const updates: { name?: string; adminOnly?: boolean; icon?: string | null; color?: string | null } = {};
     if (name !== undefined) updates.name = name;
     if (adminOnly !== undefined) updates.adminOnly = !!adminOnly;
+    if (icon !== undefined) {
+      if (icon === null || icon === "") updates.icon = null;
+      else if (typeof icon === "string" && ["sword", "shield", "bolt"].includes(icon)) updates.icon = icon;
+      else return res.status(400).json({ message: "Invalid icon" });
+    }
+    if (color !== undefined) {
+      if (color === null || color === "") updates.color = null;
+      else if (typeof color === "string" && ["red", "orange", "yellow", "green", "blue", "violet"].includes(color)) updates.color = color;
+      else return res.status(400).json({ message: "Invalid color" });
+    }
     if (Object.keys(updates).length === 0) return res.json(picklist);
     const updated = await storage.updatePicklist(picklistId, updates);
     notifyEventDataUpdated(eventId);
@@ -1662,9 +1732,10 @@ export async function registerRoutes(
     const event = await storage.getEvent(eventId);
     if (!event) return res.sendStatus(404);
     const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+    if (!name) return res.status(400).json({ message: "Title is required" });
     try {
       const session = await storage.createAllianceSimSession(eventId, {
-        name: name || "Alliance sim",
+        name,
         createdById: req.user?.id,
       });
       const ev = await storage.getEvent(eventId);

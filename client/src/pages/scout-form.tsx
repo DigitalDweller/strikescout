@@ -904,14 +904,12 @@ function TeamFormColumn({
   return (
     <div className="mx-auto w-full max-w-xl space-y-4 sm:max-w-2xl sm:space-y-5 lg:max-w-3xl" data-testid={`team-column-${index}`}>
       {/* Section 1 — Autonomous */}
-      <Card variant="glass" className="overflow-hidden border-t-4 border-t-blue-500/70 shadow-lg shadow-black/20">
-        <CardHeader className="px-4 pb-2 pt-4 sm:px-6 sm:pt-5">
-          <CardTitle className="flex items-center gap-2 text-lg font-bold tracking-tight text-zinc-100">
-            <Target className="h-5 w-5 text-blue-400" />
-            Autonomous
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6 px-4 pb-5 sm:px-6 sm:pb-6">
+      <section className="ss-glass-subtle border border-white/10 bg-zinc-900/35 p-4 sm:p-6">
+        <div className="flex items-center gap-2">
+          <Target className="h-5 w-5 text-blue-400" aria-hidden />
+          <h2 className="text-base font-bold tracking-tight text-zinc-100">Autonomous</h2>
+        </div>
+        <div className="mt-4 space-y-6">
           <BigCounterInput
             value={form.autoBallsShot}
             onChange={(v) => onUpdateField("autoBallsShot", v)}
@@ -982,18 +980,16 @@ function TeamFormColumn({
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* Section 2 — Teleop */}
-      <Card variant="glass" className="shadow-lg shadow-black/20">
-        <CardHeader className="px-4 pb-2 pt-4 sm:px-6 sm:pt-5">
-          <CardTitle className="flex items-center gap-2 text-lg font-bold tracking-tight text-zinc-100">
-            <Crosshair className="h-5 w-5 text-blue-400" />
-            Teleop
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6 px-4 pb-5 sm:px-6 sm:pb-6">
+      <section className="ss-glass-subtle border border-white/10 bg-zinc-900/35 p-4 sm:p-6">
+        <div className="flex items-center gap-2">
+          <Crosshair className="h-5 w-5 text-blue-400" aria-hidden />
+          <h2 className="text-base font-bold tracking-tight text-zinc-100">Teleop</h2>
+        </div>
+        <div className="mt-4 space-y-6">
           <ThroughputSegmented
             teleopFpsEstimate={form.teleopFpsEstimate}
             onChange={(v) => onUpdateField("teleopFpsEstimate", v)}
@@ -1087,33 +1083,29 @@ function TeamFormColumn({
               heatRange={defenseRange}
             />
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* Section 3 — Shooting heatmap */}
-      <Card variant="glass" className="shadow-lg shadow-black/20">
-        <CardHeader className="px-4 pb-2 pt-4 sm:px-6 sm:pt-5">
-          <CardTitle className="flex items-center gap-2 text-lg font-bold tracking-tight text-zinc-100">
-            <Crosshair className="h-5 w-5 text-blue-400" />
-            Shooting heatmap
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-5 sm:px-6 sm:pb-6">
+      <section className="ss-glass-subtle border border-white/10 bg-zinc-900/35 p-4 sm:p-6">
+        <div className="flex items-center gap-2">
+          <Crosshair className="h-5 w-5 text-blue-400" aria-hidden />
+          <h2 className="text-base font-bold tracking-tight text-zinc-100">Shooting heatmap</h2>
+        </div>
+        <div className="mt-4">
           <div className={cn("rounded-2xl border p-3", FIELD_SHELL_FALLBACK)}>
             <ShootingHeatmap value={form.teleopShootPosition} onChange={(v) => onUpdateField("teleopShootPosition", v)} />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* Section 4 — Endgame */}
-      <Card variant="glass" className="shadow-lg shadow-black/20">
-        <CardHeader className="px-4 pb-2 pt-4 sm:px-6 sm:pt-5">
-          <CardTitle className="flex items-center gap-2 text-lg font-bold tracking-tight text-zinc-100">
-            <ArrowUp className="h-5 w-5 text-blue-400" />
-            Endgame
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6 px-4 pb-5 sm:px-6 sm:pb-6">
+      <section className="ss-glass-subtle border border-white/10 bg-zinc-900/35 p-4 sm:p-6">
+        <div className="flex items-center gap-2">
+          <ArrowUp className="h-5 w-5 text-blue-400" aria-hidden />
+          <h2 className="text-base font-bold tracking-tight text-zinc-100">Endgame</h2>
+        </div>
+        <div className="mt-4 space-y-6">
           <div className={cn("space-y-3", NEUTRAL_FIELD_WRAP)}>
             <Label className="text-sm font-semibold text-zinc-100">Teleop climb</Label>
             <ClimbSegmented
@@ -1175,18 +1167,16 @@ function TeamFormColumn({
             testId={`driver-skill-${index}`}
             heatRange={driverSkillRange}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {/* Section 5 — Notes */}
-      <Card variant="glass" className="border-t-4 border-t-blue-500/40 shadow-lg shadow-black/20">
-        <CardHeader className="px-4 pb-2 pt-4 sm:px-6 sm:pt-5">
-          <CardTitle className="flex items-center gap-2 text-lg font-bold tracking-tight text-zinc-100">
-            <MessageSquare className="h-5 w-5 text-blue-400" />
-            Notes & observations
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5 px-4 pb-5 sm:px-6 sm:pb-6">
+      <section className="ss-glass-subtle border border-white/10 bg-zinc-900/35 p-4 sm:p-6">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-5 w-5 text-blue-400" aria-hidden />
+          <h2 className="text-base font-bold tracking-tight text-zinc-100">Notes & observations</h2>
+        </div>
+        <div className="mt-4 space-y-5">
           <div className={cn("rounded-2xl border p-3", autoNotesShell || FIELD_SHELL_FALLBACK)}>
             <Label className="text-sm font-medium text-zinc-100">Auto</Label>
             <Textarea
@@ -1233,8 +1223,8 @@ function TeamFormColumn({
               data-testid={`textarea-notes-${index}`}
             />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </div>
   );
 }

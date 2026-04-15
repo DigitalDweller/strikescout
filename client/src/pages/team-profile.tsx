@@ -22,7 +22,7 @@ import { ArrowLeft, MessageSquare, AlertCircle, AlertTriangle, BarChart2 } from 
 import { RankingColorKey } from "@/components/ranking-color-key";
 import { useHelp } from "@/contexts/help-context";
 import { useAuth } from "@/hooks/use-auth";
-import type { Event, Team, ScoutingEntry, EventTeam } from "@shared/schema";
+import type { Event, Team, ScoutingEntry, EventTeam, PitScoutingEntry } from "@shared/schema";
 import { toPct, getHeatColor, getSeedHeatColor, computeTeamStats, computeStatRanges, computeStatRangesForSzr, computeTbaRanges, computeSZR, computeSzrMapWithSweepBonus, parseSzrWeights } from "@/lib/team-colors";
 import heatmapFieldPath from "@assets/heatmap-field.png";
 import placeholderAvatar from "@assets/images_1772071870956.png";
@@ -209,6 +209,17 @@ function truncateNote(s: string, max: number): string {
   return `${t.slice(0, max).trim()}…`;
 }
 
+type TeamPitEntryResponse =
+  | (PitScoutingEntry & {
+      scouter: { id: number; username: string; displayName: string; role: string; demoEventId: number | null } | null;
+    })
+  | null;
+
+function yesNoLabel(v: boolean | null | undefined) {
+  if (v == null) return "—";
+  return v ? "Yes" : "No";
+}
+
 
 export default function TeamProfile() {
   const { id: eid, teamId: tid } = useParams<{ id: string; teamId: string }>();
@@ -231,6 +242,23 @@ export default function TeamProfile() {
     queryKey: ["/api/events", eventId, "teams", teamId, "entries"],
   });
 
+  const { data: pitSnapshot, isLoading: pitLoading } = useQuery<{
+    entry: TeamPitEntryResponse;
+    accessDenied: boolean;
+  }>({
+    queryKey: ["/api/events", eventId, "teams", teamId, "pit-entry"],
+    enabled: Number.isFinite(eventId) && eventId > 0 && Number.isFinite(teamId) && teamId > 0,
+    queryFn: async () => {
+      const res = await fetch(`/api/events/${eventId}/teams/${teamId}/pit-entry`, {
+        credentials: "include",
+      });
+      if (res.status === 403) return { entry: null, accessDenied: true };
+      if (res.status === 404) return { entry: null, accessDenied: false };
+      if (!res.ok) throw new Error("Failed to load pit scouting");
+      return { entry: (await res.json()) as TeamPitEntryResponse, accessDenied: false };
+    },
+  });
+
   const { data: allEntries } = useQuery<ScoutingEntry[]>({
     queryKey: ["/api/events", eventId, "entries"],
   });
@@ -241,6 +269,29 @@ export default function TeamProfile() {
 
   const team = teams?.find((t) => t.id === teamId);
   const eventTeam = eventTeams?.find(et => et.teamId === teamId);
+  const pitEntry = pitSnapshot?.entry ?? null;
+  const pitAccessDenied = pitSnapshot?.accessDenied ?? false;
+  const pitFuelDisplay = pitEntry
+    ? pitEntry.hopperCapacityOver100
+      ? "100+"
+      : `${pitEntry.hopperCapacity}`
+    : "—";
+  const pitUpdatedDisplay =
+    pitEntry?.updatedAt != null ? new Date(pitEntry.updatedAt).toLocaleString() : null;
+  const pitNewAutonDisplay =
+    pitEntry?.newAutonTimeMinutes != null ? `${pitEntry.newAutonTimeMinutes} min` : "—";
+  const pitWeightDisplay =
+    pitEntry?.robotWeightLbs != null ? `${pitEntry.robotWeightLbs} lbs` : "—";
+  const pitRevControllerDisplay =
+    pitEntry?.revMotorControllerCount != null ? `${pitEntry.revMotorControllerCount}` : "—";
+  const pitExtraImages = pitEntry
+    ? [
+        pitEntry.robotExtraImage1,
+        pitEntry.robotExtraImage2,
+        pitEntry.robotExtraImage3,
+        pitEntry.robotExtraImage4,
+      ].filter((img): img is string => !!img)
+    : [];
   const tbaOpr = (eventTeam as any)?.opr;
   const tbaSeed = (eventTeam as any)?.rank;
   const tbaRecord = eventTeam ? `${(eventTeam as any)?.wins ?? 0}-${(eventTeam as any)?.losses ?? 0}-${(eventTeam as any)?.ties ?? 0}` : null;
@@ -811,6 +862,99 @@ export default function TeamProfile() {
         })()}
       </div>
 
+
+      <div className="w-full min-w-0">
+        <Card className="w-full">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-bold">Pit Snapshot</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {pitLoading ? (
+              <Skeleton className="h-28 w-full" />
+            ) : pitAccessDenied ? (
+              <p className="text-sm text-muted-foreground">
+                Pit scouting data is available, but your account does not currently have pit scouting access.
+              </p>
+            ) : !pitEntry ? (
+              <p className="text-sm text-muted-foreground">
+                No pit scouting entry submitted for this team yet.
+              </p>
+            ) : (
+              <div className="space-y-5">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Drive type</p>
+                    <p className="text-sm font-semibold capitalize">{pitEntry.drivetrainType}</p>
+                  </div>
+                  <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Fuel capacity</p>
+                    <p className="text-sm font-semibold">{pitFuelDisplay}</p>
+                  </div>
+                  <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Weight</p>
+                    <p className="text-sm font-semibold">{pitWeightDisplay}</p>
+                  </div>
+                  <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">REV controllers</p>
+                    <p className="text-sm font-semibold">{pitRevControllerDisplay}</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 lg:grid-cols-2">
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Mechanical</p>
+                    <div className="space-y-1 rounded-md border border-border bg-muted/20 p-3 text-sm">
+                      <p><span className="font-medium">Can go under trench:</span> {yesNoLabel(pitEntry.fitsUnderTrench)}</p>
+                      <p><span className="font-medium">Fuel capacity:</span> {pitFuelDisplay}</p>
+                      <p><span className="font-medium">Can climb and to what level:</span> {pitEntry.pitClimbNotes?.trim() || "—"}</p>
+                      <p><span className="font-medium">Robot weight:</span> {pitWeightDisplay}</p>
+                      <p><span className="font-medium">REV motor controllers:</span> {pitRevControllerDisplay}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Programming</p>
+                    <div className="space-y-1 rounded-md border border-border bg-muted/20 p-3 text-sm">
+                      <p><span className="font-medium">Uses PathPlanner:</span> {yesNoLabel(pitEntry.usesPathplanner)}</p>
+                      <p><span className="font-medium">Has midfield fuel auto:</span> {yesNoLabel(pitEntry.hasMidfieldFuelAuto)}</p>
+                      <p><span className="font-medium">New auton build time:</span> {pitNewAutonDisplay}</p>
+                      <p><span className="font-medium">Has auto:</span> {yesNoLabel(pitEntry.hasAuto)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {(pitEntry.robotHeroImage || pitExtraImages.length > 0) && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Photos</p>
+                    <div className="flex flex-wrap gap-2">
+                      {pitEntry.robotHeroImage ? (
+                        <img
+                          src={pitEntry.robotHeroImage}
+                          alt="Pit hero"
+                          className="h-24 w-32 rounded-md border border-border object-cover"
+                        />
+                      ) : null}
+                      {pitExtraImages.map((img, idx) => (
+                        <img
+                          key={`${img}-${idx}`}
+                          src={img}
+                          alt={`Pit extra ${idx + 1}`}
+                          className="h-24 w-32 rounded-md border border-border object-cover"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground">
+                  Last updated: {pitUpdatedDisplay ?? "—"}
+                  {pitEntry.scouter?.displayName ? ` · Scouter: ${pitEntry.scouter.displayName}` : ""}
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="w-full min-w-0">
         <p className="mb-1.5 text-xs font-medium text-muted-foreground">Shooting heatmap</p>

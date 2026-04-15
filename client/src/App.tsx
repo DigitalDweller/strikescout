@@ -148,6 +148,7 @@ function EventLayout() {
               <Switch>
                 <Route path="/events/:id/scouting-schedule" component={ScoutingSchedule} />
                 <Route path="/events/:id/scout" component={ScoutForm} />
+                <Route path="/events/:id/pit-scout" component={PitScoutForm} />
                 <Route path="/events/:id/scout/history" component={FormHistory} />
                 <Route path="/events/:id/picklists" component={PicklistList} />
                 <Route path="/events/:id/picklist" component={Picklist} />

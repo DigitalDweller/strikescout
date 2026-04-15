@@ -11,15 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Search, ArrowUpDown, ListOrdered, User, Plus, Shield, Swords } from "lucide-react";
+import { Search, ArrowUpDown, ListOrdered, User, Plus, Shield, Swords, Zap } from "lucide-react";
 import { useHelp } from "@/contexts/help-context";
 import { Button } from "@/components/ui/button";
 import type { Event } from "@shared/schema";
@@ -29,6 +21,8 @@ type PicklistWithStats = {
   eventId: number;
   name: string;
   adminOnly: boolean;
+  icon: string | null;
+  color: string | null;
   createdById: number | null;
   createdAt: string;
   createdBy?: { id: number; displayName: string; role: string };
@@ -106,17 +100,16 @@ export default function PicklistList() {
     }
   };
 
-  const SortableHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
-    <TableHead
-      className="cursor-pointer select-none hover:bg-muted/50"
+  const SortableHeader = ({ field, label }: { field: SortField; label: string }) => (
+    <button
+      type="button"
+      className="flex items-center gap-1 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 transition-colors hover:text-zinc-300"
       onClick={() => toggleSort(field)}
       data-testid={`sort-${field}`}
     >
-      <span className="flex items-center gap-1">
-        {children}
-        <ArrowUpDown className={`h-3 w-3 ${sortField === field ? "text-primary" : "text-muted-foreground/40"}`} />
-      </span>
-    </TableHead>
+      <span>{label}</span>
+      <ArrowUpDown className={`h-3 w-3 ${sortField === field ? "text-blue-400" : "text-zinc-600"}`} />
+    </button>
   );
 
   const formatDate = (dateStr: string) => {
@@ -124,8 +117,23 @@ export default function PicklistList() {
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   };
 
+  const picklistColorClass: Record<"red" | "orange" | "yellow" | "green" | "blue" | "violet", string> = {
+    red: "text-red-400",
+    orange: "text-orange-400",
+    yellow: "text-yellow-400",
+    green: "text-emerald-400",
+    blue: "text-blue-400",
+    violet: "text-violet-400",
+  };
+
+  const iconForValue = (v: "sword" | "shield" | "bolt") => {
+    if (v === "sword") return Swords;
+    if (v === "shield") return Shield;
+    return Zap;
+  };
+
   return (
-    <div className="p-4 sm:p-6 space-y-4 max-w-6xl mx-auto overflow-x-hidden">
+    <div className="min-h-full bg-zinc-950 p-4 sm:p-6 space-y-4 max-w-6xl mx-auto overflow-x-hidden">
       <div>
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2" data-testid="text-page-title">
           Picklists
@@ -143,17 +151,20 @@ export default function PicklistList() {
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
           <Input
             placeholder="Search by name or creator..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
+            className="pl-10 border-0 bg-white/5 text-zinc-100 placeholder:text-zinc-600 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] focus-visible:ring-2 focus-visible:ring-blue-500/35 focus-visible:ring-offset-0"
             data-testid="input-picklist-search"
           />
         </div>
         <Select value={sortField} onValueChange={(v) => setSortField(v as SortField)}>
-          <SelectTrigger className="w-[180px]" data-testid="select-sort-field">
+          <SelectTrigger
+            className="w-[180px] border-0 bg-white/5 text-zinc-100 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] focus:ring-2 focus:ring-blue-500/35"
+            data-testid="select-sort-field"
+          >
             <SelectValue placeholder="Sort by..." />
           </SelectTrigger>
           <SelectContent>
@@ -162,14 +173,9 @@ export default function PicklistList() {
             <SelectItem value="createdAt">Created</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" asChild>
-          <Link href={`/events/${eventId}/alliance-sim`}>
-            <Swords className="h-4 w-4 mr-2" />
-            Alliance sim
-          </Link>
-        </Button>
-        <Link href={`/events/${eventId}/picklist`}>
-          <Button data-testid="button-new-picklist">
+        {/* Alliance sim hidden for now */}
+        <Link href={`/events/${eventId}/picklist?new=1`}>
+          <Button className="bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-black/25" data-testid="button-new-picklist">
             <Plus className="h-4 w-4 mr-2" />
             New picklist
           </Button>
@@ -197,59 +203,56 @@ export default function PicklistList() {
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="rounded-md border overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <SortableHeader field="name">Name</SortableHeader>
-                    <SortableHeader field="createdBy">Created By</SortableHeader>
-                    <SortableHeader field="createdAt">Created</SortableHeader>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredPicklists.map((p) => (
-                    <TableRow
-                      key={p.id}
-                      data-testid={`row-picklist-${p.id}`}
-                      className="h-12 cursor-pointer hover:bg-accent/50"
-                      onClick={() => setLocation(`/events/${eventId}/picklist?list=${p.id}`)}
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                            <ListOrdered className="h-4 w-4" />
-                          </div>
-                          <span className="font-semibold">{p.name}</span>
-                          {p.adminOnly && (
-                            <Shield className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" title="Admin only" />
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {p.createdBy ? (
-                          <span className="flex items-center gap-1.5 text-sm">
-                            <User className="h-4 w-4 text-muted-foreground shrink-0" />
-                            {p.createdBy.displayName}
-                            {p.createdBy.role === "admin" && (
-                              <span className="inline-flex items-center gap-0.5 rounded px-1 py-0 text-[10px] font-medium text-blue-600 dark:text-blue-400">Admin</span>
-                            )}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
+        <div className="overflow-x-auto">
+          <div className="grid grid-cols-[minmax(14rem,2fr)_minmax(10rem,1fr)_minmax(9rem,auto)] gap-6 px-1">
+            <SortableHeader field="name" label="Name" />
+            <SortableHeader field="createdBy" label="Created By" />
+            <SortableHeader field="createdAt" label="Created" />
+          </div>
+
+          <div className="mt-1">
+            {filteredPicklists.map((p) => (
+              <div key={p.id} className="border-t border-white/10">
+                <button
+                  type="button"
+                  data-testid={`row-picklist-${p.id}`}
+                  className="grid w-full grid-cols-[minmax(14rem,2fr)_minmax(10rem,1fr)_minmax(9rem,auto)] items-center gap-6 px-1 py-4 text-left transition-colors hover:bg-white/5"
+                  onClick={() => setLocation(`/events/${eventId}/picklist?list=${p.id}`)}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    {p.icon && p.color && (["red", "orange", "yellow", "green", "blue", "violet"] as const).includes(p.color as any) ? (
+                      (() => {
+                        const Icon = iconForValue(p.icon as "sword" | "shield" | "bolt");
+                        const c = picklistColorClass[p.color as "red" | "orange" | "yellow" | "green" | "blue" | "violet"];
+                        return <Icon className={`h-4 w-4 shrink-0 ${c}`} aria-hidden />;
+                      })()
+                    ) : null}
+                    <span className="min-w-0 truncate font-semibold text-zinc-100">{p.name}</span>
+                    {p.adminOnly && (
+                      <Shield className="h-4 w-4 shrink-0 text-blue-400/90" title="Admin only" />
+                    )}
+                  </div>
+
+                  <div className="min-w-0">
+                    {p.createdBy ? (
+                      <span className="flex min-w-0 items-center gap-2 text-sm text-zinc-400">
+                        <User className="h-4 w-4 shrink-0 text-zinc-600" aria-hidden />
+                        <span className="truncate">{p.createdBy.displayName}</span>
+                        {p.createdBy.role === "admin" && (
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-400/90">Admin</span>
                         )}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatDate(p.createdAt)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+                      </span>
+                    ) : (
+                      <span className="text-sm text-zinc-500">—</span>
+                    )}
+                  </div>
+
+                  <div className="text-sm text-zinc-500">{formatDate(p.createdAt)}</div>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

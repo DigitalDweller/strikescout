@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -29,10 +29,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
-import { Plus, X, GripVertical, Search, ListOrdered, MoreHorizontal, Pencil, Trash2, Users, User, ArrowRight, Shield, ChevronDown, Swords } from "lucide-react";
+import { Plus, X, GripVertical, Search, ListOrdered, MoreHorizontal, Pencil, Trash2, Users, User, ArrowRight, Shield, Swords, Zap, ArrowLeft } from "lucide-react";
 import { useHelp } from "@/contexts/help-context";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -78,20 +76,29 @@ const PICKLIST_HELP = {
 export default function Picklist() {
   const { id } = useParams<{ id: string }>();
   const eventId = parseInt(id!);
+  const [location, setLocation] = useLocation();
   const listIdFromUrl = useMemo(() => {
     if (typeof window === "undefined") return null;
-    const list = new URLSearchParams(window.location.search).get("list");
-    return list ? parseInt(list, 10) : null;
-  }, []);
+    const params = new URLSearchParams(window.location.search);
+    const list = params.get("list");
+    const n = list ? parseInt(list, 10) : null;
+    return n && Number.isFinite(n) ? n : null;
+  }, [location]);
+  const openCreateFromUrl = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const params = new URLSearchParams(window.location.search);
+    return params.get("new") === "1";
+  }, [location]);
   const { toast } = useToast();
   const help = useHelp();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [search, setSearch] = useState("");
-  const [selectedPicklistId, setSelectedPicklistId] = useState<number | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createAdminOnly, setCreateAdminOnly] = useState(false);
+  const [createIcon, setCreateIcon] = useState<"sword" | "shield" | "bolt" | null>("sword");
+  const [createColor, setCreateColor] = useState<"red" | "orange" | "yellow" | "green" | "blue" | "violet">("blue");
   const [renameOpen, setRenameOpen] = useState(false);
   const [renamePicklist, setRenamePicklist] = useState<PicklistWithCreator | null>(null);
   const [renameName, setRenameName] = useState("");
@@ -140,17 +147,18 @@ export default function Picklist() {
     },
   });
 
+  const selectedPicklistId = listIdFromUrl;
+
   useEffect(() => {
-    if (picklists.length === 0) return;
-    const targetId = listIdFromUrl && picklists.some((p) => p.id === listIdFromUrl) ? listIdFromUrl : null;
-    if (targetId) {
-      setSelectedPicklistId(targetId);
-    } else if (selectedPicklistId === null) {
-      setSelectedPicklistId(picklists[0].id);
-    } else if (!picklists.some((p) => p.id === selectedPicklistId)) {
-      setSelectedPicklistId(picklists[0].id);
+    // No list switching inside the editor: you must pick a list from the table page.
+    if (selectedPicklistId != null) return;
+    if (openCreateFromUrl) {
+      setCreateOpen(true);
+      return;
     }
-  }, [picklists, selectedPicklistId, listIdFromUrl]);
+    // If user navigates here directly, send them back to the table.
+    setLocation(`/events/${eventId}/picklists`, { replace: true });
+  }, [selectedPicklistId, openCreateFromUrl, eventId, setLocation]);
 
   useEffect(() => {
     setRemoveControlTeamId(null);
@@ -211,16 +219,28 @@ export default function Picklist() {
   const canEditPicklist = isAdmin || !selectedPicklist?.adminOnly;
 
   const createMutation = useMutation({
-    mutationFn: async ({ name, adminOnly }: { name: string; adminOnly: boolean }) => {
-      const res = await apiRequest("POST", `/api/events/${eventId}/picklists`, { name, adminOnly });
+    mutationFn: async ({
+      name,
+      adminOnly,
+      icon,
+      color,
+    }: {
+      name: string;
+      adminOnly: boolean;
+      icon: "sword" | "shield" | "bolt" | null;
+      color: "red" | "orange" | "yellow" | "green" | "blue" | "violet";
+    }) => {
+      const res = await apiRequest("POST", `/api/events/${eventId}/picklists`, { name, adminOnly, icon, color });
       return res.json();
     },
     onSuccess: (created: Picklist) => {
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "picklists"] });
-      setSelectedPicklistId(created.id);
       setCreateOpen(false);
       setCreateName("");
       setCreateAdminOnly(false);
+      setCreateIcon("sword");
+      setCreateColor("blue");
+      setLocation(`/events/${eventId}/picklist?list=${created.id}`, { replace: true });
       toast({ title: "Picklist created" });
     },
     onError: (e: Error) => toast({ title: "Failed to create picklist", description: e.message, variant: "destructive" }),
@@ -249,8 +269,10 @@ export default function Picklist() {
     },
     onSuccess: (_, deletedId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "picklists"] });
-      setSelectedPicklistId((current) => (current === deletedId ? null : current));
       setDeletePicklist(null);
+      if (selectedPicklistId === deletedId) {
+        setLocation(`/events/${eventId}/picklists`, { replace: true });
+      }
       toast({ title: "Picklist deleted" });
     },
     onError: (e: Error) => toast({ title: "Failed to delete", description: e.message, variant: "destructive" }),
@@ -447,6 +469,39 @@ export default function Picklist() {
 
   const isLoading = teamsLoading || picklistsLoading;
 
+  const picklistColorClass: Record<"red" | "orange" | "yellow" | "green" | "blue" | "violet", string> = {
+    red: "text-red-400",
+    orange: "text-orange-400",
+    yellow: "text-yellow-400",
+    green: "text-emerald-400",
+    blue: "text-blue-400",
+    violet: "text-violet-400",
+  };
+
+  const picklistColorRingClass: Record<"red" | "orange" | "yellow" | "green" | "blue" | "violet", string> = {
+    red: "ring-red-500/35",
+    orange: "ring-orange-500/35",
+    yellow: "ring-yellow-500/35",
+    green: "ring-emerald-500/35",
+    blue: "ring-blue-500/35",
+    violet: "ring-violet-500/35",
+  };
+
+  const picklistColorBgClass: Record<"red" | "orange" | "yellow" | "green" | "blue" | "violet", string> = {
+    red: "bg-red-500/15",
+    orange: "bg-orange-500/15",
+    yellow: "bg-yellow-500/15",
+    green: "bg-emerald-500/15",
+    blue: "bg-blue-500/15",
+    violet: "bg-violet-500/15",
+  };
+
+  const iconForValue = (v: "sword" | "shield" | "bolt") => {
+    if (v === "sword") return Swords;
+    if (v === "shield") return Shield;
+    return Zap;
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-full">
@@ -467,109 +522,93 @@ export default function Picklist() {
   }
 
   return (
-    <div className="min-h-full">
+    <div className="min-h-full bg-zinc-950">
       {draggedTeam && <DragPreview team={draggedTeam} avatar={draggedTeam.avatar} mousePos={mousePos} />}
 
-      <header className="border-b bg-card/50 backdrop-blur-sm">
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+      <header className="border-b border-white/10 bg-zinc-950/60 backdrop-blur-xl">
+        <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <ListOrdered className="h-5 w-5" />
-              </div>
-              <div>
-                <h1 className="text-xl font-semibold tracking-tight sm:text-2xl flex items-center gap-2" data-testid="text-picklist-title">
-                  Picklist
-                  {help?.HelpTrigger?.({ content: PICKLIST_HELP, className: "ml-1" })}
-                </h1>
-                {event && (
-                  <p className="mt-0.5 text-sm text-muted-foreground">{event.name}</p>
-                )}
-              </div>
-            </div>
-            {picklists.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="w-[200px] justify-between font-medium" data-testid="select-picklist">
-                      <span className="flex items-center gap-2 truncate">
-                        {selectedPicklist ? selectedPicklist.name : "Choose list"}
-                        {selectedPicklist?.adminOnly && <Shield className="h-4 w-4 text-blue-500 shrink-0" aria-label="Admin only" />}
-                      </span>
-                      <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-[200px]">
-                    <DropdownMenuRadioGroup value={selectedPicklistId?.toString() ?? ""} onValueChange={(v) => setSelectedPicklistId(v ? parseInt(v, 10) : null)}>
-                      {picklists.map((p) => (
-                        <DropdownMenuRadioItem key={p.id} value={p.id.toString()}>
-                          <span className="flex flex-col items-start gap-0.5 min-w-0">
-                            <span className="flex items-center gap-2">
-                              {p.name}
-                              {p.adminOnly && <Shield className="h-4 w-4 text-blue-500 shrink-0" aria-label="Admin only" />}
-                            </span>
-                            {p.createdBy && (
-                              <span className="text-[10px] text-muted-foreground truncate w-full">by {p.createdBy.displayName}{p.createdBy.role === "admin" ? " (Admin)" : ""}</span>
-                            )}
-                          </span>
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                {selectedPicklist && canEditPicklist && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" data-testid="button-picklist-edit">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {isAdmin && (
-                        <DropdownMenuItem
-                          onClick={() => setAdminOnlyMutation.mutate({ picklistId: selectedPicklist.id, adminOnly: !selectedPicklist.adminOnly, name: selectedPicklist.name })}
-                          disabled={setAdminOnlyMutation.isPending}
-                          data-testid="button-toggle-admin-only"
-                        >
-                          <Shield className="h-4 w-4 mr-2 text-blue-500" />
-                          {selectedPicklist.adminOnly ? "Remove admin only" : "Make admin only"}
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem
-                        onClick={() => {
-                          setRenamePicklist(selectedPicklist);
-                          setRenameName(selectedPicklist.name);
-                          setRenameAdminOnly(selectedPicklist.adminOnly ?? false);
-                          setRenameOpen(true);
-                        }}
-                        data-testid="button-rename-picklist"
-                      >
-                        <Pencil className="h-4 w-4 mr-2" />
-                        Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => setDeletePicklist(selectedPicklist)}
-                        data-testid="button-delete-picklist"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-                <Button variant="outline" size="default" asChild data-testid="link-alliance-sim-from-picklist">
-                  <Link href={`/events/${eventId}/alliance-sim`}>
-                    <Swords className="h-4 w-4 mr-2" />
-                    Alliance sim
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  variant="ghost"
+                  className="h-9 px-0 text-zinc-400 hover:bg-transparent hover:text-zinc-100"
+                  asChild
+                  data-testid="button-back-picklists"
+                >
+                  <Link href={`/events/${eventId}/picklists`}>
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Picklists
                   </Link>
                 </Button>
-                <Button onClick={() => setCreateOpen(true)} size="default" data-testid="button-new-picklist">
-                  <Plus className="h-4 w-4 mr-2" />
-                  New picklist
-                </Button>
+                <div className="min-w-0">
+                  <h1 className="truncate text-xl font-black tracking-tight text-zinc-50 sm:text-2xl" data-testid="text-picklist-title">
+                    {selectedPicklist?.name ?? "Picklist"}
+                  </h1>
+                  <p className="mt-0.5 text-sm text-zinc-500">
+                    {event?.name ?? ""}
+                    {selectedPicklist?.createdBy ? ` · by ${selectedPicklist.createdBy.displayName}` : ""}
+                  </p>
+                </div>
               </div>
-            )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Alliance sim hidden for now */}
+
+              {selectedPicklist && canEditPicklist && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9 border-0 bg-white/5 text-zinc-100 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] hover:bg-white/10"
+                      data-testid="button-picklist-edit"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {isAdmin && (
+                      <DropdownMenuItem
+                        onClick={() =>
+                          setAdminOnlyMutation.mutate({
+                            picklistId: selectedPicklist.id,
+                            adminOnly: !selectedPicklist.adminOnly,
+                            name: selectedPicklist.name,
+                          })
+                        }
+                        disabled={setAdminOnlyMutation.isPending}
+                        data-testid="button-toggle-admin-only"
+                      >
+                        <Shield className="mr-2 h-4 w-4 text-blue-500" />
+                        {selectedPicklist.adminOnly ? "Remove admin only" : "Make admin only"}
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setRenamePicklist(selectedPicklist);
+                        setRenameName(selectedPicklist.name);
+                        setRenameAdminOnly(selectedPicklist.adminOnly ?? false);
+                        setRenameOpen(true);
+                      }}
+                      data-testid="button-rename-picklist"
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Rename
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => setDeletePicklist(selectedPicklist)}
+                      data-testid="button-delete-picklist"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -615,18 +654,13 @@ export default function Picklist() {
                     <Shield className="h-4 w-4 text-blue-500 shrink-0" aria-label="Admin only" />
                     Admin-only picklist — view only. Only admins can edit this list.
                   </span>
-                ) : (
-                  <span className="flex items-center gap-1.5">
-                    <ArrowRight className="h-4 w-4" />
-                    Add teams from the left, then drag to reorder. Drag a team back to the left to remove it.
-                  </span>
-                )}
+                ) : null}
               </div>
               <RankingColorKey />
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
-            <Card
+            <div
               className={`md:col-span-2 flex flex-col overflow-hidden transition-shadow ${dragOverPanel === "available" && dragSource?.type === "picklist" ? "ring-2 ring-primary/40 shadow-md" : ""}`}
               data-testid="panel-available"
               onDragOver={handleAvailablePanelDragOver}
@@ -638,27 +672,22 @@ export default function Picklist() {
                 handleAvailablePanelDrop();
               }}
             >
-              <CardHeader className="pb-3">
+              <div className="ss-glass-subtle border border-white/10 bg-zinc-900/35 p-4">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <CardTitle className="text-base font-semibold flex items-center gap-1.5">
-                      Available teams
-                      {help?.HelpTrigger?.({
-                        content: { title: "Available teams", body: <p>Teams not yet in your picklist. Click + or drag to add. Search to filter. Sorted by OPR when empty.</p> },
-                      })}
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground mt-0.5">Click + or drag to add</p>
-                  </div>
+                  <Users className="h-4 w-4 text-blue-400" />
+                  <p className="text-sm font-semibold text-zinc-100">
+                    Available teams
+                    {help?.HelpTrigger?.({
+                      content: { title: "Available teams", body: <p>Teams not yet in your picklist. Click + or drag to add. Search to filter. Sorted by OPR when empty.</p> },
+                    })}
+                  </p>
                 </div>
                 <div className="relative mt-3">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input placeholder="Search by number or name..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-9" data-testid="input-search-available" />
                 </div>
-              </CardHeader>
-              <CardContent className="flex-1 overflow-auto min-h-[200px] max-h-[55vh] space-y-1 pt-0 custom-scrollbar">
+              </div>
+              <div className="mt-3 flex-1 overflow-auto min-h-[200px] max-h-[55vh] space-y-1 pt-0 custom-scrollbar">
                 {availableTeams.length === 0 ? (
                   <div className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-10 px-4 text-center transition-colors ${dragOverPanel === "available" && dragSource?.type === "picklist" ? "border-primary/50 bg-primary/5" : "border-muted-foreground/20 bg-muted/30"}`}>
                     <p className="text-sm font-medium text-muted-foreground">
@@ -705,10 +734,10 @@ export default function Picklist() {
                     );
                   })
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card
+            <div
               ref={picklistPanelRef}
               className={`md:col-span-3 flex flex-col overflow-hidden transition-shadow border-primary/20 bg-primary/[0.02] ${dragOverPanel === "picklist" && dragSource?.type === "available" ? "ring-2 ring-primary/40 shadow-md" : ""}`}
               data-testid="panel-picklist"
@@ -724,28 +753,23 @@ export default function Picklist() {
                 handlePicklistPanelDrop();
               }}
             >
-              <CardHeader className="pb-3">
+              <div className="ss-glass-subtle border border-white/10 bg-zinc-900/35 p-4">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <ListOrdered className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <CardTitle className="text-base font-semibold flex items-center gap-1.5">
-                      {selectedPicklist?.name ?? "Picklist"}
-                      {selectedPicklist?.adminOnly && <Shield className="h-4 w-4 text-blue-500 shrink-0" aria-label="Admin only" />}
-                      {help?.HelpTrigger?.({
-                        content: { title: "Your picklist", body: <p>Teams you&apos;ve ranked. Drag by the handle to reorder. Top = preferred. Drop here from Available to remove.</p> },
-                      })}
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {picklistEntries?.length ?? 0} of {eventTeams?.length ?? 0} teams
-                      {selectedPicklist?.createdBy && <> · by {selectedPicklist.createdBy.displayName}{selectedPicklist.createdBy.role === "admin" ? " (Admin)" : ""}</>}
-                      {" · drag to reorder"}
-                    </p>
-                  </div>
+                  <ListOrdered className="h-4 w-4 text-blue-400" />
+                  <p className="text-sm font-semibold text-zinc-100">
+                    Ranked teams
+                    {selectedPicklist?.adminOnly && <Shield className="ml-2 inline h-4 w-4 text-blue-400" aria-label="Admin only" />}
+                    {help?.HelpTrigger?.({
+                      content: { title: "Your picklist", body: <p>Teams you&apos;ve ranked. Drag by the handle to reorder. Top = preferred. Drag back to Available to remove.</p> },
+                    })}
+                  </p>
                 </div>
-              </CardHeader>
-              <CardContent className="flex-1 overflow-auto min-h-[200px] max-h-[55vh] space-y-1 pt-0 custom-scrollbar">
+                <p className="mt-1 text-xs text-zinc-500">
+                  {picklistEntries?.length ?? 0} of {eventTeams?.length ?? 0} teams · drag to reorder
+                </p>
+              </div>
+
+              <div className="mt-3 flex-1 overflow-auto min-h-[200px] max-h-[55vh] space-y-1 pt-0 custom-scrollbar">
                 {entriesLoading ? (
                   <div className="space-y-2">
                     <Skeleton className="h-14 w-full rounded-lg" />
@@ -810,8 +834,8 @@ export default function Picklist() {
                     );
                   })
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
             </div>
           </>
         )}
@@ -825,6 +849,49 @@ export default function Picklist() {
             <DialogDescription>Give this picklist a name (e.g. &quot;Strategy A&quot;, &quot;Backup&quot;).</DialogDescription>
           </DialogHeader>
           <Input placeholder="Picklist name" value={createName} onChange={(e) => setCreateName(e.target.value)} data-testid="input-new-picklist-name" />
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Icon</p>
+              <div className="grid grid-cols-3 gap-2">
+                {(["sword", "shield", "bolt"] as const).map((v) => {
+                  const Icon = iconForValue(v);
+                  const active = createIcon === v;
+                  const c = picklistColorClass[createColor];
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setCreateIcon(v)}
+                      className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium bg-black/20 hover:bg-white/5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] ${active ? `ring-2 ${picklistColorRingClass[createColor]}` : ""}`}
+                      data-testid={`picklist-icon-${v}`}
+                    >
+                      <Icon className={`h-4 w-4 ${c}`} />
+                      <span className="capitalize text-zinc-200">{v === "bolt" ? "Bolt" : v}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Color</p>
+              <div className="grid grid-cols-6 gap-2">
+                {(["red", "orange", "yellow", "green", "blue", "violet"] as const).map((c) => {
+                  const active = createColor === c;
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setCreateColor(c)}
+                      className={`h-9 rounded-lg ${picklistColorBgClass[c]} shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] ${active ? `ring-2 ${picklistColorRingClass[c]}` : "hover:bg-white/5"}`}
+                      aria-label={`Color ${c}`}
+                      data-testid={`picklist-color-${c}`}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
           {isAdmin && (
             <div className="flex items-center space-x-2">
               <Checkbox id="create-admin-only" checked={createAdminOnly} onCheckedChange={(c) => setCreateAdminOnly(!!c)} />
@@ -835,7 +902,14 @@ export default function Picklist() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={() => createName.trim() && createMutation.mutate({ name: createName.trim(), adminOnly: createAdminOnly })} disabled={!createName.trim() || createMutation.isPending} data-testid="button-create-picklist-submit">
+            <Button
+              onClick={() =>
+                createName.trim() &&
+                createMutation.mutate({ name: createName.trim(), adminOnly: createAdminOnly, icon: createIcon, color: createColor })
+              }
+              disabled={!createName.trim() || createMutation.isPending}
+              data-testid="button-create-picklist-submit"
+            >
               {createMutation.isPending ? "Creating…" : "Create"}
             </Button>
           </DialogFooter>

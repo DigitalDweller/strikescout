@@ -85,6 +85,9 @@ export const picklists = pgTable("picklists", {
   eventId: integer("event_id").notNull(),
   name: text("name").notNull(),
   adminOnly: boolean("admin_only").notNull().default(false),
+  /** Optional UI metadata for list identification. */
+  icon: text("icon"), // 'sword' | 'shield' | 'bolt'
+  color: text("color"), // 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'violet'
   createdById: integer("created_by_id").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -127,16 +130,36 @@ export const pitScoutingEntries = pgTable("pit_scouting_entries", {
   robotExtraImage3: text("robot_extra_image_3"),
   robotExtraImage4: text("robot_extra_image_4"),
   drivetrainType: text("drivetrain_type").notNull().default("other"),
-  hasAuto: boolean("has_auto").notNull(),
-  fitsUnderTrench: boolean("fits_under_trench").notNull(),
+  hasAuto: boolean("has_auto").notNull().default(false),
+  fitsUnderTrench: boolean("fits_under_trench").notNull().default(false),
   autoDescription: text("auto_description"),
   pitClimbNotes: text("pit_climb_notes"),
   /** 0–100 when hopperCapacityOver100 is false; ignored for display when over-100 is set. */
   hopperCapacity: integer("hopper_capacity").notNull().default(0),
   hopperCapacityOver100: boolean("hopper_capacity_over_100").notNull().default(false),
+  /** Optional in case team refuses to share. */
+  robotWeightLbs: integer("robot_weight_lbs"),
+  usesPathplanner: boolean("uses_pathplanner").notNull().default(false),
+  hasMidfieldFuelAuto: boolean("has_midfield_fuel_auto").notNull().default(false),
+  /** Minutes to make a new auton (rough estimate). */
+  newAutonTimeMinutes: integer("new_auton_time_minutes"),
+  /** Number of REV motor controllers on the robot. */
+  revMotorControllerCount: integer("rev_motor_controller_count"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+/** Per-event allowlist: which scouters may access Pit scouting UI/APIs. */
+export const eventPitScoutingAccess = pgTable(
+  "event_pit_scouting_access",
+  {
+    id: serial("id").primaryKey(),
+    eventId: integer("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+    scouterId: integer("scouter_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [unique("event_pit_scouting_access_event_scouter").on(t.eventId, t.scouterId)],
+);
 
 export const scoutingEntries = pgTable("scouting_entries", {
   id: serial("id").primaryKey(),
@@ -254,6 +277,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   pitScoutingEntries: many(pitScoutingEntries),
   repAwardsReceived: many(repAwards),
   scoutAssignments: many(scoutAssignments),
+  eventPitScoutingAccess: many(eventPitScoutingAccess),
 }));
 
 export const repAwardsRelations = relations(repAwards, ({ one }) => ({
@@ -273,6 +297,12 @@ export const eventsRelations = relations(events, ({ many }) => ({
   eventScouterPresence: many(eventScouterPresence),
   picklists: many(picklists),
   allianceSimSessions: many(allianceSimSessions),
+  eventPitScoutingAccess: many(eventPitScoutingAccess),
+}));
+
+export const eventPitScoutingAccessRelations = relations(eventPitScoutingAccess, ({ one }) => ({
+  event: one(events, { fields: [eventPitScoutingAccess.eventId], references: [events.id] }),
+  scouter: one(users, { fields: [eventPitScoutingAccess.scouterId], references: [users.id] }),
 }));
 
 export const eventScouterPresenceRelations = relations(eventScouterPresence, ({ one }) => ({
@@ -355,7 +385,12 @@ export const insertPitScoutingEntrySchema = createInsertSchema(pitScoutingEntrie
   });
 export const insertScoutingEntrySchema = createInsertSchema(scoutingEntries).omit({ id: true, createdAt: true });
 export const insertScheduleMatchSchema = createInsertSchema(scheduleMatches).omit({ id: true });
-export const insertPicklistSchema = createInsertSchema(picklists).omit({ id: true, createdAt: true });
+export const insertPicklistSchema = createInsertSchema(picklists)
+  .omit({ id: true, createdAt: true })
+  .extend({
+    icon: z.enum(["sword", "shield", "bolt"]).nullable().optional(),
+    color: z.enum(["red", "orange", "yellow", "green", "blue", "violet"]).nullable().optional(),
+  });
 export const insertPicklistEntrySchema = createInsertSchema(picklistEntries).omit({ id: true });
 export const insertRepAwardSchema = createInsertSchema(repAwards).omit({ id: true, createdAt: true });
 export const insertPendingSignupSchema = createInsertSchema(pendingSignups).omit({ id: true, createdAt: true });
@@ -375,6 +410,7 @@ export type InsertEventTeam = z.infer<typeof insertEventTeamSchema>;
 export type EventTeam = typeof eventTeams.$inferSelect;
 export type InsertPitScoutingEntry = z.infer<typeof insertPitScoutingEntrySchema>;
 export type PitScoutingEntry = typeof pitScoutingEntries.$inferSelect;
+export type EventPitScoutingAccess = typeof eventPitScoutingAccess.$inferSelect;
 export type InsertScoutingEntry = z.infer<typeof insertScoutingEntrySchema>;
 export type ScoutingEntry = typeof scoutingEntries.$inferSelect;
 export type InsertScheduleMatch = z.infer<typeof insertScheduleMatchSchema>;

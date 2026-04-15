@@ -4,6 +4,7 @@ import {
   seasons,
   appSettings,
   events, teams, eventTeams, scoutingEntries, pitScoutingEntries, scheduleMatches, scoutAssignments, scoutAssignmentRequests, scouterBreakCredits, eventScouterPresence, picklists, picklistEntries, allianceSimSessions, repAwards,
+  eventPitScoutingAccess,
   type User, type InsertUser,
   type Season,
   type Event, type InsertEvent,
@@ -82,6 +83,11 @@ export interface IStorage {
       team: { id: number; teamNumber: number; teamName: string };
     })[]
   >;
+
+  /** Pit scouting access control (per event allowlist). */
+  isScouterAllowedForPitScouting(eventId: number, scouterId: number): Promise<boolean>;
+  getPitScoutingAllowedScouterIds(eventId: number): Promise<number[]>;
+  setPitScoutingAllowedScouterIds(eventId: number, scouterIds: number[]): Promise<void>;
   getScouterStats(userId: number): Promise<{ eventId: number; eventName: string; entryCount: number }[]>;
   getScoutersForEvent(eventId: number): Promise<{ id: number; displayName: string; entryCount: number; rep: number; eventsScouted: number; isPresent: boolean }[]>;
   setEventScouterPresence(eventId: number, updates: { scouterId: number; isPresent: boolean }[]): Promise<void>;
@@ -113,8 +119,8 @@ export interface IStorage {
 
   getPicklists(eventId: number): Promise<(Picklist & { createdBy?: { id: number; displayName: string; role: string } })[]>;
   getPicklistEntryCounts(eventId: number): Promise<Map<number, number>>;
-  createPicklist(eventId: number, name: string, adminOnly?: boolean, createdById?: number): Promise<Picklist>;
-  updatePicklist(id: number, data: { name?: string; adminOnly?: boolean }): Promise<Picklist | undefined>;
+  createPicklist(eventId: number, data: { name: string; adminOnly?: boolean; icon?: string | null; color?: string | null }, createdById?: number): Promise<Picklist>;
+  updatePicklist(id: number, data: { name?: string; adminOnly?: boolean; icon?: string | null; color?: string | null }): Promise<Picklist | undefined>;
   deletePicklist(id: number): Promise<void>;
   getPicklistEntries(picklistId: number): Promise<(PicklistEntry & { team: Team })[]>;
   setPicklistEntries(picklistId: number, teamIds: number[]): Promise<void>;
@@ -279,6 +285,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(scheduleMatches).where(eq(scheduleMatches.eventId, id));
     await db.delete(scoutingEntries).where(eq(scoutingEntries.eventId, id));
     await db.delete(pitScoutingEntries).where(eq(pitScoutingEntries.eventId, id));
+    await db.delete(eventPitScoutingAccess).where(eq(eventPitScoutingAccess.eventId, id));
     await db.delete(eventTeams).where(eq(eventTeams.eventId, id));
     await db.delete(events).where(eq(events.id, id));
   }
@@ -502,6 +509,11 @@ export class DatabaseStorage implements IStorage {
         pitClimbNotes: pitScoutingEntries.pitClimbNotes,
         hopperCapacity: pitScoutingEntries.hopperCapacity,
         hopperCapacityOver100: pitScoutingEntries.hopperCapacityOver100,
+        robotWeightLbs: pitScoutingEntries.robotWeightLbs,
+        usesPathplanner: pitScoutingEntries.usesPathplanner,
+        hasMidfieldFuelAuto: pitScoutingEntries.hasMidfieldFuelAuto,
+        newAutonTimeMinutes: pitScoutingEntries.newAutonTimeMinutes,
+        revMotorControllerCount: pitScoutingEntries.revMotorControllerCount,
         createdAt: pitScoutingEntries.createdAt,
         updatedAt: pitScoutingEntries.updatedAt,
         scouterDisplayName: users.displayName,
@@ -531,6 +543,34 @@ export class DatabaseStorage implements IStorage {
         },
         team: { id: r.teamId, teamNumber, teamName: teamName ?? "" },
       };
+    });
+  }
+
+  async isScouterAllowedForPitScouting(eventId: number, scouterId: number): Promise<boolean> {
+    const [row] = await db
+      .select({ id: eventPitScoutingAccess.id })
+      .from(eventPitScoutingAccess)
+      .where(and(eq(eventPitScoutingAccess.eventId, eventId), eq(eventPitScoutingAccess.scouterId, scouterId)))
+      .limit(1);
+    return !!row;
+  }
+
+  async getPitScoutingAllowedScouterIds(eventId: number): Promise<number[]> {
+    const rows = await db
+      .select({ scouterId: eventPitScoutingAccess.scouterId })
+      .from(eventPitScoutingAccess)
+      .where(eq(eventPitScoutingAccess.eventId, eventId))
+      .orderBy(asc(eventPitScoutingAccess.scouterId));
+    return rows.map((r) => r.scouterId);
+  }
+
+  async setPitScoutingAllowedScouterIds(eventId: number, scouterIds: number[]): Promise<void> {
+    const uniqueIds = [...new Set(scouterIds.filter((id) => Number.isFinite(id) && id > 0))];
+    await db.transaction(async (tx) => {
+      await tx.delete(eventPitScoutingAccess).where(eq(eventPitScoutingAccess.eventId, eventId));
+      if (uniqueIds.length > 0) {
+        await tx.insert(eventPitScoutingAccess).values(uniqueIds.map((scouterId) => ({ eventId, scouterId })));
+      }
     });
   }
 
@@ -918,6 +958,8 @@ export class DatabaseStorage implements IStorage {
         eventId: picklists.eventId,
         name: picklists.name,
         adminOnly: picklists.adminOnly,
+        icon: picklists.icon,
+        color: picklists.color,
         createdById: picklists.createdById,
         createdAt: picklists.createdAt,
         createdByDisplayName: users.displayName,
@@ -934,6 +976,8 @@ export class DatabaseStorage implements IStorage {
       eventId: r.eventId,
       name: r.name,
       adminOnly: r.adminOnly,
+      icon: r.icon ?? null,
+      color: r.color ?? null,
       createdById: r.createdById,
       createdAt: r.createdAt,
       ...(r.createdByDisplayName != null && r.createdByUserId != null
@@ -942,15 +986,27 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async createPicklist(eventId: number, name: string, adminOnly = false, createdById?: number): Promise<Picklist> {
-    const [created] = await db.insert(picklists).values({ eventId, name, adminOnly, createdById: createdById ?? null }).returning();
+  async createPicklist(eventId: number, data: { name: string; adminOnly?: boolean; icon?: string | null; color?: string | null }, createdById?: number): Promise<Picklist> {
+    const [created] = await db
+      .insert(picklists)
+      .values({
+        eventId,
+        name: data.name,
+        adminOnly: !!data.adminOnly,
+        icon: data.icon ?? null,
+        color: data.color ?? null,
+        createdById: createdById ?? null,
+      })
+      .returning();
     return created;
   }
 
-  async updatePicklist(id: number, data: { name?: string; adminOnly?: boolean }): Promise<Picklist | undefined> {
+  async updatePicklist(id: number, data: { name?: string; adminOnly?: boolean; icon?: string | null; color?: string | null }): Promise<Picklist | undefined> {
     const updates: Record<string, unknown> = {};
     if (data.name !== undefined) updates.name = data.name;
     if (data.adminOnly !== undefined) updates.adminOnly = data.adminOnly;
+    if (data.icon !== undefined) updates.icon = data.icon;
+    if (data.color !== undefined) updates.color = data.color;
     if (Object.keys(updates).length === 0) return (await db.select().from(picklists).where(eq(picklists.id, id)))[0] ?? undefined;
     const [updated] = await db.update(picklists).set(updates).where(eq(picklists.id, id)).returning();
     return updated ?? undefined;
@@ -1133,7 +1189,7 @@ export class DatabaseStorage implements IStorage {
   async resetAllianceSimPicks(sessionId: number): Promise<AllianceSimSession | undefined> {
     const [updated] = await db
       .update(allianceSimSessions)
-      .set({ picks: [] as AllianceSimPick[], updatedAt: new Date() })
+      .set({ picks: [] as AllianceSimPick[], captainRobots: [] as string[], updatedAt: new Date() })
       .where(eq(allianceSimSessions.id, sessionId))
       .returning();
     return updated ?? undefined;

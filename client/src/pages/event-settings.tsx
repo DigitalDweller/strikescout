@@ -28,6 +28,7 @@ import {
   CalendarDays,
   ChevronDown,
   Users,
+  Wrench,
   Image,
   BarChart3,
   Trophy,
@@ -103,6 +104,7 @@ const SETTINGS_TABS = [
   { id: "general" as const, label: "General", icon: Settings2, description: "Help & tips" },
   { id: "szr" as const, label: "SZR Weights", icon: Gauge, description: "Strike zone rating" },
   { id: "predictor" as const, label: "Match Predictor", icon: Swords, description: "Blend & composite" },
+  { id: "pit" as const, label: "Pit Scouting", icon: Wrench, description: "Access control" },
   { id: "event" as const, label: "Event Details", icon: CalendarDays, description: "Info & TBA" },
 ];
 
@@ -315,6 +317,54 @@ export default function EventSettings() {
   const [testingOverrideEventEnded, setTestingOverrideEventEnded] = useState(false);
   const [testingOverrideMatchNumber, setTestingOverrideMatchNumber] = useState<string>("");
   const [allianceSimFourPartnerSlots, setAllianceSimFourPartnerSlots] = useState(false);
+
+  const { data: scouters } = useQuery<
+    { id: number; displayName: string; entryCount: number; rep: number; eventsScouted: number; isPresent: boolean }[]
+  >({
+    queryKey: ["/api/events", eventId, "scouters"],
+    enabled: !!eventId && activeTab === "pit",
+  });
+
+  const { data: pitAccessData } = useQuery<{ scouterIds: number[] }>({
+    queryKey: ["/api/events", eventId, "pit-access"],
+    enabled: !!eventId && activeTab === "pit",
+    queryFn: async () => {
+      const res = await fetch(`/api/events/${eventId}/pit-access`);
+      if (!res.ok) {
+        // Non-admins (or not configured yet) may receive 403/404; treat as empty UI.
+        return { scouterIds: [] };
+      }
+      return res.json();
+    },
+  });
+
+  const [pitAllowedIds, setPitAllowedIds] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (!pitAccessData) return;
+    setPitAllowedIds(new Set(pitAccessData.scouterIds ?? []));
+  }, [pitAccessData]);
+
+  const pitAccessChanged = useMemo(() => {
+    const server = new Set(pitAccessData?.scouterIds ?? []);
+    if (server.size !== pitAllowedIds.size) return true;
+    for (const id of pitAllowedIds) if (!server.has(id)) return true;
+    return false;
+  }, [pitAccessData, pitAllowedIds]);
+
+  const savePitAccessMutation = useMutation({
+    mutationFn: async (scouterIds: number[]) => {
+      const res = await apiRequest("PUT", `/api/events/${eventId}/pit-access`, { scouterIds });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "pit-access"] });
+      toast({ title: "Pit scouting access saved" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to save pit access", description: err.message, variant: "destructive" });
+    },
+  });
 
   useEffect(() => {
     if (event) {
@@ -896,6 +946,118 @@ export default function EventSettings() {
                       ))}
                     </div>
                   </section>
+                </div>
+              </SettingsShell>
+            )}
+
+            {activeTab === "pit" && (
+              <SettingsShell
+                title="Pit scouting access"
+                subtitle="Admins can choose which scouters may open and submit the Pit scouting sheet for this event."
+                footer={
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-100"
+                        onClick={() => setPitAllowedIds(new Set())}
+                        data-testid="button-pit-access-clear"
+                      >
+                        Clear
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-100"
+                        onClick={() => {
+                          const ids = (scouters ?? []).filter((s) => s.isPresent).map((s) => s.id);
+                          setPitAllowedIds(new Set(ids));
+                        }}
+                        data-testid="button-pit-access-present"
+                      >
+                        Allow all present
+                      </Button>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      className="bg-blue-600 text-white shadow-lg shadow-black/25 hover:bg-blue-500"
+                      onClick={() => savePitAccessMutation.mutate([...pitAllowedIds])}
+                      disabled={savePitAccessMutation.isPending || !pitAccessChanged}
+                      data-testid="button-save-pit-access"
+                    >
+                      {savePitAccessMutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                      Save access
+                    </Button>
+                  </div>
+                }
+              >
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-white/10 bg-zinc-950/40 p-4">
+                    <p className="text-sm text-zinc-400">
+                      <span className="font-semibold text-zinc-100">Admins</span> always have access. Anyone not selected below will get
+                      blocked with a 403 when opening Pit scouting.
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-zinc-950/40 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">Allowed scouters</h3>
+                      <span className="text-xs tabular-nums text-zinc-500">{pitAllowedIds.size} selected</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {(scouters ?? []).length === 0 ? (
+                        <p className="text-sm text-zinc-500">No scouters found.</p>
+                      ) : (
+                        (scouters ?? [])
+                          .slice()
+                          .sort((a, b) => a.displayName.localeCompare(b.displayName))
+                          .map((s) => {
+                            const checked = pitAllowedIds.has(s.id);
+                            return (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() =>
+                                  setPitAllowedIds((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(s.id)) next.delete(s.id);
+                                    else next.add(s.id);
+                                    return next;
+                                  })
+                                }
+                                className={cn(
+                                  "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition-colors",
+                                  "shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]",
+                                  checked ? "bg-blue-600/15" : "bg-black/20 hover:bg-white/5",
+                                )}
+                                data-testid={`row-pit-access-${s.id}`}
+                              >
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-medium text-zinc-100">{s.displayName}</p>
+                                  <p className="mt-0.5 text-xs text-zinc-500">
+                                    {s.isPresent ? "Present" : "Not present"} • {s.entryCount} entries • {s.rep} rep
+                                  </p>
+                                </div>
+                                <span
+                                  className={cn(
+                                    "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border",
+                                    checked
+                                      ? "border-blue-500/50 bg-blue-600/30"
+                                      : "border-white/10 bg-black/25",
+                                  )}
+                                  aria-hidden
+                                >
+                                  {checked ? <CheckCircle2 className="h-4 w-4 text-blue-300" /> : null}
+                                </span>
+                              </button>
+                            );
+                          })
+                      )}
+                    </div>
+                  </div>
                 </div>
               </SettingsShell>
             )}
