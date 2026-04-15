@@ -394,7 +394,12 @@ export default function PitScoutForm() {
   }, [resolvedEventTeam?.teamId]);
 
   useEffect(() => {
-    if (hasAuto === false) setAutoDescription("");
+    if (hasAuto !== false) return;
+    // "No auto" should void all follow-up auto/programming questions.
+    setAutoDescription("");
+    setUsesPathplanner(false);
+    setHasMidfieldFuelAuto(false);
+    setNewAutonTimeMinutes("");
   }, [hasAuto]);
 
   useEffect(() => {
@@ -498,14 +503,6 @@ export default function PitScoutForm() {
       toast({ title: "Answer: Do you have auto?", variant: "destructive" });
       return;
     }
-    if (usesPathplanner === null) {
-      toast({ title: "Answer: Do you use pathplanner for auto?", variant: "destructive" });
-      return;
-    }
-    if (hasMidfieldFuelAuto === null) {
-      toast({ title: "Answer: Do you have an auto that collects fuel from midfield?", variant: "destructive" });
-      return;
-    }
     const parsedWeight =
       robotWeightLbs.trim() === "" ? NaN : parseInt(robotWeightLbs.trim(), 10);
     if (!Number.isFinite(parsedWeight) || parsedWeight <= 0) {
@@ -518,11 +515,22 @@ export default function PitScoutForm() {
       toast({ title: "Enter number of REV motor controllers", variant: "destructive" });
       return;
     }
-    const parsedAutonMins =
-      newAutonTimeMinutes.trim() === "" ? NaN : parseInt(newAutonTimeMinutes.trim(), 10);
-    if (!Number.isFinite(parsedAutonMins) || parsedAutonMins < 0) {
-      toast({ title: "Enter auton build time (minutes)", variant: "destructive" });
-      return;
+    let parsedAutonMins: number | null = null;
+    if (hasAuto === true) {
+      if (usesPathplanner === null) {
+        toast({ title: "Answer: Do you use pathplanner for auto?", variant: "destructive" });
+        return;
+      }
+      if (hasMidfieldFuelAuto === null) {
+        toast({ title: "Answer: Do you have an auto that collects fuel from midfield?", variant: "destructive" });
+        return;
+      }
+      parsedAutonMins =
+        newAutonTimeMinutes.trim() === "" ? NaN : parseInt(newAutonTimeMinutes.trim(), 10);
+      if (!Number.isFinite(parsedAutonMins) || parsedAutonMins < 0) {
+        toast({ title: "Enter auton build time (minutes)", variant: "destructive" });
+        return;
+      }
     }
     if (!hopperOver100 && (hopperCapacity < 0 || hopperCapacity > 100)) {
       toast({ title: "Hopper capacity must be 0–100 unless 100+ is checked", variant: "destructive" });
@@ -541,15 +549,15 @@ export default function PitScoutForm() {
         drivetrainType,
         hasAuto,
         fitsUnderTrench,
-        autoDescription: autoDescription.trim() || null,
+        autoDescription: hasAuto ? autoDescription.trim() || null : null,
         pitClimbNotes: pitClimbNotes.trim() || null,
         hopperCapacity,
         hopperCapacityOver100: hopperOver100,
         robotWeightLbs: parsedWeight,
         revMotorControllerCount: parsedRevControllers,
-        usesPathplanner,
-        hasMidfieldFuelAuto,
-        newAutonTimeMinutes: parsedAutonMins,
+        usesPathplanner: hasAuto ? usesPathplanner : false,
+        hasMidfieldFuelAuto: hasAuto ? hasMidfieldFuelAuto : false,
+        newAutonTimeMinutes: hasAuto ? parsedAutonMins : null,
       });
       toast({ title: "Pit scouting saved", description: `Team ${resolvedEventTeam.team.teamNumber}` });
       setSelectedTeamId(0);
@@ -781,6 +789,10 @@ export default function PitScoutForm() {
                   </div>
 
                   <div className="space-y-4">
+                    <YesNoPick value={hasAuto} onChange={setHasAuto} label="Has auto?" testId="pit-auto" />
+
+                    {hasAuto === true ? (
+                      <>
                     <YesNoPick
                       value={usesPathplanner}
                       onChange={setUsesPathplanner}
@@ -812,28 +824,29 @@ export default function PitScoutForm() {
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <YesNoPick value={hasAuto} onChange={setHasAuto} label="Has auto?" testId="pit-auto" />
-                      {hasAuto === true ? (
-                        <div className={FIELD_SHELL}>
-                          <Label htmlFor="pit-auto-desc" className="text-sm font-medium text-zinc-100">
-                            Auto routine (optional)
-                          </Label>
-                          <Textarea
-                            id="pit-auto-desc"
-                            value={autoDescription}
-                            onChange={(e) => setAutoDescription(e.target.value)}
-                            placeholder="Start + tasks (short)"
-                            rows={4}
-                            className="mt-2 border-0 bg-black/20 text-zinc-100 placeholder:text-zinc-500 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] focus-visible:ring-2 focus-visible:ring-white/10"
-                          />
-                        </div>
-                      ) : (
-                        <div className={FIELD_SHELL}>
-                          <Label className="text-sm font-medium text-zinc-100">Auto routine (optional)</Label>
-                          <p className="mt-2 text-sm text-zinc-400">Skipped (no auto)</p>
-                        </div>
-                      )}
+                      <div className={FIELD_SHELL}>
+                        <Label htmlFor="pit-auto-desc" className="text-sm font-medium text-zinc-100">
+                          Auto routine (optional)
+                        </Label>
+                        <Textarea
+                          id="pit-auto-desc"
+                          value={autoDescription}
+                          onChange={(e) => setAutoDescription(e.target.value)}
+                          placeholder="Start + tasks (short)"
+                          rows={4}
+                          className="mt-2 border-0 bg-black/20 text-zinc-100 placeholder:text-zinc-500 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] focus-visible:ring-2 focus-visible:ring-white/10"
+                        />
+                      </div>
                     </div>
+                      </>
+                    ) : hasAuto === false ? (
+                      <div className={FIELD_SHELL}>
+                        <Label className="text-sm font-medium text-zinc-100">Auto questions</Label>
+                        <p className="mt-2 text-sm text-zinc-400">
+                          Skipped because this robot does not have auto.
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
                 </section>
 
