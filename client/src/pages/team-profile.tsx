@@ -18,7 +18,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ArrowLeft, MessageSquare, AlertCircle, AlertTriangle, BarChart2 } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { ArrowLeft, MessageSquare, AlertCircle, AlertTriangle, BarChart2, Pencil } from "lucide-react";
 import { RankingColorKey } from "@/components/ranking-color-key";
 import { useHelp } from "@/contexts/help-context";
 import { useAuth } from "@/hooks/use-auth";
@@ -535,6 +536,7 @@ export default function TeamProfile() {
 
   const perfOverviewRef = useRef<HTMLDivElement>(null);
   const [scoutNotesHeightPx, setScoutNotesHeightPx] = useState<number | null>(null);
+  const [expandedPitImage, setExpandedPitImage] = useState<{ src: string; alt: string } | null>(null);
 
   useEffect(() => {
     if (isDemo) return;
@@ -866,7 +868,23 @@ export default function TeamProfile() {
       <div className="w-full min-w-0">
         <Card className="w-full">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-bold">Pit Snapshot</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-lg font-bold">Pit Snapshot</CardTitle>
+              {!isDemo ? (
+                <Link href={`/events/${eventId}/pit-scout?teamId=${teamId}`}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground/50 hover:text-muted-foreground"
+                    data-testid="button-edit-pit-snapshot"
+                    aria-label="Edit pit scouting entry"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                </Link>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent>
             {pitLoading ? (
@@ -906,7 +924,10 @@ export default function TeamProfile() {
                     <div className="space-y-1 rounded-md border border-border bg-muted/20 p-3 text-sm">
                       <p><span className="font-medium">Can go under trench:</span> {yesNoLabel(pitEntry.fitsUnderTrench)}</p>
                       <p><span className="font-medium">Fuel capacity:</span> {pitFuelDisplay}</p>
-                      <p><span className="font-medium">Can climb and to what level:</span> {pitEntry.pitClimbNotes?.trim() || "—"}</p>
+                      <p className="whitespace-pre-wrap">
+                        <span className="font-medium">Can climb and to what level:</span>{" "}
+                        {pitEntry.pitClimbNotes?.trim() || "—"}
+                      </p>
                       <p><span className="font-medium">Robot weight:</span> {pitWeightDisplay}</p>
                       <p><span className="font-medium">REV motor controllers:</span> {pitRevControllerDisplay}</p>
                     </div>
@@ -915,10 +936,14 @@ export default function TeamProfile() {
                   <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Programming</p>
                     <div className="space-y-1 rounded-md border border-border bg-muted/20 p-3 text-sm">
+                      <p><span className="font-medium">Has auto:</span> {yesNoLabel(pitEntry.hasAuto)}</p>
                       <p><span className="font-medium">Uses PathPlanner:</span> {yesNoLabel(pitEntry.usesPathplanner)}</p>
                       <p><span className="font-medium">Has midfield fuel auto:</span> {yesNoLabel(pitEntry.hasMidfieldFuelAuto)}</p>
                       <p><span className="font-medium">New auton build time:</span> {pitNewAutonDisplay}</p>
-                      <p><span className="font-medium">Has auto:</span> {yesNoLabel(pitEntry.hasAuto)}</p>
+                      <p className="whitespace-pre-wrap">
+                        <span className="font-medium">Auto routine notes:</span>{" "}
+                        {pitEntry.autoDescription?.trim() || "—"}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -926,22 +951,42 @@ export default function TeamProfile() {
                 {(pitEntry.robotHeroImage || pitExtraImages.length > 0) && (
                   <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Photos</p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="space-y-3">
                       {pitEntry.robotHeroImage ? (
-                        <img
-                          src={pitEntry.robotHeroImage}
-                          alt="Pit hero"
-                          className="h-24 w-32 rounded-md border border-border object-cover"
-                        />
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedPitImage({ src: pitEntry.robotHeroImage!, alt: "Pit hero" })}
+                            className="w-full rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                            data-testid="button-expand-pit-hero"
+                          >
+                            <img
+                              src={pitEntry.robotHeroImage}
+                              alt="Pit hero"
+                              className="h-80 w-full cursor-zoom-in rounded-md border border-border object-cover md:h-[28rem]"
+                            />
+                          </button>
+                        </div>
                       ) : null}
-                      {pitExtraImages.map((img, idx) => (
-                        <img
-                          key={`${img}-${idx}`}
-                          src={img}
-                          alt={`Pit extra ${idx + 1}`}
-                          className="h-24 w-32 rounded-md border border-border object-cover"
-                        />
-                      ))}
+                      {pitExtraImages.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {pitExtraImages.map((img, idx) => (
+                            <button
+                              key={`${img}-${idx}`}
+                              type="button"
+                              onClick={() => setExpandedPitImage({ src: img, alt: `Pit extra ${idx + 1}` })}
+                              className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                              data-testid={`button-expand-pit-extra-${idx}`}
+                            >
+                              <img
+                                src={img}
+                                alt={`Pit extra ${idx + 1}`}
+                                className="h-24 w-32 cursor-zoom-in rounded-md border border-border object-cover"
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 )}
@@ -1087,6 +1132,19 @@ export default function TeamProfile() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!expandedPitImage} onOpenChange={(open) => !open && setExpandedPitImage(null)}>
+        <DialogContent className="max-h-[90vh] max-w-5xl border-border bg-zinc-950 p-2 sm:p-3">
+          <DialogTitle className="sr-only">{expandedPitImage?.alt ?? "Expanded pit image"}</DialogTitle>
+          {expandedPitImage ? (
+            <img
+              src={expandedPitImage.src}
+              alt={expandedPitImage.alt}
+              className="max-h-[82vh] w-full rounded-md object-contain"
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
 
     </div>

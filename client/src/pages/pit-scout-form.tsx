@@ -320,6 +320,12 @@ export default function PitScoutForm() {
   const { toast } = useToast();
   const { id: eventIdParam } = useParams<{ id: string }>();
   const eventId = parseInt(eventIdParam || "0", 10);
+  const preselectedTeamId = useMemo(() => {
+    if (typeof window === "undefined") return 0;
+    const raw = new URLSearchParams(window.location.search).get("teamId");
+    const parsed = raw ? parseInt(raw, 10) : 0;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  }, []);
 
   const { data: pitAccessMe } = useQuery<{ allowed: boolean }>({
     queryKey: ["/api/events", eventId, "pit-access", "me"],
@@ -363,6 +369,15 @@ export default function PitScoutForm() {
     queryKey: ["/api/events", eventId, "teams"],
     enabled: !!eventId,
   });
+
+  useEffect(() => {
+    if (!preselectedTeamId || !eventTeams?.length) return;
+    if (selectedTeamId > 0) return;
+    const existsOnRoster = eventTeams.some((et) => et.teamId === preselectedTeamId);
+    if (existsOnRoster) {
+      setSelectedTeamId(preselectedTeamId);
+    }
+  }, [eventTeams, preselectedTeamId, selectedTeamId]);
 
   const resolvedEventTeam = useMemo(() => {
     if (!selectedTeamId || !eventTeams?.length) return null;
