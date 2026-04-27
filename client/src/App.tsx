@@ -23,6 +23,7 @@ import Landing from "@/pages/landing";
 import AdminEvents from "@/pages/admin-events";
 import AdminEventDetail from "@/pages/admin-event-detail";
 import UserManagement from "@/pages/user-management";
+import AdminGlobalSettings from "@/pages/admin-global-settings";
 import TeamProfile from "@/pages/team-profile";
 import TeamCompare from "@/pages/team-compare";
 import TeamList from "@/pages/team-list";
@@ -267,6 +268,7 @@ function AppContent() {
             )}
           </Route>
           <Route path="/admin/users" component={UserManagement} />
+          <Route path="/admin/global-settings" component={AdminGlobalSettings} />
           <Route path="/events/:id/*?" component={EventLayout} />
           <Route component={NotFound} />
         </Switch>

@@ -51,6 +51,8 @@ export interface IStorage {
   getSeasons(): Promise<Season[]>;
   getSelectedSeasonYear(): Promise<number>;
   setSelectedSeasonYear(year: number): Promise<void>;
+  getGloballyVisibleEventIds(): Promise<number[] | null>;
+  setGloballyVisibleEventIds(ids: number[] | null): Promise<void>;
   /** Idempotent: seed default seasons + app_settings row on deploy. */
   ensureSeasonsAndAppSettings(): Promise<void>;
 
@@ -228,6 +230,16 @@ export class DatabaseStorage implements IStorage {
         await db.insert(seasons).values({ year });
       }
     }
+    // Safe deploy upgrade: older DBs may not yet have new app_settings columns.
+    // We add them idempotently so the app can boot without running migrations manually.
+    try {
+      await db.execute(sql`
+        ALTER TABLE "app_settings"
+        ADD COLUMN IF NOT EXISTS "globally_visible_event_ids" jsonb;
+      `);
+    } catch {
+      // Ignore if DB user lacks DDL perms; startup will error later with a clearer message.
+    }
     const settingsRows = await db.select().from(appSettings).where(eq(appSettings.id, 1));
     if (settingsRows.length === 0) {
       await db.insert(appSettings).values({ id: 1, selectedSeasonYear: 2026 });
@@ -249,8 +261,24 @@ export class DatabaseStorage implements IStorage {
     if (exists.length === 0) {
       throw new Error("Invalid season");
     }
-    await db.update(appSettings).set({ selectedSeasonYear: year }).where(eq(appSettings.id, 1));
+    await db
+      .update(appSettings)
+      .set({ selectedSeasonYear: year, globallyVisibleEventIds: null })
+      .where(eq(appSettings.id, 1));
     await db.update(events).set({ isActive: false });
+  }
+
+  async getGloballyVisibleEventIds(): Promise<number[] | null> {
+    const [row] = await db
+      .select({ globallyVisibleEventIds: appSettings.globallyVisibleEventIds })
+      .from(appSettings)
+      .where(eq(appSettings.id, 1));
+    if (!row) return null;
+    return row.globallyVisibleEventIds ?? null;
+  }
+
+  async setGloballyVisibleEventIds(ids: number[] | null): Promise<void> {
+    await db.update(appSettings).set({ globallyVisibleEventIds: ids }).where(eq(appSettings.id, 1));
   }
 
   async getEvents(): Promise<Event[]> {
@@ -420,6 +448,7 @@ export class DatabaseStorage implements IStorage {
         climbSuccess: scoutingEntries.climbSuccess,
         climbPosition: scoutingEntries.climbPosition,
         climbLevel: scoutingEntries.climbLevel,
+        died: scoutingEntries.died,
         playedDefense: scoutingEntries.playedDefense,
         defenseRating: scoutingEntries.defenseRating,
         defenseNotes: scoutingEntries.defenseNotes,

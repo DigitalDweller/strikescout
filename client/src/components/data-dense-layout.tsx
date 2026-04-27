@@ -20,22 +20,26 @@ export function StickyThreeColumnLayout({
 }: {
   left: ReactNode;
   center: ReactNode;
-  right: ReactNode;
+  right?: ReactNode;
   className?: string;
   centerClassName?: string;
   leftAsideClassName?: string;
   rightAsideClassName?: string;
 }) {
+  const hasRight = right != null;
   return (
     <div
       className={cn(
-        "grid w-full min-h-0 grid-cols-1 items-start gap-3 sm:gap-4 lg:grid-cols-[minmax(220px,0.95fr)_minmax(0,2.3fr)_minmax(220px,0.95fr)]",
+        "grid w-full min-h-0 grid-cols-1 items-start gap-3 sm:gap-4",
+        hasRight
+          ? "lg:grid-cols-[minmax(220px,0.95fr)_minmax(0,2.3fr)_minmax(220px,0.95fr)]"
+          : "lg:grid-cols-[minmax(220px,0.95fr)_minmax(0,2.3fr)]",
         className,
       )}
     >
       <aside className={cn(stickyAside, leftAsideClassName)}>{left}</aside>
       <div className={cn("min-w-0 flex flex-col", centerClassName)}>{center}</div>
-      <aside className={cn(stickyAside, rightAsideClassName)}>{right}</aside>
+      {hasRight ? <aside className={cn(stickyAside, rightAsideClassName)}>{right}</aside> : null}
     </div>
   );
 }

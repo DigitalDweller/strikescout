@@ -174,6 +174,8 @@ function TeamSearchCombobox({
     if (!next) setSearch("");
   };
 
+  const showingMatchTeams = matchNumber != null && matchTeamNumbers.size > 0;
+
   return (
     <Popover open={open} onOpenChange={handleOpenChange} modal={false}>
       <PopoverTrigger asChild>
@@ -230,7 +232,9 @@ function TeamSearchCombobox({
           requestAnimationFrame(() => filterInputRef.current?.focus());
         }}
         className={cn(
-          "z-[100] flex max-h-[min(60vh,280px)] flex-col overflow-hidden p-0 shadow-lg",
+          "z-[100] flex flex-col overflow-hidden p-0 shadow-lg",
+          // Match team picker: ensure all Red/Blue options fit without scrolling.
+          showingMatchTeams ? "max-h-[min(70vh,520px)]" : "max-h-[min(60vh,280px)]",
           prominent ? "border-white/10 bg-zinc-900/95 backdrop-blur-xl" : "bg-popover",
         )}
       >
@@ -837,6 +841,7 @@ type FormData = {
   climbSuccess: string;
   climbPosition: string;
   climbLevel: string;
+  died: boolean;
   playedDefense: boolean;
   defenseRating: number;
   defenseNotes: string;
@@ -864,6 +869,7 @@ function getEmptyForm(): FormData {
     climbSuccess: "none",
     climbPosition: "",
     climbLevel: "",
+    died: false,
     playedDefense: false,
     defenseRating: 0,
     defenseNotes: "",
@@ -1167,6 +1173,23 @@ function TeamFormColumn({
             testId={`driver-skill-${index}`}
             heatRange={driverSkillRange}
           />
+          <div
+            className={cn(
+              "flex min-h-[3.75rem] items-center justify-between gap-4 rounded-2xl border px-4 py-3.5 backdrop-blur-sm transition-colors duration-200",
+              form.died ? getScoutFieldShellClass(100, 0, 100) : FIELD_SHELL_FALLBACK,
+            )}
+          >
+            <Label htmlFor={`died-${index}`} className="text-base font-medium leading-snug text-zinc-100">
+              Died?
+            </Label>
+            <Switch
+              id={`died-${index}`}
+              checked={form.died}
+              onCheckedChange={(c) => onUpdateField("died", c)}
+              className="h-9 w-[3.75rem] shrink-0 border-0 data-[state=checked]:bg-emerald-600 data-[state=unchecked]:bg-zinc-700 [&>span]:h-7 [&>span]:w-7 [&>span]:data-[state=checked]:translate-x-[1.35rem]"
+              data-testid={`switch-died-${index}`}
+            />
+          </div>
         </div>
       </section>
 

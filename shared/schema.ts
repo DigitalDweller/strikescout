@@ -36,6 +36,11 @@ export const appSettings = pgTable("app_settings", {
   selectedSeasonYear: integer("selected_season_year")
     .notNull()
     .references(() => seasons.year),
+  /**
+   * When non-null, only these event IDs (within the selected season) appear for non-admin users.
+   * `null` means all season events are visible (default).
+   */
+  globallyVisibleEventIds: jsonb("globally_visible_event_ids").$type<number[] | null>(),
 });
 
 export const events = pgTable("events", {
@@ -187,6 +192,7 @@ export const scoutingEntries = pgTable("scouting_entries", {
   climbSuccess: text("climb_success").notNull().default("none"),
   climbPosition: text("climb_position"),
   climbLevel: text("climb_level"),
+  died: boolean("died").notNull().default(false),
 
   playedDefense: boolean("played_defense").notNull().default(false),
   defenseRating: integer("defense_rating").notNull().default(0),

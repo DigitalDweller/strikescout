@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { DELETE_EVENT_CODE } from "@/lib/delete-confirmation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  AlertTriangle,
   Zap,
   CalendarDays,
   ChevronDown,
@@ -278,6 +280,7 @@ const inputDark =
 
 export default function EventSettings() {
   const { id } = useParams<{ id: string }>();
+  const [, setRouteLocation] = useLocation();
   const eventId = parseInt(id || "0");
   const { toast } = useToast();
   const help = useHelp();
@@ -317,6 +320,7 @@ export default function EventSettings() {
   const [testingOverrideEventEnded, setTestingOverrideEventEnded] = useState(false);
   const [testingOverrideMatchNumber, setTestingOverrideMatchNumber] = useState<string>("");
   const [allianceSimFourPartnerSlots, setAllianceSimFourPartnerSlots] = useState(false);
+  const [deleteCode, setDeleteCode] = useState("");
 
   const { data: scouters } = useQuery<
     { id: number; displayName: string; entryCount: number; rep: number; eventsScouted: number; isPresent: boolean }[]
@@ -496,6 +500,20 @@ export default function EventSettings() {
     },
     onError: (err: Error) => {
       toast({ title: "Failed to save", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteEventMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", `/api/events/${eventId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      toast({ title: "Event deleted" });
+      setRouteLocation("/", { replace: true });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to delete event", description: err.message, variant: "destructive" });
     },
   });
 
@@ -1123,6 +1141,43 @@ export default function EventSettings() {
                         {saveEventMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Save event details
                       </Button>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4 border-t border-red-500/30 pt-8">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-red-400" />
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-red-300">Danger zone</h3>
+                    </div>
+                    <p className="text-sm text-zinc-500">
+                      Permanently delete this event and all its scouting data. This cannot be undone.
+                    </p>
+                    <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="delete-event-code" className="text-zinc-300">
+                          Enter delete code to confirm
+                        </Label>
+                        <Input
+                          id="delete-event-code"
+                          value={deleteCode}
+                          onChange={(e) => setDeleteCode(e.target.value)}
+                          placeholder="Confirmation code"
+                          className={cn(inputDark, "font-mono")}
+                          data-testid="input-delete-event-code"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div className="mt-4 flex justify-end">
+                        <Button
+                          variant="destructive"
+                          onClick={() => deleteEventMutation.mutate()}
+                          disabled={deleteEventMutation.isPending || deleteCode !== DELETE_EVENT_CODE}
+                          data-testid="button-delete-event"
+                        >
+                          {deleteEventMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Delete event permanently
+                        </Button>
+                      </div>
                     </div>
                   </section>
 

@@ -59,6 +59,8 @@ function maybeSuppressUpdates(method: string, url: string, data?: unknown, optio
     suppressEventsListUpdate();
   } else if (path === "api/selected-season" && method === "PATCH") {
     suppressEventsListUpdate();
+  } else if (path === "api/global-settings" && method === "PATCH") {
+    suppressEventsListUpdate();
   } else if (matchEventId) {
     const eventId = parseInt(matchEventId[1], 10);
     if (path.includes("alliance-sim")) {

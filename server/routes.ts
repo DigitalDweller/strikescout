@@ -166,6 +166,36 @@ export async function registerRoutes(
 
   app.use(demoApiGuard);
 
+  /** Non-admins may be restricted to a subset of season events (see app_settings.globally_visible_event_ids). */
+  async function assertEventGloballyVisibleToRequest(req: Request, eventId: number): Promise<boolean> {
+    if (!req.isAuthenticated()) return true;
+    if (req.user?.role === "admin") return true;
+    const allowed = await storage.getGloballyVisibleEventIds();
+    if (allowed === null) return true;
+    const set = new Set(allowed);
+    if (!set.has(eventId)) return false;
+    if (req.user?.role === "demo") {
+      return req.user.demoEventId === eventId;
+    }
+    return true;
+  }
+
+  app.use(async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.path.startsWith("/api/events/")) return next();
+      const rest = req.path.slice("/api/events/".length);
+      if (!rest) return next();
+      const firstSegment = rest.split("/")[0];
+      if (!/^\d+$/.test(firstSegment)) return next();
+      const eventId = parseInt(firstSegment, 10);
+      const ok = await assertEventGloballyVisibleToRequest(req, eventId);
+      if (!ok) return res.status(404).json({ message: "Event not found" });
+      next();
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // --- Public routes (registered BEFORE auth gate so they bypass it) ---
   app.post("/api/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: Express.User | false, info: { message: string } | undefined) => {
@@ -442,6 +472,35 @@ export async function registerRoutes(
     res.json({ selectedYear });
   });
 
+  app.get("/api/global-settings", requireAdmin, async (_req, res) => {
+    const globallyVisibleEventIds = await storage.getGloballyVisibleEventIds();
+    res.json({ globallyVisibleEventIds });
+  });
+
+  app.patch("/api/global-settings", requireAdmin, async (req, res) => {
+    const parsed = z
+      .object({
+        globallyVisibleEventIds: z.array(z.number().int()).nullable(),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const { globallyVisibleEventIds } = parsed.data;
+    if (globallyVisibleEventIds === null) {
+      await storage.setGloballyVisibleEventIds(null);
+    } else {
+      const seasonEvents = await storage.getEvents();
+      const valid = new Set(seasonEvents.map((e) => e.id));
+      for (const id of globallyVisibleEventIds) {
+        if (!valid.has(id)) {
+          return res.status(400).json({ message: `Event ${id} is not part of the current season workspace.` });
+        }
+      }
+      await storage.setGloballyVisibleEventIds([...new Set(globallyVisibleEventIds)]);
+    }
+    notifyEventsListUpdated();
+    res.json({ globallyVisibleEventIds: await storage.getGloballyVisibleEventIds() });
+  });
+
   app.patch("/api/selected-season", requireAdmin, async (req, res) => {
     const parsed = z.object({ year: z.number().int() }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
@@ -458,13 +517,19 @@ export async function registerRoutes(
 
   app.get("/api/events", async (req, res) => {
     const allEvents = await storage.getEvents();
+    if (req.isAuthenticated() && req.user?.role === "admin") {
+      return res.json(allEvents);
+    }
+    const allowed = await storage.getGloballyVisibleEventIds();
+    const gated =
+      allowed === null ? allEvents : allEvents.filter((e) => allowed.includes(e.id));
     if (req.isAuthenticated() && req.user?.role === "demo") {
       const demoId = req.user.demoEventId;
       if (demoId == null) return res.json([]);
-      const one = allEvents.find((e) => e.id === demoId);
+      const one = gated.find((e) => e.id === demoId);
       return res.json(one ? [one] : []);
     }
-    res.json(allEvents);
+    res.json(gated);
   });
 
   const createEventBodySchema = insertEventSchema.omit({ seasonYear: true });
@@ -526,9 +591,12 @@ export async function registerRoutes(
     res.json(updated!);
   });
 
-  app.get("/api/active-event", async (_req, res) => {
+  app.get("/api/active-event", async (req, res) => {
     const event = await storage.getActiveEvent();
-    res.json(event || null);
+    if (!event) return res.json(null);
+    const ok = await assertEventGloballyVisibleToRequest(req, event.id);
+    if (!ok) return res.json(null);
+    res.json(event);
   });
 
   app.get("/api/teams", async (_req, res) => {

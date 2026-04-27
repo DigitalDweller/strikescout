@@ -71,10 +71,12 @@ export function AppUpdatesProvider({ children }: AppUpdatesProviderProps) {
       } else if (data === "events") {
         queryClient.invalidateQueries({ queryKey: ["/api/events"] });
         queryClient.invalidateQueries({ queryKey: ["/api/active-event"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/global-settings"] });
       } else if (data === "season") {
         queryClient.invalidateQueries({ queryKey: ["/api/events"] });
         queryClient.invalidateQueries({ queryKey: ["/api/active-event"] });
         queryClient.invalidateQueries({ queryKey: ["/api/selected-season"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/global-settings"] });
         queryClient.invalidateQueries({ queryKey: ["/api/seasons"] });
         window.dispatchEvent(new Event("strikescout:season-changed"));
       }

@@ -287,7 +287,7 @@ export default function DataManagement() {
     const headers = [
       "Match", "Team Number", "Team Name",
       "Auto Balls Shot", "Auto Notes", "Auto Climb", "Auto Climb Position", "Auto Climb Level",
-      "Throughput", "Accuracy (0-10)", "Accuracy %", "Evaded defense %", "Move While Shoot",
+      "Throughput", "Accuracy (0-10)", "Accuracy %", "Evaded defense %", "Move While Shoot", "Died",
       "Climb Result", "Climb Position", "Climb Level",
       "Defense Rating (0-10)", "Defense %", "Defense Notes",
       "Driver Skill Notes", "Misc.", "Date"
@@ -311,6 +311,7 @@ export default function DataManagement() {
           toPct(e.teleopAccuracy ?? 0),
           e.evadedDefense != null ? toPct(e.evadedDefense) : "",
           e.teleopMoveWhileShoot ? "Yes" : "No",
+          e.died ? "Yes" : "No",
           e.climbSuccess || "",
           e.climbPosition || "",
           e.climbLevel || "",

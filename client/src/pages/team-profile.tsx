@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, MessageSquare, AlertCircle, AlertTriangle, BarChart2, Pencil } from "lucide-react";
-import { RankingColorKey } from "@/components/ranking-color-key";
 import { useHelp } from "@/contexts/help-context";
 import { useAuth } from "@/hooks/use-auth";
 import type { Event, Team, ScoutingEntry, EventTeam, PitScoutingEntry } from "@shared/schema";
@@ -198,12 +197,6 @@ function AggregateHeatmap({ entries, width = HEATMAP_W, height = HEATMAP_H }: { 
   );
 }
 
-function getOrdinal(n: number) {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
-}
-
 function truncateNote(s: string, max: number): string {
   const t = s.trim();
   if (t.length <= max) return t;
@@ -358,6 +351,11 @@ export default function TeamProfile() {
   const dispEvadedDefense = hasEntries && hasEvadedDefense ? `${avgEvadedDefense}%` : EMPTY;
   const dispDefense = hasEntries && hasDefense ? `${avgDefense}%` : EMPTY;
   const dispDriverSkill = hasEntries && hasDriverSkill ? `${avgDriverSkill}%` : EMPTY;
+  const reliability = hasEntries
+    ? Math.round((entries!.filter((e) => !e.died).length / entries!.length) * 100)
+    : 0;
+  const dispReliability = hasEntries ? `${reliability}%` : EMPTY;
+  const reliabilityHeat = hasEntries ? getHeatColor(reliability, 0, 100) : "";
   const dispClimbRate = hasEntries && hasClimbAttempted ? `${climbRate}%` : EMPTY;
   const dispClimbL1 = hasEntries && hasClimbAttempted ? `${climbL1Rate}%` : EMPTY;
   const dispClimbL2 = hasEntries && hasClimbAttempted ? `${climbL2Rate}%` : EMPTY;
@@ -506,7 +504,6 @@ export default function TeamProfile() {
     return {
       szr: szr > 0 ? getHeatColor(szr, 0, 100, szrSweepThreshold) : "",
       seed: tbaSeed != null && tbaRanges?.seed ? getSeedHeatColor(tbaSeed, tbaRanges.seed, eventTeam) : "",
-      opr: tbaOpr != null && tbaRanges?.opr ? getHeatColor(tbaOpr, tbaRanges.opr.min, tbaRanges.opr.max, tbaRanges.opr.sweep) : "",
       record: total > 0 ? getHeatColor(winRate, winRateMin, winRateMax || 1) : "",
     };
   }, [eventTeam, eventTeams, tbaOpr, tbaSeed, tbaRanges, szr, szrSweepThreshold]);
@@ -617,29 +614,13 @@ export default function TeamProfile() {
               )}
             </div>
           </div>
-          <RankingColorKey className="mt-0" />
         </div>
 
         <div className="flex flex-wrap items-end gap-2 sm:gap-3 mt-4" data-testid="tba-stats-bar">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className={`flex items-baseline gap-2 rounded-lg px-3 py-2 cursor-help ${tbaStatHeat.szr || "border border-border bg-card"}`} data-testid="szr-badge">
-                <span className={`text-[10px] font-medium uppercase tracking-wide ${tbaStatHeat.szr ? "opacity-80" : "text-muted-foreground"}`}>SZR</span>
-                <span className="text-4xl font-extrabold tabular-nums leading-none">{szr}</span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>Strike Zone Rating — scouting-derived team strength (0–100)</TooltipContent>
-          </Tooltip>
           {tbaSeed != null && (
             <div className={`flex items-baseline gap-2 rounded-lg px-3 py-2 ${tbaStatHeat.seed || "border border-border bg-card"}`}>
-              <span className={`text-[10px] font-medium uppercase tracking-wide ${tbaStatHeat.seed ? "opacity-80" : "text-muted-foreground"}`}>Seed</span>
-              <span className="text-2xl font-extrabold tabular-nums leading-none">#{tbaSeed}</span>
-            </div>
-          )}
-          {tbaOpr != null && (
-            <div className={`flex items-baseline gap-2 rounded-lg px-3 py-2 ${tbaStatHeat.opr || "border border-border bg-card"}`}>
-              <span className={`text-[10px] font-medium uppercase tracking-wide ${tbaStatHeat.opr ? "opacity-80" : "text-muted-foreground"}`}>OPR</span>
-              <span className="text-2xl font-extrabold tabular-nums leading-none">{tbaOpr.toFixed(1)}</span>
+              <span className={`text-[10px] font-medium uppercase tracking-wide ${tbaStatHeat.seed ? "opacity-80" : "text-muted-foreground"}`}>Rank</span>
+              <span className="text-3xl font-extrabold tabular-nums leading-none">#{tbaSeed}</span>
             </div>
           )}
           {tbaRecord && tbaRecord !== "0-0-0" && (
@@ -658,6 +639,28 @@ export default function TeamProfile() {
               <CardTitle className="text-base font-bold">Performance overview</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
+              <div className="grid grid-cols-1 gap-3 border-t border-border pt-4 mb-4 sm:grid-cols-3">
+                <div className="text-center">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">DR</p>
+                  <div className={`inline-flex flex-col items-center justify-center rounded-md px-3 py-2 min-w-[5rem] ${dispDriverSkill === EMPTY ? "bg-muted/30" : (heatColors.driverSkill || "bg-muted/30")}`}>
+                    <span className={`text-3xl font-extrabold tabular-nums leading-none ${dispDriverSkill === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-overview-dr">{dispDriverSkill}</span>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">SZR</p>
+                  <div className={`inline-flex flex-col items-center justify-center rounded-md px-3 py-2 min-w-[5rem] ${hasEntries ? (tbaStatHeat.szr || "bg-muted/30") : "bg-muted/30"}`}>
+                    <span className={`text-3xl font-extrabold tabular-nums leading-none ${hasEntries ? "" : "text-muted-foreground/40"}`} data-testid="text-overview-szr">
+                      {hasEntries ? szr : EMPTY}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Reliability</p>
+                  <div className={`inline-flex flex-col items-center justify-center rounded-md px-3 py-2 min-w-[5rem] ${dispReliability === EMPTY ? "bg-muted/30" : (reliabilityHeat || "bg-muted/30")}`}>
+                    <span className={`text-3xl font-extrabold tabular-nums leading-none ${dispReliability === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-overview-reliability">{dispReliability}</span>
+                  </div>
+                </div>
+              </div>
               <div className="grid grid-cols-1 gap-6 border-t border-border pt-4 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-border">
                 <div className="space-y-5 sm:px-3 sm:first:pl-0">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground text-center">Auto</p>
@@ -667,11 +670,6 @@ export default function TeamProfile() {
                       <div className={`inline-flex flex-col items-center justify-center rounded-md px-3 py-2 min-w-[5rem] ${dispAutoBalls === EMPTY ? "bg-muted/30" : (heatColors.auto || "bg-muted/30")}`}>
                         <span className={`text-5xl font-extrabold tabular-nums leading-none ${dispAutoBalls === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-avg-auto">{dispAutoBalls}</span>
                       </div>
-                      {rankings && (
-                        <span className="mt-1 block text-[10px] text-muted-foreground tabular-nums">
-                          {getOrdinal(rankings.autoRank)} of {rankings.total}
-                        </span>
-                      )}
                     </div>
                     {autoAccEntries.length > 0 && (
                       <div className="text-center border-t border-border pt-4">
@@ -679,11 +677,6 @@ export default function TeamProfile() {
                         <div className={`inline-flex flex-col items-center justify-center rounded-md px-3 py-2 min-w-[5rem] ${dispAutoAccuracy === EMPTY ? "bg-muted/30" : (heatColors.autoAccuracy || "bg-muted/30")}`}>
                           <span className={`text-4xl font-extrabold tabular-nums leading-none ${dispAutoAccuracy === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-avg-auto-accuracy">{dispAutoAccuracy}</span>
                         </div>
-                        {rankings && (
-                          <span className="mt-1 block text-[10px] text-muted-foreground tabular-nums">
-                            {getOrdinal(rankings.autoAccuracyRank)} of {rankings.total}
-                          </span>
-                        )}
                       </div>
                     )}
                     {hasAutoClimbAttempted && (
@@ -692,11 +685,6 @@ export default function TeamProfile() {
                         <div className={`inline-flex flex-col items-center justify-center rounded-md px-3 py-2 min-w-[5rem] ${dispAutoClimbRate === EMPTY ? "bg-muted/30" : (autoClimbHeatClass || "bg-muted/30")}`}>
                           <span className={`text-3xl font-extrabold tabular-nums leading-none ${dispAutoClimbRate === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-auto-climb-rate">{dispAutoClimbRate}</span>
                         </div>
-                        {rankings && (
-                          <span className="mt-1 block text-[10px] text-muted-foreground tabular-nums">
-                            {getOrdinal(rankings.autoClimbRank)} of {rankings.total}
-                          </span>
-                        )}
                       </div>
                     )}
                   </div>
@@ -710,22 +698,12 @@ export default function TeamProfile() {
                       <div className={`inline-flex flex-col items-center justify-center rounded-md px-2 py-2 min-w-[4.5rem] ${dispThroughput === EMPTY ? "bg-muted/30" : (heatColors.throughput || "bg-muted/30")}`}>
                         <span className={`text-4xl font-extrabold tabular-nums leading-none ${dispThroughput === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-avg-throughput">{dispThroughput}</span>
                       </div>
-                      {rankings && (
-                        <span className="mt-1 block text-[10px] text-muted-foreground tabular-nums">
-                          {getOrdinal(rankings.throughputRank)} of {rankings.total}
-                        </span>
-                      )}
                     </div>
                     <div className="text-center">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Accuracy</p>
                       <div className={`inline-flex flex-col items-center justify-center rounded-md px-2 py-2 min-w-[4.5rem] ${dispAccuracy === EMPTY ? "bg-muted/30" : (heatColors.accuracy || "bg-muted/30")}`}>
                         <span className={`text-4xl font-extrabold tabular-nums leading-none ${dispAccuracy === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-avg-accuracy">{dispAccuracy}</span>
                       </div>
-                      {rankings && (
-                        <span className="mt-1 block text-[10px] text-muted-foreground tabular-nums">
-                          {getOrdinal(rankings.accuracyRank)} of {rankings.total}
-                        </span>
-                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
@@ -734,22 +712,12 @@ export default function TeamProfile() {
                       <div className={`inline-flex flex-col items-center justify-center rounded-md px-2 py-2 min-w-[4.5rem] ${dispDefense === EMPTY ? "bg-muted/30" : (heatColors.defense || "bg-muted/30")}`}>
                         <span className={`text-3xl font-extrabold tabular-nums leading-none ${dispDefense === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-avg-played-defence">{dispDefense}</span>
                       </div>
-                      {rankings && (
-                        <span className="mt-1 block text-[10px] text-muted-foreground tabular-nums">
-                          {getOrdinal(rankings.defenseRank)} of {rankings.total}
-                        </span>
-                      )}
                     </div>
                     <div className="text-center">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Evaded defense</p>
                       <div className={`inline-flex flex-col items-center justify-center rounded-md px-2 py-2 min-w-[4.5rem] ${dispEvadedDefense === EMPTY ? "bg-muted/30" : (heatColors.evadedDefense || "bg-muted/30")}`}>
                         <span className={`text-3xl font-extrabold tabular-nums leading-none ${dispEvadedDefense === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-avg-evaded-defense">{dispEvadedDefense}</span>
                       </div>
-                      {rankings && (
-                        <span className="mt-1 block text-[10px] text-muted-foreground tabular-nums">
-                          {getOrdinal(rankings.evadedDefenseRank)} of {rankings.total}
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -762,22 +730,12 @@ export default function TeamProfile() {
                       <div className={`inline-flex flex-col items-center justify-center rounded-md px-3 py-2 min-w-[5rem] ${dispClimbRate === EMPTY ? "bg-muted/30" : (heatColors.climb || "bg-muted/30")}`}>
                         <span className={`text-5xl font-extrabold tabular-nums leading-none ${dispClimbRate === EMPTY ? "text-muted-foreground/40" : ""}`} data-testid="text-climb-rate">{dispClimbRate}</span>
                       </div>
-                      {rankings && (
-                        <span className="mt-1 block text-[10px] text-muted-foreground tabular-nums">
-                          {getOrdinal(rankings.climbRank)} of {rankings.total}
-                        </span>
-                      )}
                     </div>
                     <div className="text-center border-t border-border pt-4">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">L3 rate</p>
                       <div className={`inline-flex flex-col items-center justify-center rounded-md px-2 py-1.5 min-w-[4rem] ${dispClimbL3 === EMPTY ? "bg-muted/30" : (heatColors.climbL3 || "bg-muted/30")}`}>
                         <span className={`text-2xl font-extrabold tabular-nums leading-none ${dispClimbL3 === EMPTY ? "text-muted-foreground/40" : ""}`}>{dispClimbL3}</span>
                       </div>
-                      {rankings && (
-                        <span className="mt-0.5 block text-[10px] text-muted-foreground tabular-nums">
-                          {getOrdinal(rankings.climbL3Rank)} of {rankings.total}
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>

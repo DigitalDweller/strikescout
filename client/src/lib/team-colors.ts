@@ -12,6 +12,7 @@ export type TeamStats = {
   climbL1Rate: number;
   climbL2Rate: number;
   climbL3Rate: number;
+  reliability: number;
   entries: number;
   /** True if team has at least one scouting entry where playedDefense was true. */
   hasDefense: boolean;
@@ -378,7 +379,7 @@ export function computeTeamStats(teams: Team[], entries: ScoutingEntry[]): Map<n
     const teamEntries = entries.filter(e => e.teamId === team.id);
     const count = teamEntries.length;
     if (count === 0) {
-      map.set(team.id, { avgAuto: 0, avgAutoAccuracy: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, avgEvadedDefense: 0, avgDriverSkill: 0, climbRate: 0, climbL1Rate: 0, climbL2Rate: 0, climbL3Rate: 0, entries: 0, hasDefense: false, hasEvadedDefense: false, hasClimbAttempted: false });
+      map.set(team.id, { avgAuto: 0, avgAutoAccuracy: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, avgEvadedDefense: 0, avgDriverSkill: 0, climbRate: 0, climbL1Rate: 0, climbL2Rate: 0, climbL3Rate: 0, reliability: 0, entries: 0, hasDefense: false, hasEvadedDefense: false, hasClimbAttempted: false });
     } else {
       const accSum = teamEntries.reduce((s, e) => s + toPct(e.teleopAccuracy ?? 0), 0);
       const defenseEntries = teamEntries.filter(e => e.playedDefense);
@@ -401,6 +402,7 @@ export function computeTeamStats(teams: Team[], entries: ScoutingEntry[]): Map<n
       const l1Count = climbSuccess.filter(e => e.climbLevel === "1").length;
       const l2Count = climbSuccess.filter(e => e.climbLevel === "2").length;
       const l3Count = climbSuccess.filter(e => e.climbLevel === "3").length;
+      const survivedCount = teamEntries.filter((e) => !e.died).length;
       map.set(team.id, {
         avgAuto: teamEntries.reduce((s, e) => s + e.autoBallsShot, 0) / count,
         avgAutoAccuracy: avgAutoAcc,
@@ -413,6 +415,7 @@ export function computeTeamStats(teams: Team[], entries: ScoutingEntry[]): Map<n
         climbL1Rate: l1Count / count * 100,
         climbL2Rate: l2Count / count * 100,
         climbL3Rate: l3Count / count * 100,
+        reliability: survivedCount / count * 100,
         entries: count,
         hasDefense,
         hasEvadedDefense,
@@ -431,7 +434,7 @@ export function computeScouterStats(entries: ScoutingEntry[]): Map<number, TeamS
     const scouterEntries = entries.filter((e) => e.scouterId === scouterId);
     const count = scouterEntries.length;
     if (count === 0) {
-      map.set(scouterId, { avgAuto: 0, avgAutoAccuracy: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, avgEvadedDefense: 0, avgDriverSkill: 0, climbRate: 0, climbL1Rate: 0, climbL2Rate: 0, climbL3Rate: 0, entries: 0, hasDefense: false, hasEvadedDefense: false, hasClimbAttempted: false });
+      map.set(scouterId, { avgAuto: 0, avgAutoAccuracy: 0, avgThroughput: 0, avgAccuracy: 0, avgDefense: 0, avgEvadedDefense: 0, avgDriverSkill: 0, climbRate: 0, climbL1Rate: 0, climbL2Rate: 0, climbL3Rate: 0, reliability: 0, entries: 0, hasDefense: false, hasEvadedDefense: false, hasClimbAttempted: false });
     } else {
       const accSum = scouterEntries.reduce((s, e) => s + toPct(e.teleopAccuracy ?? 0), 0);
       const defenseEntries = scouterEntries.filter((e) => e.playedDefense);
@@ -454,6 +457,7 @@ export function computeScouterStats(entries: ScoutingEntry[]): Map<number, TeamS
       const l1Count = climbSuccess.filter((e) => e.climbLevel === "1").length;
       const l2Count = climbSuccess.filter((e) => e.climbLevel === "2").length;
       const l3Count = climbSuccess.filter((e) => e.climbLevel === "3").length;
+      const survivedCount = scouterEntries.filter((e) => !e.died).length;
       map.set(scouterId, {
         avgAuto: scouterEntries.reduce((s, e) => s + e.autoBallsShot, 0) / count,
         avgAutoAccuracy: avgAutoAcc,
@@ -466,6 +470,7 @@ export function computeScouterStats(entries: ScoutingEntry[]): Map<number, TeamS
         climbL1Rate: l1Count / count * 100,
         climbL2Rate: l2Count / count * 100,
         climbL3Rate: l3Count / count * 100,
+        reliability: survivedCount / count * 100,
         entries: count,
         hasDefense,
         hasEvadedDefense,
